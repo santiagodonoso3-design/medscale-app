@@ -1,4 +1,9 @@
-import { createServiceClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
+
+const supabasePublic = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 function jsonResponse(payload: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -13,31 +18,33 @@ export async function POST(request: Request) {
 
     const {
       org_slug,
+      modality,
       doctor_id,
-      location_id,
+      date,
+      time,
       patient_name,
       phone,
       email,
-      notes,
-      scheduled_at,
-      duration_minutes,
+      cedula,
+      custom_fields,
     } = body as {
       org_slug?: string
-      doctor_id?: string
-      location_id?: string
+      modality?: 'presencial' | 'virtual'
+      doctor_id?: string | null
+      date?: string
+      time?: string
       patient_name?: string
       phone?: string
       email?: string
-      notes?: string
-      scheduled_at?: string
-      duration_minutes?: number
+      cedula?: string
+      custom_fields?: Record<string, string>
     }
 
-    if (!org_slug || !doctor_id || !location_id || !patient_name || !phone || !scheduled_at) {
+    if (!org_slug || !date || !time || !patient_name || !phone) {
       return jsonResponse({ success: false, error: 'Faltan campos requeridos' }, 400)
     }
 
-    const supabase = await createServiceClient()
+    const supabase = supabasePublic
 
     const { data: org, error: orgError } = await supabase
       .from('organizations')
@@ -49,6 +56,40 @@ export async function POST(request: Request) {
       return jsonResponse({ success: false, error: 'Organización no encontrada' }, 404)
     }
 
+    // Handle round-robin if no doctor selected
+    let selectedDoctorId = doctor_id
+    if (!selectedDoctorId) {
+      // Simple round-robin: select first available doctor
+      const { data: availableDoctors } = await supabase
+        .from('doctors')
+        .select('id')
+        .eq('organization_id', org.id)
+        .eq('is_active', true)
+        .limit(1)
+
+      if (availableDoctors && availableDoctors.length > 0) {
+        selectedDoctorId = availableDoctors[0].id
+      } else {
+        return jsonResponse({ success: false, error: 'No hay médicos disponibles' }, 400)
+      }
+    }
+
+    // Get location (assume first one for now, or based on modality)
+    const { data: locations } = await supabase
+      .from('locations')
+      .select('id')
+      .eq('organization_id', org.id)
+      .limit(1)
+
+    if (!locations || locations.length === 0) {
+      return jsonResponse({ success: false, error: 'No hay sedes disponibles' }, 400)
+    }
+
+    const locationId = locations[0].id
+
+    // Create lead
+    const leadNotes = custom_fields ? `Cédula: ${cedula}\n${Object.entries(custom_fields).map(([k, v]) => `${k}: ${v}`).join('\n')}` : `Cédula: ${cedula}`
+
     const { data: lead, error: leadError } = await supabase
       .from('leads')
       .insert({
@@ -57,7 +98,7 @@ export async function POST(request: Request) {
         contact_phone: phone,
         contact_email: email || null,
         source: 'book',
-        notes: notes || null,
+        notes: leadNotes,
         status: 'new',
       })
       .select('id')
@@ -67,21 +108,23 @@ export async function POST(request: Request) {
       return jsonResponse({ success: false, error: leadError?.message || 'Error creando lead' }, 500)
     }
 
-    const startDate = new Date(scheduled_at)
-    const duration = duration_minutes || 30
-    const endDate = new Date(startDate.getTime() + duration * 60000)
+    // Create appointment
+    const scheduledAt = new Date(`${date}T${time}:00.000Z`)
+    const duration = 30 // Default 30 minutes
+    const endDate = new Date(scheduledAt.getTime() + duration * 60000)
 
     const { data: appointment, error: appointmentError } = await supabase
       .from('appointments')
       .insert({
         organization_id: org.id,
-        doctor_id,
-        location_id,
+        doctor_id: selectedDoctorId,
+        location_id: locationId,
         lead_id: lead.id,
-        scheduled_at: startDate.toISOString(),
+        scheduled_at: scheduledAt.toISOString(),
         ends_at: endDate.toISOString(),
         status: 'scheduled',
-        notes: notes || null,
+        notes: modality === 'virtual' ? 'Consulta virtual' : 'Consulta presencial',
+        external_calendar_id: null,
       })
       .select('id')
       .single()

@@ -10,11 +10,15 @@
   - `/scheduling/doctors` - configuración de médicos
   - `/scheduling/availability` - horarios y consultorios
   - `/scheduling/calendar` - panel de citas
+- ✅ Deploy en Vercel resuelto y funcionando
+- ✅ Login en producción funcionando (`medscaleai@gmail.com`)
+- ✅ Panel superadmin en `/admin` accesible en producción
+- ✅ Variables de entorno correctas en Vercel
+- ✅ Supabase URL Configuration apuntando a producción
+- ✅ `/book/[org-slug]` — wizard público de agendamiento implementado
 
 ## 🚧 Pendiente para MVP
-- Deploy en Vercel
-- Probar flujo completo con cliente beta
-- Link público de agendamiento `/book/[org-slug]`
+- [ ] Probar flujo completo: webhook n8n → lead en CRM → cita agendada
 
 ## 🚧 Pendiente Fase 2
 - Módulo de conversaciones (WA/IG/FB)
@@ -101,3 +105,15 @@ organizations (multi-tenant)
 - [ ] WhatsApp integration
 - [ ] Automaciones de CRM
 - [ ] SLA y reportes avanzados
+
+### Integraciones (Fase 2 - post primer cliente pagando)
+- [ ] Panel de integraciones en /settings/integrations
+- [ ] Google Calendar sync (appointments ↔ gcal)
+- [ ] Otros calendarios (Outlook, Apple Calendar)
+- [ ] La tabla appointments ya tiene campo external_calendar_id 
+      preparado para esto
+
+### Nota técnica
+- El agendamiento /book/[org-slug] guarda citas en Supabase
+- external_calendar_id queda null hasta que se active la integración
+- Round-robin de médicos implementado desde el inicio

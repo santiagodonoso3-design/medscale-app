@@ -1,18 +1,35 @@
-import { createServiceClient } from '@/lib/supabase/server'
-import BookingClient from '@/components/book/booking-client'
+import { createClient } from '@supabase/supabase-js'
+import BookingWizard from '@/components/book/booking-wizard'
+
+// Cliente admin directo — NO importar de lib/supabase/server
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+)
 
 interface BookPageProps {
-  params: { orgSlug: string }
+  params: { 'org-slug': string }
 }
 
 export default async function BookPage({ params }: BookPageProps) {
-  const supabase = await createServiceClient()
+  const supabase = supabaseAdmin
+  const slug = params['org-slug']
 
   const { data: organization, error: orgError } = await supabase
     .from('organizations')
     .select('id, name')
-    .eq('slug', params.orgSlug)
+    .eq('slug', slug)
     .single()
+
+  console.log('Buscando org con slug:', slug)
+  console.log('Resultado:', JSON.stringify(organization))
+  console.log('Error:', JSON.stringify(orgError))
 
   if (orgError || !organization) {
     return (
@@ -22,7 +39,7 @@ export default async function BookPage({ params }: BookPageProps) {
     )
   }
 
-  const [{ data: doctors }, { data: locations }, { data: schedules }] = await Promise.all([
+  const [{ data: doctors }, { data: locations }, { data: schedules }, { data: formFields }] = await Promise.all([
     supabase
       .from('doctors')
       .select('id, specialty, is_active, metadata')
@@ -31,19 +48,26 @@ export default async function BookPage({ params }: BookPageProps) {
     supabase.from('locations').select('id, name').eq('organization_id', organization.id),
     supabase
       .from('schedules')
-      .select('id, doctor_id, location_id, day_of_week, start_time, end_time')
+      .select('id, doctor_id, location_id, room_id, day_of_week, start_time, end_time')
       .eq('organization_id', organization.id)
       .eq('active', true),
+    supabase
+      .from('appointment_form_fields')
+      .select('field_name, field_type, required, order')
+      .eq('organization_id', organization.id)
+      .order('order', { ascending: true }),
   ])
 
   return (
     <div className="min-h-screen bg-slate-100 p-6">
-      <BookingClient
+      <BookingWizard
         orgName={organization.name}
-        orgSlug={params.orgSlug}
+        orgSlug={slug}
+        orgId={organization.id}
         doctors={doctors || []}
         locations={locations || []}
         schedules={schedules || []}
+        formFields={formFields || []}
       />
     </div>
   )
