@@ -131,6 +131,10 @@ organizations (multi-tenant)
 ### Integraciones (Fase 2 - post primer cliente pagando)
 - [ ] Panel de integraciones en /settings/integrations
 - [ ] Google Calendar sync (appointments ↔ gcal)
+- [ ] Integración Google Calendar por médico (Fase 2)
+      Cada médico conecta su propio Google Calendar desde
+      su perfil en /settings/doctors/[id]/calendar
+      — OAuth por médico, no por organización
 - [ ] Otros calendarios (Outlook, Apple Calendar)
 - [ ] La tabla appointments ya tiene campo external_calendar_id 
       preparado para esto

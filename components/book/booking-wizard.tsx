@@ -1,11 +1,23 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { CalendarDays, Clock3, UserPlus, CheckCircle, ArrowLeft, ArrowRight } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  CalendarDays,
+  CheckCircle,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Clock3,
+  UserPlus,
+} from 'lucide-react'
+import { getBookedSlots } from '@/app/actions/booking'
 
 interface DoctorMetadata {
   name?: string | null
   default_duration?: number | null
+  duration?: number | null
   [key: string]: unknown
 }
 
@@ -48,9 +60,340 @@ interface BookingWizardProps {
   formFields: FormField[]
 }
 
-const weekdays = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+// ── Calendar utilities ────────────────────────────────────────────────────────
 
-export default function BookingWizard({ orgName, orgSlug, orgId, doctors, locations, schedules, formFields }: BookingWizardProps) {
+const DAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+const MONTH_NAMES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
+
+function todayBogota(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
+}
+
+// JS getDay(): 0=Sun..6=Sat → Supabase day_of_week: 1=Mon..7=Sun
+function toSupabaseDay(jsDay: number): number {
+  return jsDay === 0 ? 7 : jsDay
+}
+
+function generateSlots(startTime: string, endTime: string, durationMin: number): string[] {
+  const [sh, sm] = startTime.split(':').map(Number)
+  const [eh, em] = endTime.split(':').map(Number)
+  const start = sh * 60 + sm
+  const end = eh * 60 + em
+  const slots: string[] = []
+  for (let t = start; t + durationMin <= end; t += durationMin) {
+    slots.push(
+      `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`
+    )
+  }
+  return slots
+}
+
+// Monday-first grid: returns YYYY-MM-DD strings (null for empty leading/trailing cells)
+function buildCalendarGrid(year: number, month: number): (string | null)[] {
+  const firstDay = new Date(year, month, 1)
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const rawDow = firstDay.getDay() // 0=Sun
+  const leadingEmpties = rawDow === 0 ? 6 : rawDow - 1
+
+  const grid: (string | null)[] = Array(leadingEmpties).fill(null)
+  for (let d = 1; d <= daysInMonth; d++) {
+    grid.push(
+      `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    )
+  }
+  while (grid.length % 7 !== 0) grid.push(null)
+  return grid
+}
+
+// ── CalendarPicker ────────────────────────────────────────────────────────────
+
+interface CalendarPickerProps {
+  orgName: string
+  selectedDoctor: DoctorOption | null
+  effectiveSchedules: ScheduleOption[]
+  selectedDate: string
+  selectedTime: string
+  onSelect: (date: string, time: string) => void
+  doctorId: string
+}
+
+function CalendarPicker({
+  orgName,
+  selectedDoctor,
+  effectiveSchedules,
+  selectedDate,
+  selectedTime,
+  onSelect,
+  doctorId,
+}: CalendarPickerProps) {
+  const today = todayBogota()
+  const todayYear = Number(today.slice(0, 4))
+  const todayMonth = Number(today.slice(5, 7)) - 1
+
+  const [viewYear, setViewYear] = useState(todayYear)
+  const [viewMonth, setViewMonth] = useState(todayMonth)
+  const [bookedSlots, setBookedSlots] = useState<string[]>([])
+  const [slotsLoading, setSlotsLoading] = useState(false)
+
+  const duration = Number(
+    selectedDoctor?.metadata?.duration ||
+    selectedDoctor?.metadata?.default_duration ||
+    60
+  )
+
+  const doctorName = selectedDoctor
+    ? String(selectedDoctor.metadata?.name ?? 'Médico')
+    : 'Sin preferencia'
+
+  useEffect(() => {
+    if (!doctorId) {
+      setBookedSlots([])
+      return
+    }
+    setSlotsLoading(true)
+    getBookedSlots(doctorId, viewYear, viewMonth)
+      .then(setBookedSlots)
+      .catch(() => setBookedSlots([]))
+      .finally(() => setSlotsLoading(false))
+  }, [doctorId, viewYear, viewMonth])
+
+  function prevMonth() {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1) }
+    else setViewMonth((m) => m - 1)
+  }
+  function nextMonth() {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear((y) => y + 1) }
+    else setViewMonth((m) => m + 1)
+  }
+
+  const calendarGrid = useMemo(
+    () => buildCalendarGrid(viewYear, viewMonth),
+    [viewYear, viewMonth]
+  )
+
+  const availableSupabaseDays = useMemo(() => {
+    const set = new Set<number>()
+    effectiveSchedules.forEach((s) => set.add(s.day_of_week))
+    return set
+  }, [effectiveSchedules])
+
+  function isDayAvailable(dateStr: string): boolean {
+    const d = new Date(dateStr + 'T12:00:00')
+    return availableSupabaseDays.has(toSupabaseDay(d.getDay()))
+  }
+
+  const slotsForDate = useMemo(() => {
+    if (!selectedDate) return []
+    const d = new Date(selectedDate + 'T12:00:00')
+    const supabaseDay = toSupabaseDay(d.getDay())
+    const matching = effectiveSchedules.filter((s) => s.day_of_week === supabaseDay)
+    const all = new Set<string>()
+    matching.forEach((s) =>
+      generateSlots(s.start_time, s.end_time, duration).forEach((slot) => all.add(slot))
+    )
+    return Array.from(all).sort()
+  }, [selectedDate, effectiveSchedules, duration])
+
+  function isSlotBooked(time: string): boolean {
+    if (!selectedDate || !doctorId) return false
+    const prefix = `${selectedDate}T${time}:`
+    return bookedSlots.some((iso) => iso.startsWith(prefix))
+  }
+
+  const isPrevDisabled = viewYear === todayYear && viewMonth === todayMonth
+
+  return (
+    <div className="flex gap-0 h-full">
+      {/* Left info panel */}
+      <div className="w-52 flex-shrink-0 border-r border-gray-100 pr-6 flex flex-col gap-5">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">
+            Organización
+          </p>
+          <p className="font-semibold text-gray-900 text-sm">{orgName}</p>
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">
+            Médico
+          </p>
+          <p className="font-medium text-gray-800 text-sm leading-snug">{doctorName}</p>
+          {selectedDoctor?.specialty && (
+            <p className="text-xs text-gray-500 mt-0.5">{selectedDoctor.specialty}</p>
+          )}
+          {!selectedDoctor && (
+            <p className="text-xs text-gray-400 mt-0.5">Asignación automática</p>
+          )}
+        </div>
+
+        <div className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 rounded-full px-3 py-1.5 text-xs font-semibold w-fit">
+          <Clock className="w-3 h-3" />
+          {duration} min
+        </div>
+
+        {selectedDate && selectedTime && (
+          <div className="bg-gray-50 rounded-xl p-3 mt-auto">
+            <p className="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">
+              Seleccionado
+            </p>
+            <p className="text-xs text-gray-600">
+              {new Intl.DateTimeFormat('es-CO', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'short',
+                timeZone: 'America/Bogota',
+              }).format(new Date(selectedDate + 'T12:00:00'))}
+            </p>
+            <p className="text-sm font-bold text-gray-900 mt-0.5">{selectedTime}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Right: calendar + slots */}
+      <div className="flex-1 pl-6 flex gap-6 min-w-0">
+        {/* Monthly calendar */}
+        <div className="flex-shrink-0">
+          {/* Month nav */}
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={prevMonth}
+              disabled={isPrevDisabled}
+              className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+            >
+              <ChevronLeft className="w-4 h-4 text-gray-600" />
+            </button>
+            <span className="text-sm font-semibold text-gray-900 w-36 text-center">
+              {MONTH_NAMES[viewMonth]} {viewYear}
+            </span>
+            <button
+              onClick={nextMonth}
+              className="p-1.5 rounded-lg hover:bg-gray-100 transition"
+            >
+              <ChevronRight className="w-4 h-4 text-gray-600" />
+            </button>
+          </div>
+
+          {/* Day headers */}
+          <div className="grid grid-cols-7 mb-1">
+            {DAY_LABELS.map((label) => (
+              <div
+                key={label}
+                className="w-9 text-center text-xs font-medium text-gray-400 py-1"
+              >
+                {label}
+              </div>
+            ))}
+          </div>
+
+          {/* Day grid */}
+          <div className="grid grid-cols-7 gap-y-1">
+            {calendarGrid.map((dateStr, i) => {
+              if (!dateStr) return <div key={i} className="w-9 h-9" />
+
+              const isToday = dateStr === today
+              const isPast = dateStr < today
+              const hasSlots = isDayAvailable(dateStr)
+              const isSelected = dateStr === selectedDate
+              const isDisabled = isPast || !hasSlots
+
+              return (
+                <button
+                  key={dateStr}
+                  onClick={() => !isDisabled && onSelect(dateStr, '')}
+                  disabled={isDisabled}
+                  className={[
+                    'w-9 h-9 rounded-full text-sm font-medium transition flex items-center justify-center',
+                    isSelected
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : isToday && !isDisabled
+                      ? 'border-2 border-blue-500 text-blue-700 hover:bg-blue-50'
+                      : isDisabled
+                      ? 'text-gray-300 cursor-not-allowed'
+                      : 'text-gray-700 hover:bg-blue-50 hover:text-blue-700',
+                  ].join(' ')}
+                >
+                  {Number(dateStr.slice(8))}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Time slots */}
+        <div className="flex-1 min-w-0">
+          {!selectedDate ? (
+            <div className="h-full flex items-center justify-center">
+              <p className="text-sm text-gray-400 text-center px-4">
+                Selecciona una fecha para ver horarios disponibles
+              </p>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm font-semibold text-gray-700 mb-3 capitalize">
+                {new Intl.DateTimeFormat('es-CO', {
+                  weekday: 'long',
+                  day: 'numeric',
+                  month: 'long',
+                  timeZone: 'America/Bogota',
+                }).format(new Date(selectedDate + 'T12:00:00'))}
+              </p>
+
+              {slotsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-gray-400 py-4">
+                  <div className="w-4 h-4 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin" />
+                  Cargando horarios...
+                </div>
+              ) : slotsForDate.length === 0 ? (
+                <p className="text-sm text-gray-400 py-4">
+                  No hay horarios disponibles para este día.
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
+                  {slotsForDate.map((time) => {
+                    const booked = isSlotBooked(time)
+                    const isSelected = time === selectedTime
+                    return (
+                      <button
+                        key={time}
+                        onClick={() => !booked && onSelect(selectedDate, time)}
+                        disabled={booked}
+                        className={[
+                          'py-2.5 px-3 rounded-xl text-sm font-medium text-center transition border',
+                          isSelected
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                            : booked
+                            ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-blue-400 hover:text-blue-700 hover:bg-blue-50',
+                        ].join(' ')}
+                      >
+                        {time}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── BookingWizard ─────────────────────────────────────────────────────────────
+
+export default function BookingWizard({
+  orgName,
+  orgSlug,
+  orgId,
+  doctors,
+  locations,
+  schedules,
+  formFields,
+}: BookingWizardProps) {
   const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormData] = useState({
     modality: 'presencial' as 'presencial' | 'virtual',
@@ -67,17 +410,21 @@ export default function BookingWizard({ orgName, orgSlug, orgId, doctors, locati
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  const availableDoctors = doctors.filter((doctor) => doctor.is_active)
+  const availableDoctors = doctors.filter((d) => d.is_active)
 
   const selectedDoctor = useMemo(
-    () => availableDoctors.find((doctor) => doctor.id === formData.doctor_id) || null,
+    () => availableDoctors.find((d) => d.id === formData.doctor_id) ?? null,
     [availableDoctors, formData.doctor_id]
   )
 
-  const availableSchedules = useMemo(() => {
-    if (!selectedDoctor) return []
-    return schedules.filter((schedule) => schedule.doctor_id === selectedDoctor.id)
-  }, [schedules, selectedDoctor])
+  // Schedules for the calendar: specific doctor or all active doctors
+  const effectiveSchedules = useMemo(
+    () =>
+      formData.doctor_id
+        ? schedules.filter((s) => s.doctor_id === formData.doctor_id)
+        : schedules,
+    [schedules, formData.doctor_id]
+  )
 
   const handleNext = () => {
     if (currentStep < 5) setCurrentStep(currentStep + 1)
@@ -95,7 +442,7 @@ export default function BookingWizard({ orgName, orgSlug, orgId, doctors, locati
       const payload = {
         org_slug: orgSlug,
         modality: formData.modality,
-        doctor_id: formData.doctor_id || null, // null for round-robin
+        doctor_id: formData.doctor_id || null,
         date: formData.date,
         time: formData.time,
         patient_name: formData.patient_name,
@@ -129,12 +476,18 @@ export default function BookingWizard({ orgName, orgSlug, orgId, doctors, locati
     <div className="flex items-center justify-center space-x-4 mb-8">
       {[1, 2, 3, 4].map((step) => (
         <div key={step} className="flex items-center">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
-            step <= currentStep ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-          }`}>
+          <div
+            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
+              step <= currentStep ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
+            }`}
+          >
             {step}
           </div>
-          {step < 4 && <div className={`w-12 h-0.5 ${step < currentStep ? 'bg-blue-600' : 'bg-gray-200'}`} />}
+          {step < 4 && (
+            <div
+              className={`w-12 h-0.5 ${step < currentStep ? 'bg-blue-600' : 'bg-gray-200'}`}
+            />
+          )}
         </div>
       ))}
     </div>
@@ -150,7 +503,9 @@ export default function BookingWizard({ orgName, orgSlug, orgId, doctors, locati
         <button
           onClick={() => setFormData({ ...formData, modality: 'presencial' })}
           className={`p-6 rounded-2xl border-2 transition ${
-            formData.modality === 'presencial' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+            formData.modality === 'presencial'
+              ? 'border-blue-600 bg-blue-50'
+              : 'border-gray-200 hover:border-gray-300'
           }`}
         >
           <div className="text-center">
@@ -164,7 +519,9 @@ export default function BookingWizard({ orgName, orgSlug, orgId, doctors, locati
         <button
           onClick={() => setFormData({ ...formData, modality: 'virtual' })}
           className={`p-6 rounded-2xl border-2 transition ${
-            formData.modality === 'virtual' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+            formData.modality === 'virtual'
+              ? 'border-blue-600 bg-blue-50'
+              : 'border-gray-200 hover:border-gray-300'
           }`}
         >
           <div className="text-center">
@@ -187,9 +544,11 @@ export default function BookingWizard({ orgName, orgSlug, orgId, doctors, locati
       </div>
       <div className="space-y-3">
         <button
-          onClick={() => setFormData({ ...formData, doctor_id: '' })}
+          onClick={() => setFormData({ ...formData, doctor_id: '', date: '', time: '' })}
           className={`w-full p-4 rounded-2xl border-2 text-left transition ${
-            formData.doctor_id === '' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+            formData.doctor_id === ''
+              ? 'border-blue-600 bg-blue-50'
+              : 'border-gray-200 hover:border-gray-300'
           }`}
         >
           <div className="font-semibold text-gray-900">Sin preferencia</div>
@@ -198,12 +557,18 @@ export default function BookingWizard({ orgName, orgSlug, orgId, doctors, locati
         {availableDoctors.map((doctor) => (
           <button
             key={doctor.id}
-            onClick={() => setFormData({ ...formData, doctor_id: doctor.id })}
+            onClick={() =>
+              setFormData({ ...formData, doctor_id: doctor.id, date: '', time: '' })
+            }
             className={`w-full p-4 rounded-2xl border-2 text-left transition ${
-              formData.doctor_id === doctor.id ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+              formData.doctor_id === doctor.id
+                ? 'border-blue-600 bg-blue-50'
+                : 'border-gray-200 hover:border-gray-300'
             }`}
           >
-            <div className="font-semibold text-gray-900">{String(doctor.metadata?.name ?? 'Médico')}</div>
+            <div className="font-semibold text-gray-900">
+              {String(doctor.metadata?.name ?? 'Médico')}
+            </div>
             <div className="text-sm text-gray-600">{doctor.specialty || 'General'}</div>
           </button>
         ))}
@@ -212,43 +577,20 @@ export default function BookingWizard({ orgName, orgSlug, orgId, doctors, locati
   )
 
   const renderStep3 = () => (
-    <div className="space-y-6">
-      <div className="text-center">
+    <div>
+      <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Fecha y hora</h2>
-        <p className="text-gray-600 mt-2">Selecciona la fecha y hora disponible</p>
+        <p className="text-gray-600 mt-2">Selecciona el día y horario de tu cita</p>
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Fecha</label>
-          <input
-            type="date"
-            value={formData.date}
-            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Hora</label>
-          <input
-            type="time"
-            value={formData.time}
-            onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-          />
-        </div>
-      </div>
-      {selectedDoctor && (
-        <div className="bg-gray-50 p-4 rounded-lg">
-          <h3 className="font-semibold text-gray-900 mb-2">Horarios disponibles para {String(selectedDoctor.metadata?.name ?? 'Médico')}</h3>
-          <div className="space-y-2">
-            {availableSchedules.map((schedule) => (
-              <div key={schedule.id} className="text-sm text-gray-600">
-                {weekdays[schedule.day_of_week]}: {schedule.start_time} - {schedule.end_time}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <CalendarPicker
+        orgName={orgName}
+        selectedDoctor={selectedDoctor}
+        effectiveSchedules={effectiveSchedules}
+        selectedDate={formData.date}
+        selectedTime={formData.time}
+        onSelect={(date, time) => setFormData({ ...formData, date, time })}
+        doctorId={formData.doctor_id}
+      />
     </div>
   )
 
@@ -260,7 +602,9 @@ export default function BookingWizard({ orgName, orgSlug, orgId, doctors, locati
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Nombre completo *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Nombre completo *
+          </label>
           <input
             type="text"
             value={formData.patient_name}
@@ -307,10 +651,12 @@ export default function BookingWizard({ orgName, orgSlug, orgId, doctors, locati
             <input
               type={field.field_type}
               value={formData.customFields[field.field_name] || ''}
-              onChange={(e) => setFormData({
-                ...formData,
-                customFields: { ...formData.customFields, [field.field_name]: e.target.value }
-              })}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  customFields: { ...formData.customFields, [field.field_name]: e.target.value },
+                })
+              }
               className="w-full px-3 py-2 border border-gray-300 rounded-lg"
               required={field.required}
             />
@@ -330,10 +676,18 @@ export default function BookingWizard({ orgName, orgSlug, orgId, doctors, locati
           <div className="bg-gray-50 p-6 rounded-lg text-left">
             <h3 className="font-semibold text-gray-900 mb-4">Resumen de tu cita</h3>
             <div className="space-y-2 text-sm">
-              <div><strong>Médico:</strong> {selectedDoctor ? String(selectedDoctor.metadata?.name ?? 'Asignado automáticamente') : 'Sin preferencia'}</div>
+              <div>
+                <strong>Médico:</strong>{' '}
+                {selectedDoctor
+                  ? String(selectedDoctor.metadata?.name ?? 'Asignado automáticamente')
+                  : 'Sin preferencia'}
+              </div>
               <div><strong>Fecha:</strong> {formData.date}</div>
               <div><strong>Hora:</strong> {formData.time}</div>
-              <div><strong>Modalidad:</strong> {formData.modality === 'presencial' ? 'Presencial' : 'Virtual'}</div>
+              <div>
+                <strong>Modalidad:</strong>{' '}
+                {formData.modality === 'presencial' ? 'Presencial' : 'Virtual'}
+              </div>
               <div><strong>Paciente:</strong> {formData.patient_name}</div>
             </div>
           </div>
@@ -344,10 +698,18 @@ export default function BookingWizard({ orgName, orgSlug, orgId, doctors, locati
           <div className="bg-gray-50 p-6 rounded-lg text-left">
             <h3 className="font-semibold text-gray-900 mb-4">Resumen</h3>
             <div className="space-y-2 text-sm">
-              <div><strong>Médico:</strong> {selectedDoctor ? String(selectedDoctor.metadata?.name ?? 'Médico') : 'Sin preferencia'}</div>
+              <div>
+                <strong>Médico:</strong>{' '}
+                {selectedDoctor
+                  ? String(selectedDoctor.metadata?.name ?? 'Médico')
+                  : 'Sin preferencia'}
+              </div>
               <div><strong>Fecha:</strong> {formData.date}</div>
               <div><strong>Hora:</strong> {formData.time}</div>
-              <div><strong>Modalidad:</strong> {formData.modality === 'presencial' ? 'Presencial' : 'Virtual'}</div>
+              <div>
+                <strong>Modalidad:</strong>{' '}
+                {formData.modality === 'presencial' ? 'Presencial' : 'Virtual'}
+              </div>
               <div><strong>Paciente:</strong> {formData.patient_name}</div>
             </div>
           </div>
@@ -357,12 +719,16 @@ export default function BookingWizard({ orgName, orgSlug, orgId, doctors, locati
     </div>
   )
 
+  const step3Ready = currentStep !== 3 || (!!formData.date && !!formData.time)
+
   return (
     <div className="mx-auto max-w-4xl">
       <div className="bg-white rounded-3xl shadow-sm border border-gray-200 p-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-gray-500">Reservar cita</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-gray-500">
+              Reservar cita
+            </p>
             <h1 className="text-3xl font-bold text-gray-900">{orgName}</h1>
           </div>
           <div className="inline-flex items-center gap-2 rounded-3xl bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-700">
@@ -373,7 +739,7 @@ export default function BookingWizard({ orgName, orgSlug, orgId, doctors, locati
 
         {renderStepIndicator()}
 
-        <div className="min-h-[400px]">
+        <div className="min-h-[420px]">
           {currentStep === 1 && renderStep1()}
           {currentStep === 2 && renderStep2()}
           {currentStep === 3 && renderStep3()}
@@ -394,7 +760,8 @@ export default function BookingWizard({ orgName, orgSlug, orgId, doctors, locati
           {currentStep < 4 && (
             <button
               onClick={handleNext}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 ml-auto"
+              disabled={!step3Ready}
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 ml-auto disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Siguiente
               <ArrowRight className="w-4 h-4" />
