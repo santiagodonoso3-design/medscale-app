@@ -74,18 +74,19 @@ export async function POST(request: Request) {
       }
     }
 
-    // Get location (assume first one for now, or based on modality)
-    const { data: locations } = await supabase
-      .from('locations')
-      .select('id')
-      .eq('organization_id', org.id)
-      .limit(1)
+    // Get location + doctor metadata in parallel
+    const [{ data: locations }, { data: doctorData }] = await Promise.all([
+      supabase.from('locations').select('id').eq('organization_id', org.id).limit(1),
+      supabase.from('doctors').select('metadata').eq('id', selectedDoctorId!).single(),
+    ])
 
     if (!locations || locations.length === 0) {
       return jsonResponse({ success: false, error: 'No hay sedes disponibles' }, 400)
     }
 
     const locationId = locations[0].id
+    const doctorMeta = doctorData?.metadata as { duration?: number; default_duration?: number } | null
+    const duration = Number(doctorMeta?.duration || doctorMeta?.default_duration || 30)
 
     // Create lead
     const leadNotes = custom_fields ? `Cédula: ${cedula}\n${Object.entries(custom_fields).map(([k, v]) => `${k}: ${v}`).join('\n')}` : `Cédula: ${cedula}`
@@ -111,7 +112,6 @@ export async function POST(request: Request) {
 
     // Create appointment — scheduled_at uses UTC; local slot times are treated as UTC
     const scheduledAt = new Date(`${date}T${time}:00.000Z`)
-    const duration = 30 // TODO: usar metadata.duration del médico
     const endDate = new Date(scheduledAt.getTime() + duration * 60000)
 
     console.log('[/api/book] inserting appointment:', {
