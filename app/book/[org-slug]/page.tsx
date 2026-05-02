@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import BookingWizard from '@/components/book/booking-wizard'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // Cliente admin directo — NO importar de lib/supabase/server
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
