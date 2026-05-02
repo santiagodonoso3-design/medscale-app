@@ -48,6 +48,22 @@
 - **Validación:** React Hook Form + Zod
 - **Deploy:** Vercel (cuando MVP funcional)
 
+### ⚠️ Next.js 15 — params es una Promise
+En Next.js 15, los params de rutas dinámicas son async.
+SIEMPRE hacer await antes de acceder:
+
+```typescript
+// ✅ Correcto
+const resolvedParams = await params
+const slug = resolvedParams['org-slug']
+
+// ❌ Incorrecto — devuelve undefined
+const slug = params['org-slug']
+```
+
+Aplica a TODAS las páginas con [param] en la ruta.
+Revisar que todas las páginas existentes usen await params.
+
 ### Integraciones
 - **Automatización:** n8n solo envía leads de conversaciones
 - **Mensajería:** WhatsApp via Meta Cloud API (investigación)
