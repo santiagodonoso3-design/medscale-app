@@ -1,8 +1,20 @@
-# MedScale App - Estado del Proyecto (1 de Mayo de 2026)
+# MedScale App - Estado del Proyecto (2 de Mayo de 2026)
 
 ## ✅ Completado
 
-### RESUELTO HOY
+### SESIÓN 2 (2 Mayo 2026)
+- ✅ Calendario visual tipo Cal.com en /book/[org-slug]
+- ✅ Slots generados desde schedules de Supabase (start_time, end_time, metadata.duration)
+- ✅ Slots ocupados excluidos (query a appointments por doctor)
+- ✅ Flujo completo: modalidad → médico → fecha/hora → formulario → confirmación
+- ✅ Pantalla de éxito con resumen de cita y pantalla de error con retry
+- ✅ ends_at calculado con metadata.duration del médico (no hardcodeado)
+- ✅ Fix: schedules filtrados por doctor_id (tabla no tiene organization_id)
+- ✅ Fix: middleware permite /book/* a usuarios autenticados
+- ✅ Ferttes cargado como primer cliente beta (5 médicos, disponibilidades)
+- ✅ external_calendar_id columna en appointments (preparado para Google Calendar)
+
+### SESIÓN 1 (1 Mayo 2026)
 - ✅ Login en producción funcionando
 - ✅ Variables de entorno correctas en Vercel
 - ✅ /book/[org-slug] construido con wizard de pasos
@@ -10,12 +22,12 @@
 - ✅ Campos configurables por organización (appointment_form_fields)
 - ✅ Cliente supabaseAdmin con service role para rutas públicas
 - ✅ Bug de params['org-slug'] corregido
-- ✅ /book/[org-slug] funcionando en producción y localhost
 
-## 🚧 PENDIENTE VERIFICAR
-- [ ] Cargar médicos y disponibilidad del cliente beta
-- [ ] Probar flujo completo de agendamiento
-- [ ] PENDIENTE: ajustes de diseño y UX del wizard de agendamiento
+## 🚧 PENDIENTE PRÓXIMA SESIÓN
+- [ ] Panel org_admin para que Ferttes entre a ver sus citas agendadas
+- [ ] Quitar debug amarillo del calendario (cuadro con conteo de schedules)
+- [ ] Ajustes de diseño y UX del wizard
+- [ ] Google Calendar sync por médico (Fase 2)
 
 ## 🚧 PROBLEMA TÉCNICO CONOCIDO
 - Vercel Hobby bloquea deploys automáticos de commits de colaboradores (medscaleai-hub vs santiagodonoso3-design)
@@ -28,7 +40,7 @@
 
 ## 🚧 Pendiente Fase 2
 - Módulo de conversaciones (WA/IG/FB)
-- Google Calendar sync
+- Google Calendar sync por médico
 - Dashboard ejecutivo avanzado
 - Historia clínica
 
@@ -36,7 +48,7 @@
 
 ### Arquitectura
 - **Patrón:** Monolito modular (NO microservicios)
-- **Frontend:** Next.js 14 con App Router
+- **Frontend:** Next.js 15 con App Router
 - **Backend:** Supabase (PostgreSQL + Auth)
 - **Base de Datos:** Schema dinámico EAV para campos de CRM por cliente
 - **Agendamiento:** 100% interno en la app, sin Cal.com
@@ -47,7 +59,7 @@
 - **Autenticación:** Supabase Auth
 - **Base de Datos:** PostgreSQL con RLS
 - **Validación:** React Hook Form + Zod
-- **Deploy:** Vercel (cuando MVP funcional)
+- **Deploy:** Vercel
 
 ### ⚠️ Next.js 15 — params es una Promise
 En Next.js 15, los params de rutas dinámicas son async.
@@ -63,7 +75,24 @@ const slug = params['org-slug']
 ```
 
 Aplica a TODAS las páginas con [param] en la ruta.
-Revisar que todas las páginas existentes usen await params.
+
+### ⚠️ schedules — no tiene organization_id
+La tabla `schedules` no tiene `organization_id`.
+Para obtener schedules de una org hay que filtrar por doctor_id:
+
+```typescript
+// ✅ Correcto
+const doctorIds = doctors.map(d => d.id)
+supabase.from('schedules').select(...).in('doctor_id', doctorIds)
+
+// ❌ Incorrecto — la columna no existe
+supabase.from('schedules').eq('organization_id', org.id)
+```
+
+### ⚠️ day_of_week — convención Supabase vs JavaScript
+- **Supabase schedules:** 1=Lunes, 2=Martes ... 7=Domingo
+- **JavaScript Date.getDay():** 0=Domingo, 1=Lunes ... 6=Sábado
+- **Conversión:** `supabaseDay = jsDay === 0 ? 7 : jsDay`
 
 ### Integraciones
 - **Automatización:** n8n solo envía leads de conversaciones
@@ -79,9 +108,9 @@ organizations (multi-tenant)
 ├── locations
 ├── leads (CRM)
 ├── conversations
-├── appointments
-├── doctors
-├── schedules
+├── appointments (campo external_calendar_id para Google Calendar futuro)
+├── doctors (metadata: { name, duration, default_duration })
+├── schedules (doctor_id, location_id, day_of_week, start_time, end_time)
 └── ... (16 tablas total)
 ```
 
@@ -89,32 +118,32 @@ organizations (multi-tenant)
 
 - Row Level Security (RLS) en todas las tablas
 - Políticas de acceso basadas en roles
-- Middleware de protección de rutas
+- Middleware de protección de rutas (/book/* permitido sin auth)
 - Guards de autenticación por componente
 - One-time setup protection
 
 ## 📊 Métricas del Proyecto
 
-- **Archivos creados:** 20+
-- **Componentes:** 10+ (sidebar, layout, modals, etc.)
-- **Server Actions:** 5+ (dashboard, organizations, setup)
+- **Archivos creados:** 25+
+- **Componentes:** 12+ (sidebar, layout, modals, booking-wizard, calendar-picker, etc.)
+- **Server Actions:** 6+ (dashboard, organizations, setup, booking)
 - **Tablas BD:** 16 con RLS completo
 - **Rutas protegidas:** 10+ con middleware
+- **Clientes beta:** 1 (Ferttes — 5 médicos cargados)
 
-## 🎯 Roadmap Futuro
+## 🎯 Roadmap
 
-### Módulos pendientes en orden
-1. Webhook de leads (n8n → CRM) ← AHORA
-2. Panel org_admin (cliente entra a su cuenta)
-3. Sistema de agendamiento interno
-4. Deploy en Vercel
+### Próximo (Siguiente sesión)
+1. Panel org_admin — Ferttes entra a ver sus citas ← AHORA
+2. Quitar debug amarillo del calendario
+3. Ajustes de diseño del wizard
 
-### MVP v0.1 (Siguiente)
+### MVP v0.1
 - [ ] CRUD completo de organizaciones
-- [ ] Cliente beta con acceso al CRM
+- [x] Cliente beta con acceso al CRM (Ferttes)
 - [ ] Gestión de leads básica
 - [ ] Conversaciones entre usuarios
-- [ ] Citas agendadas internamente
+- [x] Citas agendadas internamente
 
 ### MVP v0.2
 - [ ] Dashboard por organización
@@ -130,20 +159,9 @@ organizations (multi-tenant)
 
 ### Integraciones (Fase 2 - post primer cliente pagando)
 - [ ] Panel de integraciones en /settings/integrations
-- [ ] Google Calendar sync (appointments ↔ gcal)
-- [ ] Integración Google Calendar por médico (Fase 2)
+- [ ] Google Calendar sync por médico
       Cada médico conecta su propio Google Calendar desde
       su perfil en /settings/doctors/[id]/calendar
       — OAuth por médico, no por organización
 - [ ] Otros calendarios (Outlook, Apple Calendar)
-- [ ] La tabla appointments ya tiene campo external_calendar_id 
-      preparado para esto
-
-### Nota técnica
-- El agendamiento /book/[org-slug] guarda citas en Supabase
-- external_calendar_id queda null hasta que se active la integración
-- Round-robin de médicos implementado desde el inicio
-
-Próxima sesión: cargar datos reales del cliente beta
-(médicos, disponibilidad, sedes) y probar flujo completo
-de agendamiento end-to-end.
+- [ ] La tabla appointments ya tiene campo external_calendar_id preparado
