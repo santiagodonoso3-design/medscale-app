@@ -114,13 +114,6 @@ export async function POST(request: Request) {
     const scheduledAt = new Date(`${date}T${time}:00.000Z`)
     const endDate = new Date(scheduledAt.getTime() + duration * 60000)
 
-    console.log('[/api/book] inserting appointment:', {
-      org_id: org.id,
-      doctor_id: selectedDoctorId,
-      location_id: locationId,
-      scheduled_at: scheduledAt.toISOString(),
-    })
-
     const { data: appointment, error: appointmentError } = await supabase
       .from('appointments')
       .insert({
@@ -142,7 +135,6 @@ export async function POST(request: Request) {
       return jsonResponse({ success: false, error: appointmentError?.message || 'Error creando cita' }, 500)
     }
 
-    console.log('[/api/book] success — lead:', lead.id, 'appointment:', appointment.id)
     return jsonResponse({ success: true, lead_id: lead.id, appointment_id: appointment.id }, 201)
   } catch (error) {
     console.error('Booking error', error)

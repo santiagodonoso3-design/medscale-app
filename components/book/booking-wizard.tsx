@@ -178,7 +178,6 @@ function CalendarPicker({
     const set = new Set<number>()
     // Number() guards against day_of_week arriving as string from Supabase
     effectiveSchedules.forEach((s) => set.add(Number(s.day_of_week)))
-    console.log('[CalendarPicker] schedules:', effectiveSchedules.length, '| days:', Array.from(set))
     return set
   }, [effectiveSchedules])
 
@@ -235,12 +234,6 @@ function CalendarPicker({
         <div className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 rounded-full px-3 py-1.5 text-xs font-semibold w-fit">
           <Clock className="w-3 h-3" />
           {duration} min
-        </div>
-
-        {/* DEBUG: remove once schedules confirmed working */}
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-xs text-yellow-800">
-          <div>Schedules: {effectiveSchedules.length}</div>
-          <div>Días: {Array.from(availableSupabaseDays).sort().join(', ') || 'ninguno'}</div>
         </div>
 
         {selectedDate && selectedTime && (
@@ -482,20 +475,33 @@ export default function BookingWizard({
     }
   }
 
+  const STEP_LABELS = ['Tipo', 'Médico', 'Fecha', 'Datos']
+
   const renderStepIndicator = () => (
-    <div className="flex items-center justify-center space-x-4 mb-8">
+    <div className="flex items-center justify-center mb-8">
       {[1, 2, 3, 4].map((step) => (
         <div key={step} className="flex items-center">
-          <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
-              step <= currentStep ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-            }`}
-          >
-            {step}
+          <div className="flex flex-col items-center gap-1.5">
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors ${
+                step <= currentStep ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400'
+              }`}
+            >
+              {step}
+            </div>
+            <span
+              className={`text-[11px] font-medium ${
+                step <= currentStep ? 'text-blue-600' : 'text-gray-400'
+              }`}
+            >
+              {STEP_LABELS[step - 1]}
+            </span>
           </div>
           {step < 4 && (
             <div
-              className={`w-12 h-0.5 ${step < currentStep ? 'bg-blue-600' : 'bg-gray-200'}`}
+              className={`w-10 h-0.5 mx-2 mb-4 transition-colors ${
+                step < currentStep ? 'bg-blue-600' : 'bg-gray-200'
+              }`}
             />
           )}
         </div>
@@ -619,7 +625,7 @@ export default function BookingWizard({
             type="text"
             value={formData.patient_name}
             onChange={(e) => setFormData({ ...formData, patient_name: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
             required
           />
         </div>
@@ -629,7 +635,7 @@ export default function BookingWizard({
             type="tel"
             value={formData.phone}
             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
             required
           />
         </div>
@@ -639,7 +645,7 @@ export default function BookingWizard({
             type="email"
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
             required
           />
         </div>
@@ -649,7 +655,7 @@ export default function BookingWizard({
             type="text"
             value={formData.cedula}
             onChange={(e) => setFormData({ ...formData, cedula: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
             required
           />
         </div>
@@ -667,7 +673,7 @@ export default function BookingWizard({
                   customFields: { ...formData.customFields, [field.field_name]: e.target.value },
                 })
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
               required={field.required}
             />
           </div>
@@ -763,7 +769,7 @@ export default function BookingWizard({
           </div>
         </div>
 
-        {renderStepIndicator()}
+        {currentStep < 5 && renderStepIndicator()}
 
         <div className="min-h-[420px]">
           {currentStep === 1 && renderStep1()}
@@ -777,7 +783,7 @@ export default function BookingWizard({
           {currentStep > 1 && currentStep < 5 && (
             <button
               onClick={handlePrev}
-              className="flex items-center gap-2 px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="flex items-center gap-2 px-5 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
             >
               <ArrowLeft className="w-4 h-4" />
               Anterior
@@ -787,7 +793,7 @@ export default function BookingWizard({
             <button
               onClick={handleNext}
               disabled={!step3Ready}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 ml-auto disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 ml-auto transition disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Siguiente
               <ArrowRight className="w-4 h-4" />
@@ -797,10 +803,19 @@ export default function BookingWizard({
             <button
               onClick={handleSubmit}
               disabled={loading}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 ml-auto disabled:opacity-50"
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 ml-auto transition disabled:opacity-50"
             >
-              {loading ? 'Agendando...' : 'Confirmar cita'}
-              <UserPlus className="w-4 h-4" />
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  Agendando...
+                </>
+              ) : (
+                <>
+                  Confirmar cita
+                  <UserPlus className="w-4 h-4" />
+                </>
+              )}
             </button>
           )}
         </div>
