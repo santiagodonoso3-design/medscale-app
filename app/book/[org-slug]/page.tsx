@@ -18,18 +18,21 @@ interface BookPageProps {
 }
 
 export default async function BookPage({ params }: BookPageProps) {
+  console.log('=== BookPage ejecutando ===')
+  console.log('params completo:', JSON.stringify(params))
+
   const supabase = supabaseAdmin
   const slug = params['org-slug']
+  console.log('slug extraído:', slug)
 
-  const { data: organization, error: orgError } = await supabase
+  const { data: organization, error: orgError } = await supabaseAdmin
     .from('organizations')
     .select('id, name')
     .eq('slug', slug)
     .single()
 
-  console.log('Buscando org con slug:', slug)
-  console.log('Resultado:', JSON.stringify(organization))
-  console.log('Error:', JSON.stringify(orgError))
+  console.log('orgError:', JSON.stringify(orgError))
+  console.log('organization:', JSON.stringify(organization))
 
   if (orgError || !organization) {
     return (

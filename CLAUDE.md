@@ -2,20 +2,25 @@
 
 ## ✅ Completado
 
-### COMPLETADO HOY
-- ✅ Panel org_admin en `/dashboard` funcionando
-- ✅ CRM en `/crm` con pipeline y leads funcionando
-- ✅ Webhook POST `/api/webhooks/lead` listo para n8n
-- ✅ Módulo de agendamiento completo:
-  - `/scheduling/doctors` - configuración de médicos
-  - `/scheduling/availability` - horarios y consultorios
-  - `/scheduling/calendar` - panel de citas
-- ✅ Deploy en Vercel resuelto y funcionando
-- ✅ Login en producción funcionando (`medscaleai@gmail.com`)
-- ✅ Panel superadmin en `/admin` accesible en producción
+### RESUELTO HOY
+- ✅ Login en producción funcionando
 - ✅ Variables de entorno correctas en Vercel
-- ✅ Supabase URL Configuration apuntando a producción
-- ✅ `/book/[org-slug]` — wizard público de agendamiento implementado
+- ✅ /book/[org-slug] construido con wizard de pasos
+- ✅ Round-robin de médicos implementado
+- ✅ Campos configurables por organización (appointment_form_fields)
+- ✅ Cliente supabaseAdmin con service role para rutas públicas
+- ✅ Bug de params['org-slug'] corregido
+
+## 🚧 PENDIENTE VERIFICAR
+- [ ] Probar /book/medscale en producción después del redeploy
+- [ ] Cargar médicos y disponibilidad del cliente beta
+- [ ] Probar flujo completo de agendamiento
+
+## 🚧 PROBLEMA TÉCNICO CONOCIDO
+- Vercel Hobby bloquea deploys automáticos de commits de colaboradores (medscaleai-hub vs santiagodonoso3-design)
+- Solución: hacer Redeploy manual desde Vercel cada vez que Claude Code haga push, O configurar git con:
+  git config user.email "email-de-vercel"
+  git config user.name "santiagodonoso3-design"
 
 ## 🚧 Pendiente para MVP
 - [ ] Probar flujo completo: webhook n8n → lead en CRM → cita agendada
