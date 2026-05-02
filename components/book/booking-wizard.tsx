@@ -176,13 +176,16 @@ function CalendarPicker({
 
   const availableSupabaseDays = useMemo(() => {
     const set = new Set<number>()
-    effectiveSchedules.forEach((s) => set.add(s.day_of_week))
+    // Number() guards against day_of_week arriving as string from Supabase
+    effectiveSchedules.forEach((s) => set.add(Number(s.day_of_week)))
+    console.log('[CalendarPicker] schedules:', effectiveSchedules.length, '| days:', Array.from(set))
     return set
   }, [effectiveSchedules])
 
   function isDayAvailable(dateStr: string): boolean {
     const d = new Date(dateStr + 'T12:00:00')
-    return availableSupabaseDays.has(toSupabaseDay(d.getDay()))
+    const supabaseDay = toSupabaseDay(d.getDay())
+    return availableSupabaseDays.has(supabaseDay)
   }
 
   const slotsForDate = useMemo(() => {
@@ -232,6 +235,12 @@ function CalendarPicker({
         <div className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 rounded-full px-3 py-1.5 text-xs font-semibold w-fit">
           <Clock className="w-3 h-3" />
           {duration} min
+        </div>
+
+        {/* DEBUG: remove once schedules confirmed working */}
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-xs text-yellow-800">
+          <div>Schedules: {effectiveSchedules.length}</div>
+          <div>Días: {Array.from(availableSupabaseDays).sort().join(', ') || 'ninguno'}</div>
         </div>
 
         {selectedDate && selectedTime && (

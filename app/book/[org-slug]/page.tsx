@@ -54,8 +54,7 @@ export default async function BookPage({ params }: BookPageProps) {
     supabase
       .from('schedules')
       .select('id, doctor_id, location_id, room_id, day_of_week, start_time, end_time')
-      .eq('organization_id', organization.id)
-      .eq('active', true),
+      .eq('organization_id', organization.id),
     supabase
       .from('appointment_form_fields')
       .select('field_name, field_type, required, order')
