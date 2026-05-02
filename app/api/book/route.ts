@@ -105,13 +105,21 @@ export async function POST(request: Request) {
       .single()
 
     if (leadError || !lead) {
+      console.error('[/api/book] lead insert error:', leadError)
       return jsonResponse({ success: false, error: leadError?.message || 'Error creando lead' }, 500)
     }
 
-    // Create appointment
+    // Create appointment — scheduled_at uses UTC; local slot times are treated as UTC
     const scheduledAt = new Date(`${date}T${time}:00.000Z`)
-    const duration = 30 // Default 30 minutes
+    const duration = 30 // TODO: usar metadata.duration del médico
     const endDate = new Date(scheduledAt.getTime() + duration * 60000)
+
+    console.log('[/api/book] inserting appointment:', {
+      org_id: org.id,
+      doctor_id: selectedDoctorId,
+      location_id: locationId,
+      scheduled_at: scheduledAt.toISOString(),
+    })
 
     const { data: appointment, error: appointmentError } = await supabase
       .from('appointments')
@@ -130,9 +138,11 @@ export async function POST(request: Request) {
       .single()
 
     if (appointmentError || !appointment) {
+      console.error('[/api/book] appointment insert error:', appointmentError)
       return jsonResponse({ success: false, error: appointmentError?.message || 'Error creando cita' }, 500)
     }
 
+    console.log('[/api/book] success — lead:', lead.id, 'appointment:', appointment.id)
     return jsonResponse({ success: true, lead_id: lead.id, appointment_id: appointment.id }, 201)
   } catch (error) {
     console.error('Booking error', error)

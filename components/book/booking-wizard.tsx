@@ -11,6 +11,7 @@ import {
   Clock,
   Clock3,
   UserPlus,
+  XCircle,
 } from 'lucide-react'
 import { getBookedSlots } from '@/app/actions/booking'
 
@@ -475,6 +476,7 @@ export default function BookingWizard({
       setCurrentStep(5)
     } catch (err) {
       setError((err as Error).message)
+      setCurrentStep(5) // muestra pantalla de error en step 5
     } finally {
       setLoading(false)
     }
@@ -674,58 +676,74 @@ export default function BookingWizard({
     </div>
   )
 
-  const renderStep5 = () => (
-    <div className="text-center space-y-6">
-      {success ? (
-        <>
+  const renderStep5 = () => {
+    if (success) {
+      return (
+        <div className="text-center space-y-6">
           <CheckCircle className="w-16 h-16 text-green-600 mx-auto" />
           <h2 className="text-2xl font-bold text-gray-900">¡Cita agendada!</h2>
-          <p className="text-gray-600">Recibirás una confirmación por email y SMS.</p>
-          <div className="bg-gray-50 p-6 rounded-lg text-left">
-            <h3 className="font-semibold text-gray-900 mb-4">Resumen de tu cita</h3>
-            <div className="space-y-2 text-sm">
-              <div>
-                <strong>Médico:</strong>{' '}
+          <p className="text-gray-600">Recibirás una confirmación por email.</p>
+          <div className="bg-gray-50 p-6 rounded-2xl text-left space-y-3 text-sm">
+            <p className="font-semibold text-gray-900 text-base mb-1">Resumen</p>
+            <div className="flex justify-between border-b border-gray-100 pb-2">
+              <span className="text-gray-500">Médico</span>
+              <span className="font-medium text-gray-900">
                 {selectedDoctor
                   ? String(selectedDoctor.metadata?.name ?? 'Asignado automáticamente')
-                  : 'Sin preferencia'}
-              </div>
-              <div><strong>Fecha:</strong> {formData.date}</div>
-              <div><strong>Hora:</strong> {formData.time}</div>
-              <div>
-                <strong>Modalidad:</strong>{' '}
+                  : 'Asignado automáticamente'}
+              </span>
+            </div>
+            <div className="flex justify-between border-b border-gray-100 pb-2">
+              <span className="text-gray-500">Fecha</span>
+              <span className="font-medium text-gray-900">
+                {new Intl.DateTimeFormat('es-CO', {
+                  weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Bogota',
+                }).format(new Date(formData.date + 'T12:00:00'))}
+              </span>
+            </div>
+            <div className="flex justify-between border-b border-gray-100 pb-2">
+              <span className="text-gray-500">Hora</span>
+              <span className="font-medium text-gray-900">{formData.time}</span>
+            </div>
+            <div className="flex justify-between border-b border-gray-100 pb-2">
+              <span className="text-gray-500">Modalidad</span>
+              <span className="font-medium text-gray-900">
                 {formData.modality === 'presencial' ? 'Presencial' : 'Virtual'}
-              </div>
-              <div><strong>Paciente:</strong> {formData.patient_name}</div>
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Paciente</span>
+              <span className="font-medium text-gray-900">{formData.patient_name}</span>
             </div>
           </div>
-        </>
-      ) : (
-        <>
-          <h2 className="text-2xl font-bold text-gray-900">Confirmar cita</h2>
-          <div className="bg-gray-50 p-6 rounded-lg text-left">
-            <h3 className="font-semibold text-gray-900 mb-4">Resumen</h3>
-            <div className="space-y-2 text-sm">
-              <div>
-                <strong>Médico:</strong>{' '}
-                {selectedDoctor
-                  ? String(selectedDoctor.metadata?.name ?? 'Médico')
-                  : 'Sin preferencia'}
-              </div>
-              <div><strong>Fecha:</strong> {formData.date}</div>
-              <div><strong>Hora:</strong> {formData.time}</div>
-              <div>
-                <strong>Modalidad:</strong>{' '}
-                {formData.modality === 'presencial' ? 'Presencial' : 'Virtual'}
-              </div>
-              <div><strong>Paciente:</strong> {formData.patient_name}</div>
-            </div>
-          </div>
-          {error && <p className="text-red-600">{error}</p>}
-        </>
-      )}
-    </div>
-  )
+        </div>
+      )
+    }
+
+    // Error screen
+    return (
+      <div className="text-center space-y-6">
+        <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto">
+          <XCircle className="w-8 h-8 text-red-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900">No se pudo agendar</h2>
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 text-left">
+          <p className="font-semibold mb-1">Error</p>
+          <p>{error || 'Error desconocido. Intenta de nuevo.'}</p>
+        </div>
+        <button
+          onClick={() => {
+            setError(null)
+            setCurrentStep(4)
+          }}
+          className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Volver e intentar de nuevo
+        </button>
+      </div>
+    )
+  }
 
   const step3Ready = currentStep !== 3 || (!!formData.date && !!formData.time)
 
