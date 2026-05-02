@@ -37,7 +37,6 @@ interface ScheduleOption {
   id: string
   doctor_id: string
   location_id: string
-  room_id: string | null
   day_of_week: number
   start_time: string
   end_time: string

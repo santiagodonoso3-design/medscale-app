@@ -44,7 +44,7 @@ export default async function BookPage({ params }: BookPageProps) {
     )
   }
 
-  const [{ data: doctors }, { data: locations }, { data: schedules }, { data: formFields }] = await Promise.all([
+  const [{ data: doctors }, { data: locations }, { data: formFields }] = await Promise.all([
     supabase
       .from('doctors')
       .select('id, specialty, is_active, metadata')
@@ -52,15 +52,17 @@ export default async function BookPage({ params }: BookPageProps) {
       .eq('is_active', true),
     supabase.from('locations').select('id, name').eq('organization_id', organization.id),
     supabase
-      .from('schedules')
-      .select('id, doctor_id, location_id, room_id, day_of_week, start_time, end_time')
-      .eq('organization_id', organization.id),
-    supabase
       .from('appointment_form_fields')
       .select('field_name, field_type, required, order')
       .eq('organization_id', organization.id)
       .order('order', { ascending: true }),
   ])
+
+  // schedules no tiene organization_id — se filtra por los doctor_ids de la org
+  const { data: schedules } = await supabaseAdmin
+    .from('schedules')
+    .select('id, doctor_id, location_id, day_of_week, start_time, end_time')
+    .in('doctor_id', (doctors || []).map((d) => d.id))
 
   return (
     <div className="min-h-screen bg-slate-100 p-6">
