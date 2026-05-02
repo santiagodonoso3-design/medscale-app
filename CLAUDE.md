@@ -10,11 +10,12 @@
 - ✅ Campos configurables por organización (appointment_form_fields)
 - ✅ Cliente supabaseAdmin con service role para rutas públicas
 - ✅ Bug de params['org-slug'] corregido
+- ✅ /book/[org-slug] funcionando en producción y localhost
 
 ## 🚧 PENDIENTE VERIFICAR
-- [ ] Probar /book/medscale en producción después del redeploy
 - [ ] Cargar médicos y disponibilidad del cliente beta
 - [ ] Probar flujo completo de agendamiento
+- [ ] PENDIENTE: ajustes de diseño y UX del wizard de agendamiento
 
 ## 🚧 PROBLEMA TÉCNICO CONOCIDO
 - Vercel Hobby bloquea deploys automáticos de commits de colaboradores (medscaleai-hub vs santiagodonoso3-design)
@@ -138,3 +139,7 @@ organizations (multi-tenant)
 - El agendamiento /book/[org-slug] guarda citas en Supabase
 - external_calendar_id queda null hasta que se active la integración
 - Round-robin de médicos implementado desde el inicio
+
+Próxima sesión: cargar datos reales del cliente beta
+(médicos, disponibilidad, sedes) y probar flujo completo
+de agendamiento end-to-end.
