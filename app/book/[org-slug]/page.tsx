@@ -22,12 +22,11 @@ interface BookPageProps {
 
 export default async function BookPage({ params }: BookPageProps) {
   console.log('=== BookPage ejecutando ===')
-  console.log('params completo:', JSON.stringify(params))
-
+  const resolvedParams = await params
+  console.log('params completo:', JSON.stringify(resolvedParams))
+  
   const supabase = supabaseAdmin
-  const slug = params['org-slug']
-  console.log('slug extraído:', slug)
-
+  const slug = resolvedParams['org-slug']
   const { data: organization, error: orgError } = await supabaseAdmin
     .from('organizations')
     .select('id, name')
