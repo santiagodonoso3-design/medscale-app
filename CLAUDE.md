@@ -62,6 +62,16 @@
 - [ ] Reportes y analítica avanzada
 - [ ] API RESTful pública
 
+### Automatización de leads
+- [ ] Motor de automatizaciones por organización
+- [ ] Triggers: lead creado, cita agendada, cita cancelada,
+      sin respuesta X días
+- [ ] Acciones: enviar email, enviar WhatsApp, crear tarea,
+      asignar a usuario
+- [ ] Constructor visual de flujos (tipo n8n simplificado)
+- [ ] Integración con n8n para ejecución de automatizaciones
+- [ ] Templates de automatización por industria (clínicas)
+
 ## 🏗️ Decisiones Técnicas
 
 ### Arquitectura
