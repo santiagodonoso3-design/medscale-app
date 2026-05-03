@@ -20,8 +20,9 @@ type AppointmentRecord = {
   location_id: string | null
   metadata: Record<string, unknown> | null
   // Supabase returns many-to-one joins as single objects, not arrays
-  lead?: { contact_name: string | null; contact_phone: string | null } | null
+  lead?: { contact_name: string | null; contact_phone: string | null; contact_email: string | null } | null
   doctor?: { metadata: Record<string, unknown> | null } | null
+  location?: { name: string } | null
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -32,18 +33,20 @@ const STATUS_LABELS: Record<string, string> = {
   no_show: 'No show',
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  scheduled: 'bg-amber-100 text-amber-800',
+const STATUS_BADGE: Record<string, string> = {
+  scheduled: 'bg-blue-100 text-blue-800',
   confirmed: 'bg-sky-100 text-sky-800',
   completed: 'bg-emerald-100 text-emerald-800',
   cancelled: 'bg-slate-100 text-slate-500',
   no_show: 'bg-red-100 text-red-700',
 }
 
-function toDatetimeLocal(iso: string): string {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+const ROW_BG: Record<string, string> = {
+  scheduled: 'bg-blue-50/50',
+  confirmed: 'bg-sky-50/50',
+  completed: 'bg-emerald-50/50',
+  cancelled: 'opacity-50',
+  no_show: 'bg-red-50/50',
 }
 
 function modalityFromNotes(notes: string | null): string {
@@ -51,6 +54,18 @@ function modalityFromNotes(notes: string | null): string {
   if (notes.toLowerCase().includes('virtual')) return 'Virtual'
   if (notes.toLowerCase().includes('presencial')) return 'Presencial'
   return '—'
+}
+
+function isoToLocalDate(iso: string): string {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function isoToLocalTime(iso: string): string {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 export function CalendarClient() {
@@ -80,7 +95,8 @@ export function CalendarClient() {
   // Detail modal state
   const [selected, setSelected] = useState<AppointmentRecord | null>(null)
   const [modalNotes, setModalNotes] = useState('')
-  const [modalRescheduleAt, setModalRescheduleAt] = useState('')
+  const [modalRescheduleDate, setModalRescheduleDate] = useState('')
+  const [modalRescheduleTime, setModalRescheduleTime] = useState('')
   const [modalSaving, setModalSaving] = useState(false)
   const [modalError, setModalError] = useState<string | null>(null)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
@@ -105,7 +121,7 @@ export function CalendarClient() {
       supabase
         .from('appointments')
         .select(
-          'id, scheduled_at, ends_at, status, doctor_id, lead_id, location_id, notes, doctor:doctor_id(metadata), lead:lead_id(contact_name,contact_phone)'
+          'id, scheduled_at, ends_at, status, doctor_id, lead_id, location_id, notes, doctor:doctor_id(metadata), lead:lead_id(contact_name,contact_phone,contact_email), location:location_id(name)'
         )
         .order('scheduled_at', { ascending: true }),
     ])
@@ -158,7 +174,8 @@ export function CalendarClient() {
   function openModal(apt: AppointmentRecord) {
     setSelected(apt)
     setModalNotes(apt.notes ?? '')
-    setModalRescheduleAt(toDatetimeLocal(apt.scheduled_at))
+    setModalRescheduleDate(isoToLocalDate(apt.scheduled_at))
+    setModalRescheduleTime(isoToLocalTime(apt.scheduled_at))
     setModalError(null)
     setShowCancelConfirm(false)
   }
@@ -179,22 +196,21 @@ export function CalendarClient() {
       setModalError(result.error)
     } else {
       await fetchData()
-      // Update selected in place
       setSelected((prev) => (prev ? { ...prev, notes: modalNotes } : null))
     }
     setModalSaving(false)
   }
 
   async function handleReschedule() {
-    if (!selected || !modalRescheduleAt) return
+    if (!selected || !modalRescheduleDate || !modalRescheduleTime) return
     setModalSaving(true)
     setModalError(null)
 
-    const scheduledAt = new Date(modalRescheduleAt).toISOString()
+    const scheduledAt = new Date(`${modalRescheduleDate}T${modalRescheduleTime}`).toISOString()
     const originalDuration = selected.ends_at
       ? new Date(selected.ends_at).getTime() - new Date(selected.scheduled_at).getTime()
       : 30 * 60000
-    const endsAt = new Date(new Date(modalRescheduleAt).getTime() + originalDuration).toISOString()
+    const endsAt = new Date(new Date(`${modalRescheduleDate}T${modalRescheduleTime}`).getTime() + originalDuration).toISOString()
 
     const result = await rescheduleAppointment(selected.id, scheduledAt, endsAt)
     if (result.error) {
@@ -306,37 +322,73 @@ export function CalendarClient() {
 
   return (
     <>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="space-y-4">
+        {/* Header + filters bar */}
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          {/* Top row: title + new appointment button */}
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-semibold text-slate-900">Calendario de citas</h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Visualiza y crea citas manuales. Haz clic en una cita para ver detalles.
+              <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Calendario de citas</h2>
+              <p className="mt-0.5 text-sm text-slate-500 hidden sm:block">
+                Haz clic en una cita para ver detalles y acciones.
               </p>
             </div>
             <button
               type="button"
               onClick={() => setShowCreate((prev) => !prev)}
-              className="inline-flex items-center gap-2 rounded-3xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+              className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 shrink-0"
             >
               <Plus className="h-4 w-4" />
-              {showCreate ? 'Ocultar formulario' : 'Crear cita manual'}
+              <span className="hidden sm:inline">{showCreate ? 'Ocultar' : 'Nueva cita'}</span>
+              <span className="sm:hidden">Nueva</span>
             </button>
+          </div>
+
+          {/* Filters row */}
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <select
+              value={filterDoctor}
+              onChange={(e) => setFilterDoctor(e.target.value)}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Todos los médicos</option>
+              {doctors.map((d) => (
+                <option key={d.id} value={d.id}>{d.metadata?.name || 'Médico'}</option>
+              ))}
+            </select>
+            <select
+              value={filterLocation}
+              onChange={(e) => setFilterLocation(e.target.value)}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Todas las sedes</option>
+              {locations.map((l) => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar paciente..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           </div>
         </div>
 
         {/* Create form */}
         {showCreate && (
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+            <h3 className="text-base font-semibold text-slate-900 mb-4">Nueva cita manual</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-sm font-medium text-slate-700">Médico</label>
                 <select
                   value={form.doctor_id}
                   onChange={(e) => setForm((prev) => ({ ...prev, doctor_id: e.target.value }))}
-                  className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm"
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
                 >
                   <option value="">Selecciona un médico</option>
                   {doctors.map((d) => (
@@ -349,7 +401,7 @@ export function CalendarClient() {
                 <select
                   value={form.location_id}
                   onChange={(e) => setForm((prev) => ({ ...prev, location_id: e.target.value }))}
-                  className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm"
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
                 >
                   <option value="">Selecciona una sede</option>
                   {locations.map((l) => (
@@ -363,7 +415,7 @@ export function CalendarClient() {
                   type="datetime-local"
                   value={form.scheduled_at}
                   onChange={(e) => setForm((prev) => ({ ...prev, scheduled_at: e.target.value }))}
-                  className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm"
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
                 />
               </div>
               <div>
@@ -371,7 +423,7 @@ export function CalendarClient() {
                 <input
                   value={form.patient_name}
                   onChange={(e) => setForm((prev) => ({ ...prev, patient_name: e.target.value }))}
-                  className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm"
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
                 />
               </div>
               <div>
@@ -379,7 +431,7 @@ export function CalendarClient() {
                 <input
                   value={form.patient_phone}
                   onChange={(e) => setForm((prev) => ({ ...prev, patient_phone: e.target.value }))}
-                  className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm"
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
                 />
               </div>
               <div>
@@ -388,35 +440,35 @@ export function CalendarClient() {
                   type="email"
                   value={form.patient_email}
                   onChange={(e) => setForm((prev) => ({ ...prev, patient_email: e.target.value }))}
-                  className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm"
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
                 />
               </div>
-              <div className="lg:col-span-2">
+              <div className="sm:col-span-2">
                 <label className="text-sm font-medium text-slate-700">Buscar lead existente</label>
-                <div className="mt-2 flex gap-2">
+                <div className="mt-1.5 flex gap-2">
                   <input
                     value={form.lead_search}
                     onChange={(e) => setForm((prev) => ({ ...prev, lead_search: e.target.value }))}
-                    className="flex-1 rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm"
+                    className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
                     placeholder="Nombre del paciente"
                   />
                   <button
                     type="button"
                     onClick={handleSearchLeads}
-                    className="inline-flex items-center gap-2 rounded-3xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
                   >
                     <Search className="h-4 w-4" />
-                    Buscar
+                    <span className="hidden sm:inline">Buscar</span>
                   </button>
                 </div>
                 {leads.length > 0 && (
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-2 space-y-1.5">
                     {leads.map((lead) => (
                       <button
                         key={lead.id}
                         type="button"
                         onClick={() => handleSelectLead(lead)}
-                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-sm hover:bg-slate-100"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-left text-sm hover:bg-slate-100"
                       >
                         {lead.contact_name || 'Sin nombre'} · {lead.contact_phone || 'Sin teléfono'}
                       </button>
@@ -424,22 +476,22 @@ export function CalendarClient() {
                   </div>
                 )}
               </div>
-              <div className="lg:col-span-2">
+              <div className="sm:col-span-2">
                 <label className="text-sm font-medium text-slate-700">Notas</label>
                 <textarea
                   value={form.notes}
                   onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                  rows={3}
-                  className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm"
+                  rows={2}
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm"
                 />
               </div>
-              {error && <p className="text-sm text-red-600 lg:col-span-2">{error}</p>}
-              <div className="lg:col-span-2 flex justify-end">
+              {error && <p className="text-sm text-red-600 sm:col-span-2">{error}</p>}
+              <div className="sm:col-span-2 flex justify-end">
                 <button
                   type="button"
                   onClick={handleCreateAppointment}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-3xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                   Crear cita
@@ -449,61 +501,81 @@ export function CalendarClient() {
           </div>
         )}
 
-        {/* Appointments table */}
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h3 className="text-xl font-semibold text-slate-900">Citas programadas</h3>
-              <p className="mt-1 text-sm text-slate-600">
-                Haz clic en una fila para ver detalles y acciones.
-              </p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <select
-                value={filterDoctor}
-                onChange={(e) => setFilterDoctor(e.target.value)}
-                className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm"
-              >
-                <option value="">Todos los médicos</option>
-                {doctors.map((d) => (
-                  <option key={d.id} value={d.id}>{d.metadata?.name || 'Médico'}</option>
-                ))}
-              </select>
-              <select
-                value={filterLocation}
-                onChange={(e) => setFilterLocation(e.target.value)}
-                className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm"
-              >
-                <option value="">Todas las sedes</option>
-                {locations.map((l) => (
-                  <option key={l.id} value={l.id}>{l.name}</option>
-                ))}
-              </select>
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar paciente"
-                className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm"
-              />
-            </div>
+        {/* Appointments list */}
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          {/* Count */}
+          <div className="px-4 py-3 border-b border-slate-100 sm:px-6">
+            <p className="text-sm text-slate-500">
+              {loading ? 'Cargando...' : `${filteredAppointments.length} cita${filteredAppointments.length !== 1 ? 's' : ''}`}
+            </p>
           </div>
 
-          <div className="mt-6 overflow-x-auto">
-            <table className="min-w-full text-left text-sm text-slate-700">
-              <thead className="border-b border-slate-200 text-slate-500">
+          {/* Mobile card list */}
+          <div className="sm:hidden divide-y divide-slate-100">
+            {loading ? (
+              <div className="flex items-center justify-center gap-2 py-10 text-slate-400">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">Cargando citas...</span>
+              </div>
+            ) : filteredAppointments.length === 0 ? (
+              <p className="py-10 text-center text-sm text-slate-400">
+                No hay citas para los filtros seleccionados.
+              </p>
+            ) : (
+              filteredAppointments.map((apt) => {
+                const d = new Date(apt.scheduled_at)
+                const isCancelled = apt.status === 'cancelled'
+                return (
+                  <button
+                    key={apt.id}
+                    onClick={() => openModal(apt)}
+                    className={`w-full text-left px-4 py-4 hover:bg-slate-50 transition-colors ${ROW_BG[apt.status] ?? ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className={`font-medium text-slate-900 text-sm truncate ${isCancelled ? 'line-through text-slate-400' : ''}`}>
+                          {apt.lead?.contact_name || 'Sin nombre'}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {apt.doctor?.metadata?.name as string || 'Médico'}
+                        </p>
+                      </div>
+                      <span className={`inline-flex shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE[apt.status] ?? 'bg-slate-100 text-slate-600'}`}>
+                        {STATUS_LABELS[apt.status] ?? apt.status}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex items-center gap-3 text-xs text-slate-500">
+                      <span className="capitalize">
+                        {d.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' })}
+                      </span>
+                      <span>·</span>
+                      <span>{d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span>·</span>
+                      <span>{modalityFromNotes(apt.notes)}</span>
+                    </div>
+                  </button>
+                )
+              })
+            )}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-slate-100">
                 <tr>
-                  <th className="px-4 py-3">Paciente</th>
-                  <th className="px-4 py-3">Médico</th>
-                  <th className="px-4 py-3">Fecha</th>
-                  <th className="px-4 py-3">Hora</th>
-                  <th className="px-4 py-3">Modalidad</th>
-                  <th className="px-4 py-3">Estado</th>
+                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Paciente</th>
+                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Médico</th>
+                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Fecha</th>
+                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Hora</th>
+                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Modalidad</th>
+                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Estado</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-50">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                    <td colSpan={6} className="px-5 py-10 text-center text-slate-400">
                       <span className="inline-flex items-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         Cargando citas...
@@ -512,44 +584,42 @@ export function CalendarClient() {
                   </tr>
                 ) : filteredAppointments.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                    <td colSpan={6} className="px-5 py-10 text-center text-slate-400">
                       No hay citas para los filtros seleccionados.
                     </td>
                   </tr>
                 ) : (
                   filteredAppointments.map((apt) => {
                     const d = new Date(apt.scheduled_at)
+                    const isCancelled = apt.status === 'cancelled'
                     return (
                       <tr
                         key={apt.id}
                         onClick={() => openModal(apt)}
-                        className="cursor-pointer border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                        className={`cursor-pointer hover:bg-slate-50 transition-colors ${ROW_BG[apt.status] ?? ''}`}
                       >
-                        <td className="px-4 py-3 font-medium text-slate-900">
-                          {apt.lead?.contact_name || 'Sin nombre'}
+                        <td className="px-5 py-3.5">
+                          <p className={`font-medium text-slate-900 ${isCancelled ? 'line-through text-slate-400' : ''}`}>
+                            {apt.lead?.contact_name || 'Sin nombre'}
+                          </p>
+                          {apt.lead?.contact_phone && (
+                            <p className="text-xs text-slate-400 mt-0.5">{apt.lead.contact_phone}</p>
+                          )}
                         </td>
-                        <td className="px-4 py-3">
-                          {apt.doctor?.metadata?.name as string || 'Médico'}
+                        <td className="px-5 py-3.5 text-slate-700">
+                          {apt.doctor?.metadata?.name as string || '—'}
                         </td>
-                        <td className="px-4 py-3">
-                          {d.toLocaleDateString('es-CO', {
-                            weekday: 'short',
-                            day: 'numeric',
-                            month: 'short',
-                          })}
+                        <td className="px-5 py-3.5 text-slate-600 capitalize">
+                          {d.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' })}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-5 py-3.5 font-medium text-slate-900">
                           {d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
                         </td>
-                        <td className="px-4 py-3 text-slate-600">
+                        <td className="px-5 py-3.5 text-slate-600">
                           {modalityFromNotes(apt.notes)}
                         </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                              STATUS_COLORS[apt.status] ?? 'bg-slate-100 text-slate-600'
-                            }`}
-                          >
+                        <td className="px-5 py-3.5">
+                          <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE[apt.status] ?? 'bg-slate-100 text-slate-600'}`}>
                             {STATUS_LABELS[apt.status] ?? apt.status}
                           </span>
                         </td>
@@ -563,20 +633,22 @@ export function CalendarClient() {
         </div>
       </div>
 
-      {/* ── Appointment detail modal ────────────────────────────────────────── */}
+      {/* ── Appointment detail modal ──────────────────────────────────────────── */}
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
           {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={closeModal}
-          />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeModal} />
 
-          {/* Panel */}
-          <div className="relative z-10 w-full max-w-lg rounded-3xl bg-white shadow-2xl">
+          {/* Panel — slides up from bottom on mobile, centered on desktop */}
+          <div className="relative z-10 w-full max-w-lg rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl max-h-[92vh] flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-              <h2 className="text-lg font-semibold text-slate-900">Detalle de cita</h2>
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 shrink-0">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Detalle de cita</h2>
+                <span className={`mt-0.5 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_BADGE[selected.status] ?? 'bg-slate-100 text-slate-600'}`}>
+                  {STATUS_LABELS[selected.status] ?? selected.status}
+                </span>
+              </div>
               <button
                 onClick={closeModal}
                 className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
@@ -585,32 +657,28 @@ export function CalendarClient() {
               </button>
             </div>
 
-            <div className="px-6 py-5 space-y-5">
-              {/* Patient + doctor info */}
+            {/* Scrollable body */}
+            <div className="overflow-y-auto px-5 py-5 space-y-5 flex-1">
+              {/* Patient info */}
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">
-                    Paciente
-                  </p>
-                  <p className="font-medium text-slate-900">
-                    {selected.lead?.contact_name || 'Sin nombre'}
-                  </p>
+                <div className="col-span-2 sm:col-span-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Paciente</p>
+                  <p className="font-medium text-slate-900">{selected.lead?.contact_name || 'Sin nombre'}</p>
                   {selected.lead?.contact_phone && (
-                    <p className="text-slate-500">{selected.lead?.contact_phone}</p>
+                    <p className="text-slate-500 mt-0.5">{selected.lead.contact_phone}</p>
+                  )}
+                  {selected.lead?.contact_email && (
+                    <p className="text-slate-500 text-xs mt-0.5">{selected.lead.contact_email}</p>
                   )}
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">
-                    Médico
-                  </p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Médico</p>
                   <p className="font-medium text-slate-900">
                     {(selected.doctor?.metadata?.name as string) || 'Sin asignar'}
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">
-                    Fecha y hora
-                  </p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Fecha y hora</p>
                   <p className="font-medium text-slate-900">
                     {new Date(selected.scheduled_at).toLocaleString('es-CO', {
                       weekday: 'short',
@@ -622,25 +690,18 @@ export function CalendarClient() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">
-                    Modalidad / Estado
-                  </p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Sede</p>
+                  <p className="text-slate-700">{selected.location?.name || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Modalidad</p>
                   <p className="text-slate-700">{modalityFromNotes(selected.notes)}</p>
-                  <span
-                    className={`mt-1 inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                      STATUS_COLORS[selected.status] ?? 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {STATUS_LABELS[selected.status] ?? selected.status}
-                  </span>
                 </div>
               </div>
 
               {/* Notes */}
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Notas
-                </label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Notas</label>
                 <textarea
                   value={modalNotes}
                   onChange={(e) => setModalNotes(e.target.value)}
@@ -657,27 +718,31 @@ export function CalendarClient() {
                 </button>
               </div>
 
-              {/* Reschedule — only if not cancelled/completed */}
+              {/* Reschedule — split date + time */}
               {!['cancelled', 'completed'].includes(selected.status) && (
                 <div>
-                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Reagendar
-                  </label>
-                  <div className="mt-2 flex gap-2">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Reagendar</label>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
                     <input
-                      type="datetime-local"
-                      value={modalRescheduleAt}
-                      onChange={(e) => setModalRescheduleAt(e.target.value)}
-                      className="flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      type="date"
+                      value={modalRescheduleDate}
+                      onChange={(e) => setModalRescheduleDate(e.target.value)}
+                      className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
-                    <button
-                      onClick={handleReschedule}
-                      disabled={modalSaving}
-                      className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition disabled:opacity-50"
-                    >
-                      Guardar
-                    </button>
+                    <input
+                      type="time"
+                      value={modalRescheduleTime}
+                      onChange={(e) => setModalRescheduleTime(e.target.value)}
+                      className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
+                  <button
+                    onClick={handleReschedule}
+                    disabled={modalSaving || !modalRescheduleDate || !modalRescheduleTime}
+                    className="mt-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition disabled:opacity-50"
+                  >
+                    {modalSaving ? 'Guardando...' : 'Confirmar reagendamiento'}
+                  </button>
                 </div>
               )}
 
@@ -692,27 +757,29 @@ export function CalendarClient() {
                   {!showCancelConfirm ? (
                     <button
                       onClick={() => setShowCancelConfirm(true)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-100 transition"
+                      className="inline-flex items-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-600 hover:bg-rose-100 transition"
                     >
                       <AlertTriangle className="h-4 w-4" />
-                      Cancelar cita
+                      Cancelar esta cita
                     </button>
                   ) : (
-                    <div className="flex items-center gap-3">
-                      <p className="text-sm text-slate-700">¿Confirmar cancelación?</p>
-                      <button
-                        onClick={handleCancel}
-                        disabled={modalSaving}
-                        className="rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-700 transition disabled:opacity-50"
-                      >
-                        {modalSaving ? 'Cancelando...' : 'Sí, cancelar'}
-                      </button>
-                      <button
-                        onClick={() => setShowCancelConfirm(false)}
-                        className="rounded-xl bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition"
-                      >
-                        No
-                      </button>
+                    <div className="rounded-xl bg-slate-50 p-4 space-y-3">
+                      <p className="text-sm font-medium text-slate-700">¿Seguro que deseas cancelar esta cita?</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleCancel}
+                          disabled={modalSaving}
+                          className="rounded-xl bg-rose-500 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-600 transition disabled:opacity-50"
+                        >
+                          {modalSaving ? 'Cancelando...' : 'Sí, cancelar'}
+                        </button>
+                        <button
+                          onClick={() => setShowCancelConfirm(false)}
+                          className="rounded-xl bg-white border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                        >
+                          No, volver
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
