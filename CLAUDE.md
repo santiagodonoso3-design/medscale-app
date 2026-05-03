@@ -24,9 +24,21 @@
 - ✅ Bug de params['org-slug'] corregido
 
 ## 🚧 PENDIENTE PRÓXIMA SESIÓN
-- [ ] Panel org_admin para que Ferttes entre a ver sus citas agendadas
-- [ ] Quitar debug amarillo del calendario (cuadro con conteo de schedules)
-- [ ] Ajustes de diseño y UX del wizard
+
+### Panel org_admin — en progreso (Sesión 3)
+**✅ Completado hoy:**
+- Dashboard (/dashboard) reescrito con 4 métricas: citas hoy, citas semana, total leads, total pacientes
+- Tabla "Próximas citas": fecha, hora, paciente, médico, modalidad, estado
+- Tabla "Últimos leads": nombre, teléfono, fuente, fecha
+- Server actions de scheduling: cancelAppointment, updateAppointmentNotes, rescheduleAppointment (`app/(app)/scheduling/actions.ts`)
+
+**❌ Pendiente (continuar próxima sesión):**
+- [ ] Modal de detalle de cita en /scheduling/calendar — usar las actions ya creadas (cancelar, notas, reagendar)
+- [ ] CRM: agregar fuente 'book' y 'manychat' a la lista de filtros
+- [ ] CRM: modal de detalle del lead con sus citas vinculadas
+
+**Otros pendientes:**
+- [ ] Ajustes de diseño y UX del wizard de agendamiento
 - [ ] Google Calendar sync por médico (Fase 2)
 
 ## 🚧 PROBLEMA TÉCNICO CONOCIDO
