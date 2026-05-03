@@ -14,6 +14,22 @@ export async function cancelAppointment(id: string): Promise<{ error?: string }>
   return {}
 }
 
+export async function logCancellation(
+  appointmentId: string,
+  reason: string,
+  userId: string | null
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('appointment_logs').insert({
+    appointment_id: appointmentId,
+    event_type: 'cancelled',
+    note: reason,
+    performed_by: userId ?? null,
+  })
+  if (error) return { error: error.message }
+  return {}
+}
+
 export async function updateAppointmentNotes(
   id: string,
   notes: string
