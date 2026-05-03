@@ -102,22 +102,12 @@ const supabaseDay = jsDay === 0 ? 7 : jsDay
 - Google Calendar: Fase 2
 
 ## 🗂️ Base de Datos (16 tablas)
+organizations → users, locations, leads, conversations,
+appointments, doctors, schedules, appointment_logs,
+conversation_messages, lead_fields, lead_values,
+locations_rooms, permissions, user_permissions,
+superadmins, webhook_logs
 
-```
-organizations (multi-tenant)
-├── users (roles: superadmin, admin, staff)
-├── locations
-├── leads (CRM)
-├── conversations
-├── appointments (external_calendar_id preparado para Google Calendar)
-├── doctors (metadata: { name, duration, default_duration })
-├── schedules (doctor_id, location_id, day_of_week, start_time, end_time)
-│   ⚠️ NO tiene organization_id ni room_id
-└── ... (16 tablas total)
-```
-
-## 🔐 Seguridad
-- Row Level Security (RLS) en todas las tablas
-- Políticas de acceso basadas en roles
-- Middleware: /book/* público, resto requiere auth
-- One-time setup protection
+## 📊 Métricas
+- Archivos: 25+, Componentes: 12+, Server Actions: 6+
+- Tablas BD: 16 con RLS, Clientes beta: 1 (Ferttes)
