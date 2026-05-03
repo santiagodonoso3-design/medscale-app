@@ -18,27 +18,36 @@
 
 ### Panel org_admin
 - ✅ Dashboard: métricas + próximas citas + últimos leads
-- ✅ Calendario /scheduling/calendar: modal con cancelar, notas, reagendar
+- ✅ Calendario /scheduling/calendar: rediseñado con tabs, vista dual y cancelación con motivo
 - ✅ CRM /crm: fuentes book/manychat, búsqueda, modal lead + citas
+- ✅ Wizard /book: calendario responsive en móvil (aspect-square, flex-col en mobile)
+
+### Rediseño calendario (sesión actual)
+- ✅ Tabs de navegación: Calendario | Médicos | Disponibilidad (SchedulingTabs client component)
+- ✅ Vista dual toggle: [📅 Calendario] [☰ Lista]
+- ✅ Vista Calendario: cuadrícula mensual con dots de color por estado, click día expande citas
+- ✅ Vista Lista: agrupada por fecha, sección "Citas canceladas" atenuada al final
+- ✅ Cancelación con motivo obligatorio (textarea requerida)
+- ✅ Log en appointment_logs: event_type='cancelled', note=motivo, performed_by=userId
+- ✅ Filtro por médico funcional + búsqueda de paciente
+- ✅ Modal: email + sede + reagendar con fecha/hora separados
 
 ### Cliente beta
 - ✅ Ferttes cargado (5 médicos, disponibilidades, sede)
 - ✅ Usuario admin@ferttes.com creado y funcionando
 
 ## 🔴 PRIORIDAD 1 — Funcionalidades críticas (probar y corregir)
-- [ ] Cancelar cita desde calendario — probar que funciona
-- [ ] Reagendar cita — probar que funciona
-- [ ] Agregar notas a cita — probar que funciona
-- [ ] Crear nueva cita desde panel admin
-- [ ] Ver detalle de lead con sus citas
-- [ ] Filtros de calendario por médico
+- [ ] Probar cancelar cita con motivo — verificar que guarda en appointment_logs
+- [ ] Probar reagendar cita — verificar fecha/hora correcta en DB
+- [ ] Probar agregar notas a cita
+- [ ] Probar crear nueva cita desde panel admin
+- [ ] Probar flujo completo de agendamiento público (/book) en móvil
 
 ## 🟡 PRIORIDAD 2 — UX y ajustes visuales
-- [ ] Dashboard: mejorar diseño de métricas y tablas
-- [ ] Calendario: mejorar vista general
+- [ ] Dashboard: diseño de métricas y tablas
 - [ ] CRM: mejorar columnas y estados de leads
-- [ ] Wizard /book: ajustes finales de diseño
 - [ ] Sidebar: navegación clara por rol (admin vs staff vs superadmin)
+- [ ] Calendario: verificar que dots de colores muestran datos reales
 
 ## 🟠 PRIORIDAD 3 — Conversaciones
 - [ ] Panel /conversations: ver chats por lead
