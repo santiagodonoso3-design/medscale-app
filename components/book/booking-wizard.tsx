@@ -208,17 +208,34 @@ function CalendarPicker({
   const isPrevDisabled = viewYear === todayYear && viewMonth === todayMonth
 
   return (
-    <div className="flex gap-0 h-full">
-      {/* Left info panel */}
-      <div className="w-52 flex-shrink-0 border-r border-gray-100 pr-6 flex flex-col gap-5">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">
-            Organización
-          </p>
-          <p className="font-semibold text-gray-900 text-sm">{orgName}</p>
+    // Mobile: vertical stack. Desktop (sm+): side-by-side panels
+    <div className="flex flex-col gap-4 sm:flex-row sm:gap-0">
+
+      {/* ── Info panel ─────────────────────────────────────────────────────────
+          Mobile: compact horizontal bar with key info on one line
+          Desktop: vertical sidebar w-44 with full detail              */}
+      <div className={[
+        // Mobile: horizontal row, border-bottom separator
+        'flex flex-row flex-wrap items-center gap-x-3 gap-y-1 pb-3 border-b border-gray-100',
+        // Desktop: vertical column, border-right separator
+        'sm:flex-col sm:flex-nowrap sm:items-start sm:w-44 sm:flex-shrink-0 sm:pb-0 sm:border-b-0 sm:border-r sm:border-gray-100 sm:pr-5 sm:gap-4',
+      ].join(' ')}>
+        {/* Org + Doctor — inline on mobile, stacked on desktop */}
+        <div className="flex items-center gap-1.5 sm:block">
+          <p className="text-xs font-semibold text-gray-900 sm:hidden">{orgName}</p>
+          <span className="text-xs text-gray-300 sm:hidden">·</span>
+          <p className="text-xs text-gray-700 font-medium sm:hidden">{doctorName}</p>
+          {/* Desktop only */}
+          <div className="hidden sm:block">
+            <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">
+              Organización
+            </p>
+            <p className="font-semibold text-gray-900 text-sm">{orgName}</p>
+          </div>
         </div>
 
-        <div>
+        {/* Doctor details — desktop only */}
+        <div className="hidden sm:block">
           <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">
             Médico
           </p>
@@ -231,17 +248,19 @@ function CalendarPicker({
           )}
         </div>
 
-        <div className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 rounded-full px-3 py-1.5 text-xs font-semibold w-fit">
+        {/* Duration badge — always visible */}
+        <div className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 rounded-full px-2.5 py-1 text-xs font-semibold">
           <Clock className="w-3 h-3" />
           {duration} min
         </div>
 
+        {/* Selected summary — desktop only */}
         {selectedDate && selectedTime && (
-          <div className="bg-gray-50 rounded-xl p-3 mt-auto">
-            <p className="text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">
+          <div className="hidden sm:block bg-gray-50 rounded-xl p-3 mt-auto w-full">
+            <p className="text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">
               Seleccionado
             </p>
-            <p className="text-xs text-gray-600">
+            <p className="text-xs text-gray-600 capitalize">
               {new Intl.DateTimeFormat('es-CO', {
                 weekday: 'long',
                 day: 'numeric',
@@ -254,12 +273,15 @@ function CalendarPicker({
         )}
       </div>
 
-      {/* Right: calendar + slots */}
-      <div className="flex-1 pl-6 flex gap-6 min-w-0">
+      {/* ── Calendar + Slots ───────────────────────────────────────────────────
+          Mobile: calendar full-width, then slots below
+          Desktop: calendar fixed-width, slots alongside              */}
+      <div className="flex flex-col gap-4 sm:flex-1 sm:pl-5 sm:flex-row sm:gap-5 min-w-0">
+
         {/* Monthly calendar */}
-        <div className="flex-shrink-0">
+        <div className="w-full sm:flex-shrink-0 sm:w-[252px]">
           {/* Month nav */}
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-3">
             <button
               onClick={prevMonth}
               disabled={isPrevDisabled}
@@ -267,7 +289,7 @@ function CalendarPicker({
             >
               <ChevronLeft className="w-4 h-4 text-gray-600" />
             </button>
-            <span className="text-sm font-semibold text-gray-900 w-36 text-center">
+            <span className="text-sm font-semibold text-gray-900 text-center">
               {MONTH_NAMES[viewMonth]} {viewYear}
             </span>
             <button
@@ -278,22 +300,22 @@ function CalendarPicker({
             </button>
           </div>
 
-          {/* Day headers */}
+          {/* Day headers — fill available width */}
           <div className="grid grid-cols-7 mb-1">
             {DAY_LABELS.map((label) => (
               <div
                 key={label}
-                className="w-9 text-center text-xs font-medium text-gray-400 py-1"
+                className="text-center text-xs font-medium text-gray-400 py-1"
               >
                 {label}
               </div>
             ))}
           </div>
 
-          {/* Day grid */}
-          <div className="grid grid-cols-7 gap-y-1">
+          {/* Day grid — cells fill width proportionally, square via aspect-square */}
+          <div className="grid grid-cols-7">
             {calendarGrid.map((dateStr, i) => {
-              if (!dateStr) return <div key={i} className="w-9 h-9" />
+              if (!dateStr) return <div key={i} className="aspect-square" />
 
               const isToday = dateStr === today
               const isPast = dateStr < today
@@ -302,23 +324,24 @@ function CalendarPicker({
               const isDisabled = isPast || !hasSlots
 
               return (
-                <button
-                  key={dateStr}
-                  onClick={() => !isDisabled && onSelect(dateStr, '')}
-                  disabled={isDisabled}
-                  className={[
-                    'w-9 h-9 rounded-full text-sm font-medium transition flex items-center justify-center',
-                    isSelected
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : isToday && !isDisabled
-                      ? 'border-2 border-blue-500 text-blue-700 hover:bg-blue-50'
-                      : isDisabled
-                      ? 'text-gray-300 cursor-not-allowed'
-                      : 'text-gray-700 hover:bg-blue-50 hover:text-blue-700',
-                  ].join(' ')}
-                >
-                  {Number(dateStr.slice(8))}
-                </button>
+                <div key={dateStr} className="p-0.5">
+                  <button
+                    onClick={() => !isDisabled && onSelect(dateStr, '')}
+                    disabled={isDisabled}
+                    className={[
+                      'w-full aspect-square rounded-full text-xs sm:text-sm font-medium transition flex items-center justify-center',
+                      isSelected
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : isToday && !isDisabled
+                        ? 'border-2 border-blue-500 text-blue-700 hover:bg-blue-50'
+                        : isDisabled
+                        ? 'text-gray-300 cursor-not-allowed'
+                        : 'text-gray-700 hover:bg-blue-50 hover:text-blue-700',
+                    ].join(' ')}
+                  >
+                    {Number(dateStr.slice(8))}
+                  </button>
+                </div>
               )
             })}
           </div>
@@ -327,8 +350,8 @@ function CalendarPicker({
         {/* Time slots */}
         <div className="flex-1 min-w-0">
           {!selectedDate ? (
-            <div className="h-full flex items-center justify-center">
-              <p className="text-sm text-gray-400 text-center px-4">
+            <div className="flex items-center justify-center py-6 sm:h-full">
+              <p className="text-sm text-gray-400 text-center">
                 Selecciona una fecha para ver horarios disponibles
               </p>
             </div>
@@ -353,7 +376,7 @@ function CalendarPicker({
                   No hay horarios disponibles para este día.
                 </p>
               ) : (
-                <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
+                <div className="grid grid-cols-3 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
                   {slotsForDate.map((time) => {
                     const booked = isSlotBooked(time)
                     const isSelected = time === selectedTime
@@ -363,7 +386,7 @@ function CalendarPicker({
                         onClick={() => !booked && onSelect(selectedDate, time)}
                         disabled={booked}
                         className={[
-                          'py-2.5 px-3 rounded-xl text-sm font-medium text-center transition border',
+                          'py-2.5 px-2 rounded-xl text-xs sm:text-sm font-medium text-center transition border',
                           isSelected
                             ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                             : booked
