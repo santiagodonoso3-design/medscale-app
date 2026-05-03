@@ -19,8 +19,9 @@ type AppointmentRecord = {
   lead_id: string | null
   location_id: string | null
   metadata: Record<string, unknown> | null
-  lead?: { contact_name: string | null; contact_phone: string | null }[]
-  doctor?: { metadata: Record<string, unknown> | null }[]
+  // Supabase returns many-to-one joins as single objects, not arrays
+  lead?: { contact_name: string | null; contact_phone: string | null } | null
+  doctor?: { metadata: Record<string, unknown> | null } | null
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -122,7 +123,7 @@ export function CalendarClient() {
 
     setDoctors(doctorData || [])
     setLocations(locationData || [])
-    setAppointments((appointmentData as AppointmentRecord[]) || [])
+    setAppointments((appointmentData as unknown as AppointmentRecord[]) || [])
 
     if (!form.doctor_id && doctorData?.length) {
       setForm((prev) => ({ ...prev, doctor_id: doctorData[0].id }))
@@ -145,8 +146,8 @@ export function CalendarClient() {
         const matchesLocation = !filterLocation || apt.location_id === filterLocation
         const matchesSearch =
           !search ||
-          apt.lead?.[0]?.contact_name?.toLowerCase().includes(search.toLowerCase()) ||
-          apt.lead?.[0]?.contact_phone?.includes(search)
+          apt.lead?.contact_name?.toLowerCase().includes(search.toLowerCase()) ||
+          apt.lead?.contact_phone?.includes(search)
         return matchesDoctor && matchesLocation && matchesSearch
       }),
     [appointments, filterDoctor, filterLocation, search]
@@ -525,10 +526,10 @@ export function CalendarClient() {
                         className="cursor-pointer border-b border-slate-100 hover:bg-slate-50 transition-colors"
                       >
                         <td className="px-4 py-3 font-medium text-slate-900">
-                          {apt.lead?.[0]?.contact_name || 'Sin nombre'}
+                          {apt.lead?.contact_name || 'Sin nombre'}
                         </td>
                         <td className="px-4 py-3">
-                          {apt.doctor?.[0]?.metadata?.name as string || 'Médico'}
+                          {apt.doctor?.metadata?.name as string || 'Médico'}
                         </td>
                         <td className="px-4 py-3">
                           {d.toLocaleDateString('es-CO', {
@@ -592,10 +593,10 @@ export function CalendarClient() {
                     Paciente
                   </p>
                   <p className="font-medium text-slate-900">
-                    {selected.lead?.[0]?.contact_name || 'Sin nombre'}
+                    {selected.lead?.contact_name || 'Sin nombre'}
                   </p>
-                  {selected.lead?.[0]?.contact_phone && (
-                    <p className="text-slate-500">{selected.lead[0].contact_phone}</p>
+                  {selected.lead?.contact_phone && (
+                    <p className="text-slate-500">{selected.lead?.contact_phone}</p>
                   )}
                 </div>
                 <div>
@@ -603,7 +604,7 @@ export function CalendarClient() {
                     Médico
                   </p>
                   <p className="font-medium text-slate-900">
-                    {(selected.doctor?.[0]?.metadata?.name as string) || 'Sin asignar'}
+                    {(selected.doctor?.metadata?.name as string) || 'Sin asignar'}
                   </p>
                 </div>
                 <div>
