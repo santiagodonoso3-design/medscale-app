@@ -25,19 +25,12 @@
 
 ## 🚧 PENDIENTE PRÓXIMA SESIÓN
 
-### Panel org_admin — en progreso (Sesión 3)
-**✅ Completado hoy:**
-- Dashboard (/dashboard) reescrito con 4 métricas: citas hoy, citas semana, total leads, total pacientes
-- Tabla "Próximas citas": fecha, hora, paciente, médico, modalidad, estado
-- Tabla "Últimos leads": nombre, teléfono, fuente, fecha
-- Server actions de scheduling: cancelAppointment, updateAppointmentNotes, rescheduleAppointment (`app/(app)/scheduling/actions.ts`)
+### Panel org_admin — ✅ COMPLETADO (Sesión 3)
+- ✅ Dashboard (/dashboard): 4 métricas + tabla próximas citas + tabla últimos leads
+- ✅ Calendario (/scheduling/calendar): modal de detalle con cancelar, editar notas, reagendar
+- ✅ CRM (/crm): fuentes 'book' y 'manychat', búsqueda, modal de detalle del lead + sus citas
 
-**❌ Pendiente (continuar próxima sesión):**
-- [ ] Modal de detalle de cita en /scheduling/calendar — usar las actions ya creadas (cancelar, notas, reagendar)
-- [ ] CRM: agregar fuente 'book' y 'manychat' a la lista de filtros
-- [ ] CRM: modal de detalle del lead con sus citas vinculadas
-
-**Otros pendientes:**
+**Pendientes menores:**
 - [ ] Ajustes de diseño y UX del wizard de agendamiento
 - [ ] Google Calendar sync por médico (Fase 2)
 
