@@ -109,6 +109,9 @@
 - [ ] Motor de automatizaciones: triggers (lead creado, cita agendada, sin respuesta)
   → acciones: enviar email, WhatsApp, crear tarea, asignar usuario
 - [ ] Constructor visual de flujos + integración n8n
+- [ ] CRM multi-fuente: captura desde formularios web, emails y encuestas
+- [ ] Tracking unificado de conversaciones por lead (todos los canales en una vista)
+- [ ] Automatizaciones basadas en cambios de estado del lead
 
 ---
 
