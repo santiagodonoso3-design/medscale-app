@@ -27,10 +27,15 @@
 - ✅ Notas editables por cita
 - ✅ Nueva cita manual: modal con búsqueda de lead o creación nueva
 - ✅ Filtro por médico + búsqueda de paciente
-- ✅ Vista lista: canceladas en su fecha original, atenuadas (opacity-50) y nombre tachado
+- ✅ Vista lista por defecto (no calendario)
+- ✅ Toggle Lista/Calendario prominente a la izquierda junto a los filtros (pill bg-slate-900)
+- ✅ Vista lista: pills de rango Hoy / Esta semana / Este mes / Todos (default: Esta semana)
+- ✅ Vista lista: separadores de fecha en bg-blue-50, texto blue-700 bold
+- ✅ Vista lista: canceladas en su fecha original, borde izquierdo rojo (border-l-4 border-red-400) + nombre tachado
+- ✅ Vista lista: "Sin nombre" en canceladas → "Paciente no disponible" gris itálico
 - ✅ Vista lista: toggle "Mostrar canceladas" (default ON) — solo visual, no afecta métricas
 - ✅ Vista lista: header de columnas único arriba (no repetido por grupo de fecha)
-- ✅ Vista lista: columna Modalidad condicional — aparece solo si alguna cita tiene valor real
+- ✅ Vista lista: columna Modalidad eliminada
 
 ### Módulo Doctores /doctors
 - ✅ Lista de médicos: tabla con Nombre (dot color), Especialidad, Duración, Días que atiende, Estado
