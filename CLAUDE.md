@@ -21,13 +21,16 @@
 - ✅ Vista dual toggle: Calendario mensual / Lista agrupada por fecha
 - ✅ Tabs pill: Calendario | (Médicos y Disponibilidad movidos a /doctors)
 - ✅ Calendario mensual: chips de texto en desktop (hora + nombre), dots en móvil
-- ✅ Citas canceladas visualmente separadas y atenuadas en vista lista
 - ✅ Cancelación con motivo obligatorio (textarea requerida)
 - ✅ Log en appointment_logs: event_type='cancelled', note=motivo, performed_by=userId
 - ✅ Reagendar cita: fecha + hora separados
 - ✅ Notas editables por cita
 - ✅ Nueva cita manual: modal con búsqueda de lead o creación nueva
 - ✅ Filtro por médico + búsqueda de paciente
+- ✅ Vista lista: canceladas en su fecha original, atenuadas (opacity-50) y nombre tachado
+- ✅ Vista lista: toggle "Mostrar canceladas" (default ON) — solo visual, no afecta métricas
+- ✅ Vista lista: header de columnas único arriba (no repetido por grupo de fecha)
+- ✅ Vista lista: columna Modalidad condicional — aparece solo si alguna cita tiene valor real
 
 ### Módulo Doctores /doctors
 - ✅ Lista de médicos: tabla con Nombre (dot color), Especialidad, Duración, Días que atiende, Estado
