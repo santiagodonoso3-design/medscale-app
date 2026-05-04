@@ -17,9 +17,13 @@ interface CreateLeadModalProps {
 }
 
 const sourceOptions = [
-  { value: 'manual',   label: 'Manual' },
-  { value: 'book',     label: 'Agendamiento' },
-  { value: 'manychat', label: 'ManyChat' },
+  { value: 'manual',    label: 'Manual' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'whatsapp',  label: 'WhatsApp' },
+  { value: 'facebook',  label: 'Facebook' },
+  { value: 'web',       label: 'Página web' },
+  { value: 'book',      label: 'Agendamiento online' },
+  { value: 'referido',  label: 'Referido' },
 ]
 
 export function CreateLeadModal({ isOpen, onClose, onSuccess, onCreateLead }: CreateLeadModalProps) {

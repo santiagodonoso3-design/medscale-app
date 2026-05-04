@@ -72,17 +72,27 @@ const KANBAN_HEADER: Record<string, string> = {
 }
 
 const SOURCE_LABELS: Record<string, string> = {
-  book:         'Agendamiento',
-  booking:      'Agendamiento',
-  manychat:     'ManyChat',
-  manychat_n8n: 'ManyChat',
+  instagram:    'Instagram',
+  whatsapp:     'WhatsApp',
+  facebook:     'Facebook',
+  web:          'Página web',
+  book:         'Agendamiento online',
+  referido:     'Referido',
   manual:       'Manual',
+  // legacy
+  booking:      'Agendamiento online',
+  manychat:     'WhatsApp',
+  manychat_n8n: 'WhatsApp',
 }
 
 const SOURCES = [
-  { value: 'all',      label: 'Todas las fuentes' },
-  { value: 'book',     label: 'Agendamiento' },
-  { value: 'manychat', label: 'ManyChat' },
+  { value: 'all',       label: 'Todas las fuentes' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'whatsapp',  label: 'WhatsApp' },
+  { value: 'facebook',  label: 'Facebook' },
+  { value: 'web',       label: 'Página web' },
+  { value: 'book',      label: 'Agendamiento online' },
+  { value: 'referido',  label: 'Referido' },
 ]
 
 const APT_STATUS_COLORS: Record<string, string> = {
@@ -336,9 +346,7 @@ export default function CrmPage() {
   const filteredLeads = useMemo(() =>
     leads.filter(lead => {
       const matchStatus = statusFilter === 'all' || lead.status === statusFilter
-      const matchSource = sourceFilter === 'all' ||
-        lead.source === sourceFilter ||
-        (sourceFilter === 'manychat' && lead.source === 'manychat_n8n')
+      const matchSource = sourceFilter === 'all' || lead.source === sourceFilter
       const matchSearch = !search ||
         lead.contact_name?.toLowerCase().includes(search.toLowerCase()) ||
         lead.contact_phone?.includes(search) ||

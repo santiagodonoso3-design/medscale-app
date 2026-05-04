@@ -1,6 +1,12 @@
 import { createServiceClient } from '@/lib/supabase/server'
 
-const ALLOWED_SOURCES = ['whatsapp', 'instagram', 'facebook']
+const ALLOWED_SOURCES = ['whatsapp', 'instagram', 'facebook', 'web', 'book', 'referido', 'manual']
+
+// n8n todavía envía 'manychat' — se mapea a 'whatsapp' hasta que envíe el canal real
+const SOURCE_MAP: Record<string, string> = {
+  manychat:     'whatsapp',
+  manychat_n8n: 'whatsapp',
+}
 
 function jsonResponse(payload: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -42,7 +48,8 @@ export async function POST(request: Request) {
       return jsonResponse({ success: false, error: 'Faltan campos requeridos' }, 400)
     }
 
-    if (!ALLOWED_SOURCES.includes(source)) {
+    const normalizedSource = SOURCE_MAP[source] ?? source
+    if (!ALLOWED_SOURCES.includes(normalizedSource)) {
       return jsonResponse({ success: false, error: 'Fuente no válida' }, 400)
     }
 
@@ -65,9 +72,9 @@ export async function POST(request: Request) {
         contact_name: full_name,
         contact_phone: phone,
         contact_email: email || null,
-        source,
+        source: normalizedSource,
         notes: notes || null,
-        status: 'new',
+        status: 'nuevo',
       })
       .select('id')
       .single()
