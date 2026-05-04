@@ -549,8 +549,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
       )
     }
 
-    const { grouped, days, hasModalidad } = listData
-    const colCount = hasModalidad ? 5 : 4
+    const { grouped, days } = listData
 
     if (days.length === 0) {
       return <p className="py-12 text-center text-sm text-slate-400">No hay citas para los filtros seleccionados.</p>
@@ -571,7 +570,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
           </label>
         </div>
 
-        {/* Single table — header once, date rows as separators */}
+        {/* Single table */}
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -579,7 +578,6 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                 <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Paciente</th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Médico</th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Hora</th>
-                {hasModalidad && <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Modalidad</th>}
                 <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Estado</th>
               </tr>
             </thead>
@@ -589,9 +587,9 @@ export function CalendarClient({ userId }: CalendarClientProps) {
               if (visible.length === 0) return null
               return (
                 <tbody key={day} className="divide-y divide-slate-50">
-                  {/* Date separator row */}
-                  <tr className="bg-slate-50">
-                    <td colSpan={colCount} className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 capitalize">
+                  {/* Date separator */}
+                  <tr className="bg-blue-50">
+                    <td colSpan={4} className="px-4 py-2 text-sm font-bold text-blue-700 capitalize">
                       {formatDateHeader(day)}
                     </td>
                   </tr>
@@ -603,10 +601,17 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                       <tr
                         key={apt.id}
                         onClick={() => openModal(apt)}
-                        className={`cursor-pointer transition-colors ${cancelled ? 'opacity-50 hover:opacity-75 hover:bg-slate-50' : 'hover:bg-slate-50'}`}
+                        className={`cursor-pointer transition-colors ${cancelled ? 'hover:bg-red-50/40' : 'hover:bg-slate-50'}`}
                       >
-                        <td className={`px-3 py-2.5 font-medium ${cancelled ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
-                          {apt.lead?.contact_name || 'Sin nombre'}
+                        <td className={`py-2.5 font-medium ${cancelled ? 'pl-0 border-l-4 border-red-400' : 'px-3'}`}>
+                          {cancelled && (
+                            <span className={`${cancelled ? 'pl-3' : ''} ${apt.lead?.contact_name ? 'text-slate-400 line-through' : 'italic text-slate-400'}`}>
+                              {apt.lead?.contact_name || 'Paciente no disponible'}
+                            </span>
+                          )}
+                          {!cancelled && (
+                            <span className="text-slate-900">{apt.lead?.contact_name || 'Sin nombre'}</span>
+                          )}
                         </td>
                         <td className={`px-3 py-2.5 ${cancelled ? 'text-slate-400' : 'text-slate-600'}`}>
                           {apt.doctor?.metadata?.name as string || '—'}
@@ -614,11 +619,6 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                         <td className={`px-3 py-2.5 font-medium ${cancelled ? 'text-slate-400' : 'text-slate-900'}`}>
                           {d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
                         </td>
-                        {hasModalidad && (
-                          <td className={`px-3 py-2.5 ${cancelled ? 'text-slate-400' : 'text-slate-600'}`}>
-                            {modalityFromNotes(apt.notes)}
-                          </td>
-                        )}
                         <td className="px-3 py-2.5">
                           <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE[apt.status] ?? 'bg-slate-100 text-slate-600'}`}>
                             {STATUS_LABELS[apt.status] ?? apt.status}
