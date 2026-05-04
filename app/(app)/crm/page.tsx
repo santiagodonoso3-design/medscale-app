@@ -286,6 +286,7 @@ export default function CrmPage() {
   })
   const [savingLead,    setSavingLead]    = useState(false)
   const [saveLeadError, setSaveLeadError] = useState<string | null>(null)
+  const [successToast,  setSuccessToast]  = useState<string | null>(null)
 
   // comments
   const [leadComments,    setLeadComments]    = useState<LeadComment[]>([])
@@ -416,8 +417,10 @@ export default function CrmPage() {
     }).eq('id', selectedLead.id)
     if (error) { setSaveLeadError(error.message); setSavingLead(false); return }
     await loadLeads()
-    setSelectedLead(prev => prev ? { ...prev, ...editForm, updated_at: now } : null)
     setSavingLead(false)
+    closeDetail()
+    setSuccessToast('Lead actualizado')
+    setTimeout(() => setSuccessToast(null), 3000)
   }
 
   const handleSaveComment = async () => {
@@ -864,6 +867,12 @@ export default function CrmPage() {
         onSuccess={() => { setIsModalOpen(false); loadLeads() }}
         onCreateLead={createLead}
       />
+
+      {successToast && (
+        <div className="fixed bottom-4 right-4 rounded-2xl bg-emerald-600 px-5 py-3 text-sm text-white shadow-lg">
+          {successToast}
+        </div>
+      )}
 
       {error && (
         <div className="fixed bottom-4 right-4 rounded-2xl bg-red-600 px-5 py-3 text-sm text-white shadow-lg">
