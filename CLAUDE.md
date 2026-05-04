@@ -1,4 +1,4 @@
-# MedScale App - Plan de Trabajo Unificado (3 Mayo 2026)
+# MedScale App — Estado del proyecto (3 Mayo 2026)
 
 ## ✅ Completado
 
@@ -15,53 +15,71 @@
 - ✅ Campos configurables por organización (appointment_form_fields)
 - ✅ ends_at calculado con metadata.duration del médico
 - ✅ external_calendar_id en appointments (preparado para Google Calendar)
+- ✅ Calendario responsive en móvil (aspect-square, flex-col)
 
-### Panel org_admin
-- ✅ Dashboard: métricas + próximas citas + últimos leads
-- ✅ Calendario /scheduling/calendar: rediseñado con tabs, vista dual y cancelación con motivo
-- ✅ CRM /crm: fuentes book/manychat, búsqueda, modal lead editable (nombre/teléfono/email/notas/estado), pipeline clicable
-- ✅ Estados CRM: nuevo, contactado, agendado, en_procedimiento, finalizado, perdido
-- ✅ Wizard /book: calendario responsive en móvil (aspect-square, flex-col en mobile)
-
-### Rediseño calendario (sesión actual)
-- ✅ Tabs de navegación: Calendario | Médicos | Disponibilidad (SchedulingTabs client component)
-- ✅ Vista dual toggle: [📅 Calendario] [☰ Lista]
-- ✅ Vista Calendario: cuadrícula mensual con dots de color por estado, click día expande citas
-- ✅ Vista Lista: agrupada por fecha, sección "Citas canceladas" atenuada al final
+### Agenda /scheduling/calendar
+- ✅ Vista dual toggle: Calendario mensual / Lista agrupada por fecha
+- ✅ Tabs pill: Calendario | (Médicos y Disponibilidad movidos a /doctors)
+- ✅ Calendario mensual: chips de texto en desktop (hora + nombre), dots en móvil
+- ✅ Citas canceladas visualmente separadas y atenuadas en vista lista
 - ✅ Cancelación con motivo obligatorio (textarea requerida)
 - ✅ Log en appointment_logs: event_type='cancelled', note=motivo, performed_by=userId
-- ✅ Filtro por médico funcional + búsqueda de paciente
-- ✅ Modal: email + sede + reagendar con fecha/hora separados
+- ✅ Reagendar cita: fecha + hora separados
+- ✅ Notas editables por cita
+- ✅ Nueva cita manual: modal con búsqueda de lead o creación nueva
+- ✅ Filtro por médico + búsqueda de paciente
+
+### Módulo Doctores /doctors
+- ✅ Lista de médicos: tabla con Nombre (dot color), Especialidad, Duración, Días que atiende, Estado
+- ✅ Nuevo médico y Editar médico: modal (no formulario inline)
+- ✅ Duración desde metadata.default_duration
+- ✅ Días que atiende: computed desde schedules filtrados por doctor_id
+- ✅ Activar/Desactivar médico desde tabla
+- ✅ Disponibilidad /doctors/availability: estilo Cal.com
+  - Toggle por día (Lun–Dom), hora inicio–fin en la misma fila
+  - Dropdown médico + sede en la parte superior
+  - Guardar: DELETE is_recurring=true + INSERT días activos (preserva excepciones)
+- ✅ Días adicionales: fecha específica + horario (active=true, is_recurring=false)
+- ✅ Días bloqueados: fecha específica sin atención (active=false, is_recurring=false)
+- ✅ Migración 003: columna specific_date DATE en tabla schedules
+
+### CRM /crm
+- ✅ Estados del pipeline: nuevo → contactado → agendado → en_procedimiento → finalizado → perdido
+- ✅ Pipeline clicable: clic en tarjeta filtra la tabla, color de acento por etapa
+- ✅ Fuentes: book (Agendamiento) y manychat (ManyChat); manychat_n8n alias de manychat
+- ✅ Modal de lead editable: nombre, teléfono, email, notas, estado (dropdown)
+- ✅ Guardar cambios actualiza DB y refresca tabla
+- ✅ Citas vinculadas visibles en el modal
+- ✅ Crear lead manual: fuente default 'manual', estado inicial 'nuevo'
+
+### Sidebar y navegación
+- ✅ 7 items: Dashboard, CRM, Agenda, Conversaciones, Doctores, Equipo, Configuración
+- ✅ Agenda activo en cualquier ruta /scheduling/*
+- ✅ /team placeholder "Próximamente — gestión de equipo y roles"
+- ✅ /scheduling redirige a /scheduling/calendar
 
 ### Cliente beta
 - ✅ Ferttes cargado (5 médicos, disponibilidades, sede)
 - ✅ Usuario admin@ferttes.com creado y funcionando
 
-## 🔴 PRIORIDAD 1 — Funcionalidades críticas (probar y corregir)
-- [ ] Probar cancelar cita con motivo — verificar que guarda en appointment_logs
-- [ ] Probar reagendar cita — verificar fecha/hora correcta en DB
-- [ ] Probar agregar notas a cita
-- [ ] Probar crear nueva cita desde panel admin
+---
+
+## 🔴 PRIORIDAD 1 — Probar y corregir en producción
+- [ ] Verificar cancelar cita con motivo guarda correctamente en appointment_logs
+- [ ] Verificar reagendar cita — fecha/hora correcta en DB
+- [ ] Verificar nueva cita manual desde panel admin
 - [ ] Probar flujo completo de agendamiento público (/book) en móvil
+- [ ] Dashboard: revisar métricas y mejorar UX de tarjetas
 
-## 🟡 PRIORIDAD 2 — UX y ajustes visuales
-- [ ] Dashboard: diseño de métricas y tablas
-- [ ] CRM: mejorar columnas y estados de leads
-- [ ] Sidebar: navegación clara por rol (admin vs staff vs superadmin)
-- [ ] Calendario: verificar que dots de colores muestran datos reales
-
-## 🟠 PRIORIDAD 3 — Conversaciones
-- [ ] Panel /conversations: ver chats por lead
+## 🟡 PRIORIDAD 2 — UX y ajustes
+- [ ] Sidebar: diferenciación visual por rol (admin vs staff vs superadmin)
+- [ ] Conversaciones /conversations: ver chats por lead
 - [ ] Conectar webhook n8n de ManyChat → tabla conversations
-  (n8n ya está activo, solo apuntar webhook a /api/webhooks/lead)
-- [ ] Vista de historial de conversación por lead
-- [ ] Filtros: por agente, por estado, por fecha
 
-## 🟢 PRIORIDAD 4 — Superadmin
+## 🟢 PRIORIDAD 3 — Superadmin
 - [ ] CRUD completo de organizaciones desde /admin
 - [ ] Crear y gestionar usuarios por organización
 - [ ] Ver métricas globales por organización
-- [ ] Onboarding de nuevo cliente desde el panel
 
 ## 🔵 Fase 2 (post primer cliente pagando)
 - [ ] Google Calendar sync por médico (OAuth por médico)
@@ -71,18 +89,13 @@
 - [ ] WhatsApp integration via Meta Cloud API
 - [ ] Reportes y analítica avanzada
 - [ ] API RESTful pública
-- [ ] Tabla de procedimientos por organización (procedures)
+- [ ] Tabla de procedimientos médicos por organización
 - [ ] Vincular procedimiento al lead cuando status = en_procedimiento
+- [ ] Motor de automatizaciones: triggers (lead creado, cita agendada, sin respuesta)
+  → acciones: enviar email, WhatsApp, crear tarea, asignar usuario
+- [ ] Constructor visual de flujos + integración n8n
 
-### Automatización de leads
-- [ ] Motor de automatizaciones por organización
-- [ ] Triggers: lead creado, cita agendada, cita cancelada,
-      sin respuesta X días
-- [ ] Acciones: enviar email, enviar WhatsApp, crear tarea,
-      asignar a usuario
-- [ ] Constructor visual de flujos (tipo n8n simplificado)
-- [ ] Integración con n8n para ejecución de automatizaciones
-- [ ] Templates de automatización por industria (clínicas)
+---
 
 ## 🏗️ Decisiones Técnicas
 
@@ -113,23 +126,32 @@ const doctorIds = doctors.map(d => d.id)
 supabase.from('schedules').select(...).in('doctor_id', doctorIds)
 ```
 
-**day_of_week — Supabase: 1=Lunes...7=Domingo / JS: 0=Domingo...6=Sábado:**
-```typescript
-const supabaseDay = jsDay === 0 ? 7 : jsDay
+**day_of_week — el check constraint real de la DB es 0-6 (igual que JS):**
 ```
+0 = Domingo, 1 = Lunes, 2 = Martes, 3 = Miércoles,
+4 = Jueves,  5 = Viernes, 6 = Sábado
+```
+El availability-editor usa esta escala directamente. No hacer conversión.
+
+**Excepciones en schedules:**
+- `is_recurring=true`  → horario semanal recurrente (day_of_week set, specific_date null)
+- `is_recurring=false` → excepción de fecha específica (specific_date set, day_of_week null)
+  - `active=true`  → día adicional con horario
+  - `active=false` → día bloqueado sin atención
 
 ### Integraciones activas
 - n8n: envía leads via POST /api/webhooks/lead
 - ManyChat: conversaciones via n8n (webhook pendiente de apuntar)
 - Google Calendar: Fase 2
 
-## 🗂️ Base de Datos (16 tablas)
+## 🗂️ Base de Datos (16 tablas + columna específica)
 organizations → users, locations, leads, conversations,
-appointments, doctors, schedules, appointment_logs,
+appointments, doctors, schedules (+ specific_date DATE), appointment_logs,
 conversation_messages, lead_fields, lead_values,
 locations_rooms, permissions, user_permissions,
 superadmins, webhook_logs
 
 ## 📊 Métricas
-- Archivos: 25+, Componentes: 12+, Server Actions: 6+
+- Archivos: 35+, Componentes: 18+, Server Actions: 6+
 - Tablas BD: 16 con RLS, Clientes beta: 1 (Ferttes)
+- Rutas: /dashboard, /crm, /scheduling/calendar, /doctors, /doctors/availability, /team, /settings
