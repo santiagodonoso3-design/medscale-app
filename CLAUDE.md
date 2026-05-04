@@ -64,6 +64,15 @@
 
 ---
 
+## 🐛 Bugs conocidos (corregir próxima sesión)
+- [ ] CRM: estados en inglés ("new", "contacted") no mapean al pipeline nuevo en español
+      → leads existentes en DB tienen valores legacy; agregar fallback en STATUS_COLORS
+        o migrar los valores en Supabase con UPDATE
+- [ ] CRM: pipeline de métricas muestra 0 en todos los estados aunque hay leads
+      → los leads existentes tienen status='new' pero el pipeline filtra por 'nuevo'
+      → solución: normalizar los valores en DB o incluir aliases en el conteo
+- [ ] CRM: leads de prueba eliminados manualmente de Supabase (entorno limpio)
+
 ## 🔴 PRIORIDAD 1 — Probar y corregir en producción
 - [ ] Verificar cancelar cita con motivo guarda correctamente en appointment_logs
 - [ ] Verificar reagendar cita — fecha/hora correcta en DB
