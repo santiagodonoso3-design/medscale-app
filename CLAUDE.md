@@ -19,7 +19,8 @@
 ### Panel org_admin
 - ✅ Dashboard: métricas + próximas citas + últimos leads
 - ✅ Calendario /scheduling/calendar: rediseñado con tabs, vista dual y cancelación con motivo
-- ✅ CRM /crm: fuentes book/manychat, búsqueda, modal lead + citas
+- ✅ CRM /crm: fuentes book/manychat, búsqueda, modal lead editable (nombre/teléfono/email/notas/estado), pipeline clicable
+- ✅ Estados CRM: nuevo, contactado, agendado, en_procedimiento, finalizado, perdido
 - ✅ Wizard /book: calendario responsive en móvil (aspect-square, flex-col en mobile)
 
 ### Rediseño calendario (sesión actual)
@@ -70,6 +71,8 @@
 - [ ] WhatsApp integration via Meta Cloud API
 - [ ] Reportes y analítica avanzada
 - [ ] API RESTful pública
+- [ ] Tabla de procedimientos por organización (procedures)
+- [ ] Vincular procedimiento al lead cuando status = en_procedimiento
 
 ### Automatización de leads
 - [ ] Motor de automatizaciones por organización

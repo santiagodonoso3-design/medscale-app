@@ -17,17 +17,16 @@ interface CreateLeadModalProps {
 }
 
 const sourceOptions = [
-  { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'facebook', label: 'Facebook' },
-  { value: 'other', label: 'Otro' },
+  { value: 'manual',   label: 'Manual' },
+  { value: 'book',     label: 'Agendamiento' },
+  { value: 'manychat', label: 'ManyChat' },
 ]
 
 export function CreateLeadModal({ isOpen, onClose, onSuccess, onCreateLead }: CreateLeadModalProps) {
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
-  const [source, setSource] = useState('whatsapp')
+  const [source, setSource] = useState('manual')
   const [notes, setNotes] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -58,7 +57,7 @@ export function CreateLeadModal({ isOpen, onClose, onSuccess, onCreateLead }: Cr
     setFullName('')
     setPhone('')
     setEmail('')
-    setSource('whatsapp')
+    setSource('manual')
     setNotes('')
     setIsLoading(false)
     onSuccess()
