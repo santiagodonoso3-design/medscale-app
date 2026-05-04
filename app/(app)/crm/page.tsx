@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { CreateLeadModal } from '@/components/crm/create-lead-modal'
+import { BookAppointmentModal } from '@/components/crm/book-appointment-modal'
 import {
   Plus, Loader2, Search, X, Save, List, LayoutGrid,
-  ChevronDown, CalendarPlus, ExternalLink, ChevronUp, ChevronsUpDown, Send,
+  ChevronDown, CalendarPlus, ChevronUp, ChevronsUpDown, Send,
 } from 'lucide-react'
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
@@ -286,7 +287,8 @@ export default function CrmPage() {
   })
   const [savingLead,    setSavingLead]    = useState(false)
   const [saveLeadError, setSaveLeadError] = useState<string | null>(null)
-  const [successToast,  setSuccessToast]  = useState<string | null>(null)
+  const [successToast,    setSuccessToast]    = useState<string | null>(null)
+  const [bookingModalOpen, setBookingModalOpen] = useState(false)
 
   // comments
   const [leadComments,    setLeadComments]    = useState<LeadComment[]>([])
@@ -749,14 +751,11 @@ export default function CrmPage() {
 
               {/* Actions */}
               <div className="flex items-center justify-between gap-3">
-                {orgSlug && (
-                  <a href={`/book/${orgSlug}`} target="_blank" rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition">
-                    <CalendarPlus className="h-4 w-4 text-blue-500" />
-                    Agendar nueva cita
-                    <ExternalLink className="h-3 w-3 opacity-40" />
-                  </a>
-                )}
+                <button onClick={() => setBookingModalOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition">
+                  <CalendarPlus className="h-4 w-4 text-blue-500" />
+                  Agendar nueva cita
+                </button>
                 <button onClick={handleSaveLead} disabled={savingLead}
                   className="ml-auto inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition disabled:opacity-50">
                   {savingLead ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -859,6 +858,22 @@ export default function CrmPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {selectedLead && organizationId && (
+        <BookAppointmentModal
+          isOpen={bookingModalOpen}
+          onClose={() => setBookingModalOpen(false)}
+          onSuccess={async () => {
+            setBookingModalOpen(false)
+            closeDetail()
+            await loadLeads()
+            setSuccessToast('Cita agendada correctamente')
+            setTimeout(() => setSuccessToast(null), 3000)
+          }}
+          lead={selectedLead}
+          orgId={organizationId}
+        />
       )}
 
       <CreateLeadModal
