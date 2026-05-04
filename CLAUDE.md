@@ -79,6 +79,12 @@
 - [ ] Verificar nueva cita manual desde panel admin
 - [ ] Probar flujo completo de agendamiento público (/book) en móvil
 - [ ] Dashboard: revisar métricas y mejorar UX de tarjetas
+- [ ] Sección "Tipos de cita" en /settings o /scheduling:
+  - Crear tipos de reunión (ej: Consulta inicial, Seguimiento, Procedimiento, Virtual)
+  - Cada tipo tiene: nombre, duración, color, modalidad (presencial/virtual), precio opcional
+  - Generar link público por tipo: /book/[org-slug]/[tipo-slug]
+  - Vista de todos los links generados para compartir
+  - El wizard /book usa el tipo para preconfigurar duración y modalidad
 
 ## 🟡 PRIORIDAD 2 — UX y ajustes
 - [ ] Sidebar: diferenciación visual por rol (admin vs staff vs superadmin)
