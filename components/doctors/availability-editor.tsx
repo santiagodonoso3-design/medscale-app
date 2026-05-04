@@ -26,7 +26,7 @@ type ExRow = {
   end_time:   string | null
 }
 
-const EMPTY_EX = { date: '', available: false, start_time: '08:00', end_time: '17:00' }
+const EMPTY_EX = { date: '', noAttend: false, start_time: '08:00', end_time: '17:00' }
 
 function emptyWeek(): Week {
   return Object.fromEntries(
@@ -184,9 +184,9 @@ export function AvailabilityEditor() {
       location_id:   locationId || null,
       specific_date: exForm.date,
       day_of_week:   null,
-      start_time:    exForm.available ? exForm.start_time : null,
-      end_time:      exForm.available ? exForm.end_time   : null,
-      active:        exForm.available,
+      start_time:    exForm.noAttend ? null : exForm.start_time,
+      end_time:      exForm.noAttend ? null : exForm.end_time,
+      active:        !exForm.noAttend,
       is_recurring:  false,
     } as any)
 
@@ -258,16 +258,13 @@ export function AvailabilityEditor() {
             <span className="text-sm">Cargando horario...</span>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div>
             {DAYS.map(({ label, value }) => {
               const day = week[value]
               return (
                 <div
                   key={value}
-                  className={[
-                    'flex items-center gap-4 px-6 py-3.5 transition-opacity',
-                    day.enabled ? 'opacity-100' : 'opacity-40',
-                  ].join(' ')}
+                  className="flex items-center gap-4 border-b border-slate-100 px-6 py-3 last:border-0"
                 >
                   {/* Toggle pill */}
                   <button
@@ -288,7 +285,7 @@ export function AvailabilityEditor() {
 
                   {/* Day name */}
                   <span className={[
-                    'w-[7rem] shrink-0 text-sm font-medium leading-none',
+                    'w-24 shrink-0 text-sm font-medium',
                     day.enabled ? 'text-slate-900' : 'text-slate-400',
                   ].join(' ')}>
                     {label}
@@ -303,7 +300,7 @@ export function AvailabilityEditor() {
                         onChange={e => setTime(value, 'start_time', e.target.value)}
                         className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
-                      <span className="text-sm leading-none text-slate-400">—</span>
+                      <span className="text-sm text-slate-400">—</span>
                       <input
                         type="time"
                         value={day.end_time}
@@ -312,7 +309,7 @@ export function AvailabilityEditor() {
                       />
                     </div>
                   ) : (
-                    <span className="text-sm leading-none text-slate-300">Sin atención</span>
+                    <span className="text-sm text-slate-400">Sin atención</span>
                   )}
                 </div>
               )
@@ -364,52 +361,32 @@ export function AvailabilityEditor() {
         {/* Inline add form */}
         {showExForm && (
           <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-5 space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Fecha
-                </label>
-                <input
-                  type="date"
-                  value={exForm.date}
-                  onChange={e => setExForm(p => ({ ...p, date: e.target.value }))}
-                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Disponibilidad
-                </label>
-                <div className="mt-1.5 inline-flex items-center gap-1 rounded-xl bg-slate-100 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setExForm(p => ({ ...p, available: false }))}
-                    className={[
-                      'whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
-                      !exForm.available
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700',
-                    ].join(' ')}
-                  >
-                    No disponible
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExForm(p => ({ ...p, available: true }))}
-                    className={[
-                      'whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
-                      exForm.available
-                        ? 'bg-white text-slate-900 shadow-sm'
-                        : 'text-slate-500 hover:text-slate-700',
-                    ].join(' ')}
-                  >
-                    Disponible
-                  </button>
-                </div>
-              </div>
+            {/* Date picker */}
+            <div className="max-w-xs">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Fecha
+              </label>
+              <input
+                type="date"
+                value={exForm.date}
+                onChange={e => setExForm(p => ({ ...p, date: e.target.value }))}
+                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
 
-            {exForm.available && (
+            {/* Checkbox: no attend */}
+            <label className="flex cursor-pointer items-center gap-2.5">
+              <input
+                type="checkbox"
+                checked={exForm.noAttend}
+                onChange={e => setExForm(p => ({ ...p, noAttend: e.target.checked }))}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm text-slate-700">No atiendo este día</span>
+            </label>
+
+            {/* Time inputs — only when attending */}
+            {!exForm.noAttend && (
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Horario
@@ -432,9 +409,7 @@ export function AvailabilityEditor() {
               </div>
             )}
 
-            {exError && (
-              <p className="text-sm text-red-600">{exError}</p>
-            )}
+            {exError && <p className="text-sm text-red-600">{exError}</p>}
 
             <div className="flex gap-2">
               <button
@@ -443,7 +418,7 @@ export function AvailabilityEditor() {
                 className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition disabled:opacity-50"
               >
                 {savingEx && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Guardar excepción
+                Guardar
               </button>
               <button
                 onClick={() => { setShowExForm(false); setExForm(EMPTY_EX); setExError(null) }}
