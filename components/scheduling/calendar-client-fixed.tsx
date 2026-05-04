@@ -154,7 +154,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
   // ── View/filter state
   const [viewMode,      setViewMode]      = useState<'calendar' | 'list'>('list')
   const [showCancelled, setShowCancelled] = useState(true)
-  const [listRange,     setListRange]     = useState<'hoy' | 'semana' | 'mes' | 'todos'>('semana')
+  const [listRange,     setListRange]     = useState<'hoy' | 'semana' | 'mes' | 'todos'>('todos')
   const [filterDoctor, setFilterDoctor] = useState('')
   const [search, setSearch] = useState('')
 
