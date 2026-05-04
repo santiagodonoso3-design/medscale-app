@@ -272,14 +272,14 @@ export function AvailabilityEditor() {
                     onClick={() => toggle(value)}
                     aria-pressed={day.enabled}
                     className={[
-                      'relative h-5 w-9 shrink-0 rounded-full transition-colors',
+                      'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
                       'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
                       day.enabled ? 'bg-blue-600' : 'bg-slate-200',
                     ].join(' ')}
                   >
                     <span className={[
-                      'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform',
-                      day.enabled ? 'translate-x-4' : 'translate-x-0.5',
+                      'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                      day.enabled ? 'translate-x-6' : 'translate-x-1',
                     ].join(' ')} />
                   </button>
 
@@ -374,16 +374,33 @@ export function AvailabilityEditor() {
               />
             </div>
 
-            {/* Checkbox: no attend */}
-            <label className="flex cursor-pointer items-center gap-2.5">
-              <input
-                type="checkbox"
-                checked={exForm.noAttend}
-                onChange={e => setExForm(p => ({ ...p, noAttend: e.target.checked }))}
-                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm text-slate-700">No atiendo este día</span>
-            </label>
+            {/* Attendance pills */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setExForm(p => ({ ...p, noAttend: false }))}
+                className={[
+                  'rounded-xl px-4 py-2 text-sm font-medium transition-all',
+                  !exForm.noAttend
+                    ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-300'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200',
+                ].join(' ')}
+              >
+                Atiendo este día
+              </button>
+              <button
+                type="button"
+                onClick={() => setExForm(p => ({ ...p, noAttend: true }))}
+                className={[
+                  'rounded-xl px-4 py-2 text-sm font-medium transition-all',
+                  exForm.noAttend
+                    ? 'bg-rose-100 text-rose-700 ring-1 ring-rose-300'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200',
+                ].join(' ')}
+              >
+                No atiendo este día
+              </button>
+            </div>
 
             {/* Time inputs — only when attending */}
             {!exForm.noAttend && (
