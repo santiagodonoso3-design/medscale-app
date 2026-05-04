@@ -133,7 +133,8 @@ export function CalendarClient({ userId }: CalendarClientProps) {
   const [error, setError] = useState<string | null>(null)
 
   // ── View/filter state
-  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar')
+  const [viewMode,       setViewMode]       = useState<'calendar' | 'list'>('calendar')
+  const [showCancelled,  setShowCancelled]  = useState(true)
   const [filterDoctor, setFilterDoctor] = useState('')
   const [search, setSearch] = useState('')
 
@@ -236,19 +237,20 @@ export function CalendarClient({ userId }: CalendarClientProps) {
 
   // ── List view data ─────────────────────────────────────────────────────────
 
-  const { grouped, cancelled } = useMemo(() => {
-    const nonCancelled = filteredAppointments.filter(a => a.status !== 'cancelled')
-    const cancelled = filteredAppointments.filter(a => a.status === 'cancelled')
-    const map: Record<string, AppointmentRecord[]> = {}
-    nonCancelled.forEach(apt => {
+  const listData = useMemo(() => {
+    const grouped: Record<string, AppointmentRecord[]> = {}
+    filteredAppointments.forEach(apt => {
       const day = apt.scheduled_at.slice(0, 10)
-      if (!map[day]) map[day] = []
-      map[day].push(apt)
+      if (!grouped[day]) grouped[day] = []
+      grouped[day].push(apt)
     })
-    return { grouped: map, cancelled }
+    Object.values(grouped).forEach(apts =>
+      apts.sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
+    )
+    const days = Object.keys(grouped).sort()
+    const hasModalidad = filteredAppointments.some(a => modalityFromNotes(a.notes) !== '—')
+    return { grouped, days, hasModalidad }
   }, [filteredAppointments])
-
-  const sortedDays = useMemo(() => Object.keys(grouped).sort(), [grouped])
 
   // ── Modal handlers ─────────────────────────────────────────────────────────
 
@@ -547,51 +549,76 @@ export function CalendarClient({ userId }: CalendarClientProps) {
       )
     }
 
-    if (sortedDays.length === 0 && cancelled.length === 0) {
+    const { grouped, days, hasModalidad } = listData
+    const colCount = hasModalidad ? 5 : 4
+
+    if (days.length === 0) {
       return <p className="py-12 text-center text-sm text-slate-400">No hay citas para los filtros seleccionados.</p>
     }
 
     return (
-      <div className="space-y-6">
-        {/* Upcoming / completed grouped by date */}
-        {sortedDays.length === 0 && (
-          <p className="text-sm text-slate-400">No hay citas programadas o completadas.</p>
-        )}
-        {sortedDays.map(day => (
-          <div key={day}>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2 capitalize">
-              {formatDateHeader(day)}
-            </h3>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100">
-                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-400">Paciente</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-400">Médico</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-400">Hora</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-400">Modalidad</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-slate-400">Estado</th>
+      <div className="space-y-3">
+        {/* Toggle canceladas */}
+        <div className="flex items-center justify-end">
+          <label className="flex cursor-pointer select-none items-center gap-2 text-xs text-slate-500">
+            Mostrar canceladas
+            <button
+              onClick={() => setShowCancelled(p => !p)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${showCancelled ? 'bg-blue-500' : 'bg-slate-200'}`}
+            >
+              <span className={`absolute left-0.5 inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${showCancelled ? 'translate-x-4' : 'translate-x-0'}`} />
+            </button>
+          </label>
+        </div>
+
+        {/* Single table — header once, date rows as separators */}
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b-2 border-slate-100">
+                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Paciente</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Médico</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Hora</th>
+                {hasModalidad && <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Modalidad</th>}
+                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Estado</th>
+              </tr>
+            </thead>
+            {days.map(day => {
+              const apts = grouped[day]
+              const visible = showCancelled ? apts : apts.filter(a => a.status !== 'cancelled')
+              if (visible.length === 0) return null
+              return (
+                <tbody key={day} className="divide-y divide-slate-50">
+                  {/* Date separator row */}
+                  <tr className="bg-slate-50">
+                    <td colSpan={colCount} className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 capitalize">
+                      {formatDateHeader(day)}
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {grouped[day].map(apt => {
+                  {/* Appointment rows */}
+                  {visible.map(apt => {
+                    const cancelled = apt.status === 'cancelled'
                     const d = new Date(apt.scheduled_at)
                     return (
                       <tr
                         key={apt.id}
                         onClick={() => openModal(apt)}
-                        className="cursor-pointer hover:bg-slate-50 transition-colors"
+                        className={`cursor-pointer transition-colors ${cancelled ? 'opacity-50 hover:opacity-75 hover:bg-slate-50' : 'hover:bg-slate-50'}`}
                       >
-                        <td className="px-3 py-2.5 font-medium text-slate-900">
+                        <td className={`px-3 py-2.5 font-medium ${cancelled ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
                           {apt.lead?.contact_name || 'Sin nombre'}
                         </td>
-                        <td className="px-3 py-2.5 text-slate-600">
+                        <td className={`px-3 py-2.5 ${cancelled ? 'text-slate-400' : 'text-slate-600'}`}>
                           {apt.doctor?.metadata?.name as string || '—'}
                         </td>
-                        <td className="px-3 py-2.5 font-medium text-slate-900">
+                        <td className={`px-3 py-2.5 font-medium ${cancelled ? 'text-slate-400' : 'text-slate-900'}`}>
                           {d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
                         </td>
-                        <td className="px-3 py-2.5 text-slate-600">{modalityFromNotes(apt.notes)}</td>
+                        {hasModalidad && (
+                          <td className={`px-3 py-2.5 ${cancelled ? 'text-slate-400' : 'text-slate-600'}`}>
+                            {modalityFromNotes(apt.notes)}
+                          </td>
+                        )}
                         <td className="px-3 py-2.5">
                           <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE[apt.status] ?? 'bg-slate-100 text-slate-600'}`}>
                             {STATUS_LABELS[apt.status] ?? apt.status}
@@ -601,49 +628,10 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                     )
                   })}
                 </tbody>
-              </table>
-            </div>
-          </div>
-        ))}
-
-        {/* Cancelled section */}
-        {cancelled.length > 0 && (
-          <div className="opacity-60">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">
-              Citas canceladas ({cancelled.length})
-            </h3>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <tbody className="divide-y divide-slate-50">
-                  {cancelled.map(apt => {
-                    const d = new Date(apt.scheduled_at)
-                    return (
-                      <tr
-                        key={apt.id}
-                        onClick={() => openModal(apt)}
-                        className="cursor-pointer hover:bg-slate-50 transition-colors"
-                      >
-                        <td className="px-3 py-2 line-through text-slate-400">
-                          {apt.lead?.contact_name || 'Sin nombre'}
-                        </td>
-                        <td className="px-3 py-2 text-slate-400">
-                          {apt.doctor?.metadata?.name as string || '—'}
-                        </td>
-                        <td className="px-3 py-2 text-slate-400">
-                          {d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })} {d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
-                        </td>
-                        <td className="px-3 py-2 text-slate-400">{modalityFromNotes(apt.notes)}</td>
-                        <td className="px-3 py-2">
-                          <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-500">Cancelada</span>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+              )
+            })}
+          </table>
+        </div>
       </div>
     )
   }
