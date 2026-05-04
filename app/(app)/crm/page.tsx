@@ -265,7 +265,6 @@ export default function CrmPage() {
   const [search,         setSearch]         = useState('')
   const [error,          setError]          = useState<string | null>(null)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
-  const [orgSlug,        setOrgSlug]        = useState<string | null>(null)
   const [view,           setView]           = useState<'list' | 'kanban'>('list')
   const [aptCounts,      setAptCounts]      = useState<Record<string, number>>({})
 
@@ -308,11 +307,6 @@ export default function CrmPage() {
         .from('users').select('organization_id').eq('id', user.id).single()
       const orgId = profile?.organization_id ?? null
       setOrganizationId(orgId)
-      if (orgId) {
-        const { data: org } = await supabase
-          .from('organizations').select('slug').eq('id', orgId).single()
-        setOrgSlug(org?.slug ?? null)
-      }
       await loadLeads()
     }
     init()
@@ -570,15 +564,16 @@ export default function CrmPage() {
                   <SortTh field="status"     label="Estado"      sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-left" />
                   <SortTh field="created_at" label="Creado"      sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
                   <SortTh field="updated_at" label="Actualizado" sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Notas</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {isLoading ? (
-                  <tr><td colSpan={9} className="px-5 py-12 text-center text-slate-400">
+                  <tr><td colSpan={10} className="px-5 py-12 text-center text-slate-400">
                     <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Cargando...</span>
                   </td></tr>
                 ) : filteredLeads.length === 0 ? (
-                  <tr><td colSpan={9} className="px-5 py-12 text-center text-slate-400">No hay leads con los filtros seleccionados.</td></tr>
+                  <tr><td colSpan={10} className="px-5 py-12 text-center text-slate-400">No hay leads con los filtros seleccionados.</td></tr>
                 ) : filteredLeads.map(lead => {
                   const aptCount = aptCounts[lead.id] ?? 0
                   return (
@@ -615,6 +610,13 @@ export default function CrmPage() {
 
                       <td className="px-5 py-3.5 text-right text-xs text-slate-400">{fmtDate(lead.created_at)}</td>
                       <td className="px-5 py-3.5 text-right text-xs text-slate-400">{fmtDate(lead.updated_at)}</td>
+                      <td className="px-5 py-3.5 max-w-[180px]">
+                        {lead.notes
+                          ? <span className="block truncate text-xs text-slate-400" title={lead.notes}>
+                              {lead.notes.length > 40 ? lead.notes.slice(0, 40) + '…' : lead.notes}
+                            </span>
+                          : <span className="text-xs text-slate-300">—</span>}
+                      </td>
                     </tr>
                   )
                 })}
