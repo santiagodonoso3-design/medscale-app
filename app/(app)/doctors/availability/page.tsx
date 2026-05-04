@@ -1,5 +1,5 @@
-import { AvailabilityClient } from '@/components/scheduling/availability-client'
+import { AvailabilityEditor } from '@/components/doctors/availability-editor'
 
 export default function DoctorsAvailabilityPage() {
-  return <AvailabilityClient />
+  return <AvailabilityEditor />
 }
