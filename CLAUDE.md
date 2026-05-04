@@ -46,10 +46,18 @@
 ### CRM /crm
 - ✅ Estados del pipeline: nuevo → contactado → agendado → en_procedimiento → finalizado → perdido
 - ✅ Pipeline clicable: clic en tarjeta filtra la tabla, color de acento por etapa
-- ✅ Fuentes: book (Agendamiento) y manychat (ManyChat); manychat_n8n alias de manychat
-- ✅ Modal de lead editable: nombre, teléfono, email, notas, estado (dropdown)
-- ✅ Guardar cambios actualiza DB y refresca tabla
-- ✅ Citas vinculadas visibles en el modal
+- ✅ Fuentes actualizadas: instagram, whatsapp, facebook, web, book, referido, manual (legacy manychat → whatsapp)
+- ✅ contact_cedula en leads (migración 006)
+- ✅ Dropdown inline en columna Estado — actualiza Supabase sin abrir modal
+- ✅ Dropdown inline en columna Fuente — mismo patrón que Estado
+- ✅ Ordenar tabla por columna: Nombre, Estado, Creado, Actualizado
+- ✅ Columnas adicionales: Cédula, Citas (badge azul), Creado, Actualizado, Notas (truncada 40 chars)
+- ✅ Vista Kanban toggle: columnas por estado, cards arrastrables con drag & drop
+- ✅ Modal completo: nombre, cédula, teléfono, email, fuente, estado, notas, fechas
+- ✅ Modal: tabla de citas vinculadas (fecha, médico, estado)
+- ✅ Modal: sección de comentarios con autor + tiempo relativo (tabla lead_comments, migración 007)
+- ✅ Modal: agendamiento interno — selector médico + calendario visual + slots (sin salir del CRM)
+- ✅ Toast de éxito al guardar lead y al agendar cita; modal se cierra automáticamente
 - ✅ Crear lead manual: fuente default 'manual', estado inicial 'nuevo'
 
 ### Sidebar y navegación
@@ -65,13 +73,9 @@
 ---
 
 ## 🐛 Bugs conocidos (corregir próxima sesión)
-- [ ] CRM: estados en inglés ("new", "contacted") no mapean al pipeline nuevo en español
-      → leads existentes en DB tienen valores legacy; agregar fallback en STATUS_COLORS
-        o migrar los valores en Supabase con UPDATE
-- [ ] CRM: pipeline de métricas muestra 0 en todos los estados aunque hay leads
-      → los leads existentes tienen status='new' pero el pipeline filtra por 'nuevo'
-      → solución: normalizar los valores en DB o incluir aliases en el conteo
-- [ ] CRM: leads de prueba eliminados manualmente de Supabase (entorno limpio)
+- ✅ CRM: estados legacy normalizados en carga (STATUS_NORMALIZE: new→nuevo, contacted→contactado, etc.)
+- ✅ CRM: pipeline muestra conteos correctos tras normalización
+- ✅ CRM: fuentes legacy manychat/manychat_n8n → whatsapp (migración 005 + normalización en carga)
 
 ## 🔴 PRIORIDAD 1 — Probar y corregir en producción
 - [ ] Verificar cancelar cita con motivo guarda correctamente en appointment_logs
