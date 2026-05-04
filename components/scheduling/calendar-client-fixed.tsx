@@ -106,6 +106,14 @@ function statusDotColor(status: string): string {
   return 'bg-blue-500'
 }
 
+function statusChipClass(status: string): string {
+  if (status === 'completed') return 'bg-emerald-100 text-emerald-800'
+  if (status === 'cancelled') return 'bg-slate-100 text-slate-400 line-through'
+  if (status === 'confirmed') return 'bg-sky-100 text-sky-800'
+  if (status === 'no_show') return 'bg-red-100 text-red-700'
+  return 'bg-blue-100 text-blue-800'
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 interface CalendarClientProps {
@@ -441,7 +449,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
         <div className="grid grid-cols-7 border-l border-t border-slate-100">
           {monthGrid.map((dateStr, i) => {
             if (!dateStr) {
-              return <div key={i} className="border-r border-b border-slate-100 min-h-[70px] sm:min-h-[80px] bg-slate-50/50" />
+              return <div key={i} className="border-r border-b border-slate-100 min-h-[70px] sm:min-h-[96px] bg-slate-50/50" />
             }
 
             const isToday = dateStr === today
@@ -454,7 +462,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                 key={dateStr}
                 onClick={() => setSelectedDay(dateStr === selectedDay ? null : dateStr)}
                 className={[
-                  'border-r border-b border-slate-100 min-h-[70px] sm:min-h-[80px] p-1.5 cursor-pointer transition-colors',
+                  'border-r border-b border-slate-100 min-h-[70px] sm:min-h-[96px] p-1.5 cursor-pointer transition-colors',
                   isSelected ? 'bg-blue-50' : 'hover:bg-slate-50',
                 ].join(' ')}
               >
@@ -466,9 +474,9 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                   {Number(dateStr.slice(8))}
                 </span>
 
-                {/* Appointment dots */}
+                {/* Mobile: dots */}
                 {nonCancelledApts.length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-0.5">
+                  <div className="mt-1 flex flex-wrap gap-0.5 sm:hidden">
                     {nonCancelledApts.slice(0, 3).map(apt => (
                       <span key={apt.id} className={`w-1.5 h-1.5 rounded-full ${statusDotColor(apt.status)}`} />
                     ))}
@@ -480,11 +488,23 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                   </div>
                 )}
 
-                {/* Count label on desktop */}
+                {/* Desktop: text chips */}
                 {nonCancelledApts.length > 0 && (
-                  <p className="hidden sm:block text-[10px] text-slate-400 mt-0.5">
-                    {nonCancelledApts.length} cita{nonCancelledApts.length !== 1 ? 's' : ''}
-                  </p>
+                  <div className="mt-1 hidden sm:flex flex-col gap-0.5">
+                    {nonCancelledApts.slice(0, 2).map(apt => (
+                      <span
+                        key={apt.id}
+                        className={`block truncate rounded px-1 py-0.5 text-[10px] leading-tight font-medium ${statusChipClass(apt.status)}`}
+                      >
+                        {isoToLocalTime(apt.scheduled_at)} {apt.lead?.contact_name?.split(' ')[0] ?? '—'}
+                      </span>
+                    ))}
+                    {nonCancelledApts.length > 2 && (
+                      <span className="text-[9px] text-slate-400 pl-1">
+                        +{nonCancelledApts.length - 2} más
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             )
@@ -671,7 +691,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                   ].join(' ')}
                 >
                   <CalendarDays className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Calendario</span>
+                  Calendario
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
@@ -681,18 +701,22 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                   ].join(' ')}
                 >
                   <List className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Lista</span>
+                  Lista
                 </button>
               </div>
 
               {/* New appointment button */}
               <button
                 onClick={() => setShowCreate(prev => !prev)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                className={[
+                  'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold shadow-sm transition',
+                  showCreate
+                    ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-700',
+                ].join(' ')}
               >
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">{showCreate ? 'Ocultar' : 'Nueva cita'}</span>
-                <span className="sm:hidden">Nueva</span>
+                <Plus className="h-4 w-4 shrink-0" />
+                {showCreate ? 'Cerrar' : 'Nueva cita'}
               </button>
             </div>
           </div>

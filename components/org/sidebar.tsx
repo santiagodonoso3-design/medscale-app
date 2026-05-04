@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, MessageSquare, CalendarDays, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, MessageSquare, CalendarDays, Settings, LogOut, Stethoscope, Users, MessageCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 
@@ -15,7 +15,10 @@ interface OrgSidebarProps {
 const navItems = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'CRM', href: '/crm', icon: MessageSquare },
-  { name: 'Agenda', href: '/scheduling', icon: CalendarDays },
+  { name: 'Agenda', href: '/scheduling/calendar', icon: CalendarDays },
+  { name: 'Conversaciones', href: '/conversations', icon: MessageCircle },
+  { name: 'Doctores', href: '/doctors', icon: Stethoscope },
+  { name: 'Equipo', href: '/team', icon: Users },
   { name: 'Configuración', href: '/settings', icon: Settings },
 ]
 
@@ -53,7 +56,10 @@ export function OrgSidebar({ orgName, userName, userEmail }: OrgSidebarProps) {
       <nav className="flex-1 space-y-1 px-4 py-6">
         {navItems.map((item) => {
           const Icon = item.icon
-          const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+          const isActive =
+            item.href === '/scheduling/calendar'
+              ? pathname.startsWith('/scheduling')
+              : pathname === item.href || pathname.startsWith(item.href + '/')
           return (
             <Link
               key={item.href}
