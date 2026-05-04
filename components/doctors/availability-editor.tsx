@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, Check, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Check, Plus, Trash2, Lock } from 'lucide-react'
 
 // DB: day_of_week 0-6  (0=Dom, 1=Lun … 6=Sáb)
 const DAYS = [
@@ -15,18 +15,16 @@ const DAYS = [
   { label: 'Domingo',   value: 0 },
 ]
 
-type DayState  = { enabled: boolean; start_time: string; end_time: string }
-type Week      = Record<number, DayState>
+type DayState = { enabled: boolean; start_time: string; end_time: string }
+type Week     = Record<number, DayState>
 
 type ExRow = {
   id: string
-  specific_date: string   // YYYY-MM-DD
-  active: boolean         // true = available w/ hours, false = not available
+  specific_date: string
+  active: boolean
   start_time: string | null
   end_time:   string | null
 }
-
-const EMPTY_EX = { date: '', noAttend: false, start_time: '08:00', end_time: '17:00' }
 
 function emptyWeek(): Week {
   return Object.fromEntries(
@@ -36,35 +34,46 @@ function emptyWeek(): Week {
 
 function fmtDate(iso: string): string {
   return new Intl.DateTimeFormat('es-CO', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    weekday: 'long', day: 'numeric', month: 'long',
     timeZone: 'UTC',
   }).format(new Date(iso + 'T12:00:00Z'))
 }
 
-// ── Component ───────────────────────────────────────────────────────────────
+// ── Component ────────────────────────────────────────────────────────────────
 
 export function AvailabilityEditor() {
+  // meta
   const [doctors,      setDoctors]      = useState<any[]>([])
   const [locations,    setLocations]    = useState<any[]>([])
   const [doctorId,     setDoctorId]     = useState('')
   const [locationId,   setLocationId]   = useState('')
-  const [week,         setWeek]         = useState<Week>(emptyWeek)
-  const [exceptions,   setExceptions]   = useState<ExRow[]>([])
   const [loadingMeta,  setLoadingMeta]  = useState(true)
+
+  // weekly schedule
+  const [week,         setWeek]         = useState<Week>(emptyWeek)
   const [loadingSched, setLoadingSched] = useState(false)
   const [saving,       setSaving]       = useState(false)
   const [saved,        setSaved]        = useState(false)
-  const [error,        setError]        = useState<string | null>(null)
+  const [weekError,    setWeekError]    = useState<string | null>(null)
 
-  // exception form
-  const [showExForm, setShowExForm] = useState(false)
-  const [exForm,     setExForm]     = useState(EMPTY_EX)
-  const [savingEx,   setSavingEx]   = useState(false)
-  const [exError,    setExError]    = useState<string | null>(null)
+  // non-recurring rows (split by active in render)
+  const [exceptions,   setExceptions]   = useState<ExRow[]>([])
+
+  // "Días adicionales" form (active = true)
+  const [showAddForm,  setShowAddForm]  = useState(false)
+  const [addForm,      setAddForm]      = useState({ date: '', start_time: '08:00', end_time: '17:00' })
+  const [savingAdd,    setSavingAdd]    = useState(false)
+  const [addError,     setAddError]     = useState<string | null>(null)
+
+  // "Días bloqueados" form (active = false)
+  const [showBlkForm,  setShowBlkForm]  = useState(false)
+  const [blkForm,      setBlkForm]      = useState({ date: '' })
+  const [savingBlk,    setSavingBlk]    = useState(false)
+  const [blkError,     setBlkError]     = useState<string | null>(null)
 
   const supabase = createClient()
 
-  // ── Load doctors + locations ─────────────────────────────────────────��─────
+  // ── Load doctors + locations ──────────────────────────────────────────────
   useEffect(() => {
     const load = async () => {
       const [{ data: dData }, { data: lData }] = await Promise.all([
@@ -73,21 +82,20 @@ export function AvailabilityEditor() {
       ])
       setDoctors(dData ?? [])
       setLocations(lData ?? [])
-      if (dData?.length)  setDoctorId(dData[0].id)
-      if (lData?.length)  setLocationId(lData[0].id)
+      if (dData?.length) setDoctorId(dData[0].id)
+      if (lData?.length) setLocationId(lData[0].id)
       setLoadingMeta(false)
     }
     load()
   }, [])
 
-  // ── Load recurring schedule + exceptions when doctor changes ──────────────
+  // ── Load schedule when doctor changes ─────────────────────────────────────
   useEffect(() => {
     if (!doctorId) return
     const load = async () => {
       setLoadingSched(true)
       const fresh = emptyWeek()
 
-      // recurring schedules
       const { data: recurring } = await supabase
         .from('schedules')
         .select('day_of_week, start_time, end_time, location_id')
@@ -100,7 +108,7 @@ export function AvailabilityEditor() {
         recurring.forEach((row: any) => {
           if (fresh[row.day_of_week] !== undefined) {
             fresh[row.day_of_week] = {
-              enabled: true,
+              enabled:    true,
               start_time: row.start_time ?? '08:00',
               end_time:   row.end_time   ?? '17:00',
             }
@@ -109,7 +117,6 @@ export function AvailabilityEditor() {
       }
       setWeek(fresh)
 
-      // exceptions (non-recurring with specific_date)
       const { data: exData } = await supabase
         .from('schedules')
         .select('id, specific_date, start_time, end_time, active')
@@ -123,25 +130,22 @@ export function AvailabilityEditor() {
     load()
   }, [doctorId])
 
-  // ── Weekly handlers ────────────────────────────────────────────────────────
+  // ── Weekly handlers ───────────────────────────────────────────────────────
   const toggle = (day: number) =>
     setWeek(prev => ({ ...prev, [day]: { ...prev[day], enabled: !prev[day].enabled } }))
 
   const setTime = (day: number, field: 'start_time' | 'end_time', val: string) =>
     setWeek(prev => ({ ...prev, [day]: { ...prev[day], [field]: val } }))
 
-  const handleSave = async () => {
-    if (!doctorId) { setError('Selecciona un médico.'); return }
+  const handleSaveWeek = async () => {
+    if (!doctorId) { setWeekError('Selecciona un médico.'); return }
     setSaving(true)
-    setError(null)
+    setWeekError(null)
 
-    // Delete only recurring rows — preserve exceptions
     const { error: delErr } = await supabase
-      .from('schedules')
-      .delete()
-      .eq('doctor_id', doctorId)
-      .eq('is_recurring', true)
-    if (delErr) { setError(delErr.message); setSaving(false); return }
+      .from('schedules').delete()
+      .eq('doctor_id', doctorId).eq('is_recurring', true)
+    if (delErr) { setWeekError(delErr.message); setSaving(false); return }
 
     const rows = DAYS.filter(d => week[d.value].enabled).map(d => ({
       doctor_id:    doctorId,
@@ -155,7 +159,7 @@ export function AvailabilityEditor() {
 
     if (rows.length) {
       const { error: insErr } = await supabase.from('schedules').insert(rows)
-      if (insErr) { setError(insErr.message); setSaving(false); return }
+      if (insErr) { setWeekError(insErr.message); setSaving(false); return }
     }
 
     setSaving(false)
@@ -163,7 +167,7 @@ export function AvailabilityEditor() {
     setTimeout(() => setSaved(false), 2500)
   }
 
-  // ── Exception handlers ─────────────────────────────────────────────────────
+  // ── Shared exception helpers ───────────────────────────────────────────────
   const refreshExceptions = async () => {
     const { data } = await supabase
       .from('schedules')
@@ -174,36 +178,64 @@ export function AvailabilityEditor() {
     setExceptions((data as ExRow[]) ?? [])
   }
 
-  const handleAddException = async () => {
-    if (!exForm.date) { setExError('Selecciona una fecha.'); return }
-    setSavingEx(true)
-    setExError(null)
-
-    const { error } = await supabase.from('schedules').insert({
-      doctor_id:     doctorId,
-      location_id:   locationId || null,
-      specific_date: exForm.date,
-      day_of_week:   null,
-      start_time:    exForm.noAttend ? null : exForm.start_time,
-      end_time:      exForm.noAttend ? null : exForm.end_time,
-      active:        !exForm.noAttend,
-      is_recurring:  false,
-    } as any)
-
-    if (error) { setExError(error.message); setSavingEx(false); return }
-
-    await refreshExceptions()
-    setExForm(EMPTY_EX)
-    setShowExForm(false)
-    setSavingEx(false)
-  }
-
-  const handleDeleteException = async (id: string) => {
+  const handleDelete = async (id: string) => {
     await supabase.from('schedules').delete().eq('id', id)
     setExceptions(prev => prev.filter(e => e.id !== id))
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Add extra day (active = true) ─────────────────────────────────────────
+  const handleAddExtraDay = async () => {
+    if (!addForm.date) { setAddError('Selecciona una fecha.'); return }
+    setSavingAdd(true)
+    setAddError(null)
+
+    const { error } = await supabase.from('schedules').insert({
+      doctor_id:     doctorId,
+      location_id:   locationId || null,
+      specific_date: addForm.date,
+      day_of_week:   null,
+      start_time:    addForm.start_time,
+      end_time:      addForm.end_time,
+      active:        true,
+      is_recurring:  false,
+    } as any)
+
+    if (error) { setAddError(error.message); setSavingAdd(false); return }
+    await refreshExceptions()
+    setAddForm({ date: '', start_time: '08:00', end_time: '17:00' })
+    setShowAddForm(false)
+    setSavingAdd(false)
+  }
+
+  // ── Block day (active = false) ────────────────────────────────────────────
+  const handleBlockDay = async () => {
+    if (!blkForm.date) { setBlkError('Selecciona una fecha.'); return }
+    setSavingBlk(true)
+    setBlkError(null)
+
+    const { error } = await supabase.from('schedules').insert({
+      doctor_id:     doctorId,
+      location_id:   locationId || null,
+      specific_date: blkForm.date,
+      day_of_week:   null,
+      start_time:    null,
+      end_time:      null,
+      active:        false,
+      is_recurring:  false,
+    } as any)
+
+    if (error) { setBlkError(error.message); setSavingBlk(false); return }
+    await refreshExceptions()
+    setBlkForm({ date: '' })
+    setShowBlkForm(false)
+    setSavingBlk(false)
+  }
+
+  // ── Derived lists ─────────────────────────────────────────────────────────
+  const extraDays   = exceptions.filter(e => e.active)
+  const blockedDays = exceptions.filter(e => !e.active)
+
+  // ── Render ────────────────────────────────────────────────────────────────
   if (loadingMeta) {
     return (
       <div className="flex items-center justify-center gap-2 py-16 text-slate-400">
@@ -216,7 +248,7 @@ export function AvailabilityEditor() {
   return (
     <div className="space-y-5">
 
-      {/* ── Weekly schedule ──────────────────────────────────────────────────── */}
+      {/* ── Horario semanal ───────────────────────────────────────────────────── */}
       <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
 
         {/* Selectors */}
@@ -266,7 +298,6 @@ export function AvailabilityEditor() {
                   key={value}
                   className="flex items-center gap-4 border-b border-slate-100 px-6 py-3 last:border-0"
                 >
-                  {/* Toggle pill */}
                   <button
                     type="button"
                     onClick={() => toggle(value)}
@@ -283,7 +314,6 @@ export function AvailabilityEditor() {
                     ].join(' ')} />
                   </button>
 
-                  {/* Day name */}
                   <span className={[
                     'w-24 shrink-0 text-sm font-medium',
                     day.enabled ? 'text-slate-900' : 'text-slate-400',
@@ -291,7 +321,6 @@ export function AvailabilityEditor() {
                     {label}
                   </span>
 
-                  {/* Hours or placeholder */}
                   {day.enabled ? (
                     <div className="flex items-center gap-2">
                       <input
@@ -320,7 +349,7 @@ export function AvailabilityEditor() {
         {/* Save footer */}
         <div className="flex items-center justify-between border-t border-slate-100 px-6 py-4">
           <span className="text-sm">
-            {error && <span className="text-red-600">{error}</span>}
+            {weekError && <span className="text-red-600">{weekError}</span>}
             {saved && (
               <span className="flex items-center gap-1.5 font-medium text-emerald-600">
                 <Check className="h-4 w-4" /> Horario guardado
@@ -328,7 +357,7 @@ export function AvailabilityEditor() {
             )}
           </span>
           <button
-            onClick={handleSave}
+            onClick={handleSaveWeek}
             disabled={saving || loadingSched}
             className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition disabled:opacity-50"
           >
@@ -338,107 +367,69 @@ export function AvailabilityEditor() {
         </div>
       </div>
 
-      {/* ── Excepciones de fechas ─────────────────────────────────────────────── */}
+      {/* ── Días adicionales ──────────────────────────────────────────────────── */}
       <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">Excepciones de fechas</h3>
+            <h3 className="text-sm font-semibold text-slate-900">Días adicionales</h3>
             <p className="mt-0.5 text-xs text-slate-500">
-              Días con horario diferente o sin atención
+              Días fuera del horario normal donde sí atiende
             </p>
           </div>
-          {!showExForm && (
+          {!showAddForm && (
             <button
-              onClick={() => { setShowExForm(true); setExError(null) }}
+              onClick={() => { setShowAddForm(true); setAddError(null) }}
               className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition"
             >
               <Plus className="h-3.5 w-3.5" />
-              Agregar excepción
+              Agregar día adicional
             </button>
           )}
         </div>
 
-        {/* Inline add form */}
-        {showExForm && (
+        {showAddForm && (
           <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-5 space-y-4">
-            {/* Date picker */}
-            <div className="max-w-xs">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Fecha
-              </label>
-              <input
-                type="date"
-                value={exForm.date}
-                onChange={e => setExForm(p => ({ ...p, date: e.target.value }))}
-                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Attendance pills */}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setExForm(p => ({ ...p, noAttend: false }))}
-                className={[
-                  'rounded-xl px-4 py-2 text-sm font-medium transition-all',
-                  !exForm.noAttend
-                    ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-300'
-                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200',
-                ].join(' ')}
-              >
-                Atiendo este día
-              </button>
-              <button
-                type="button"
-                onClick={() => setExForm(p => ({ ...p, noAttend: true }))}
-                className={[
-                  'rounded-xl px-4 py-2 text-sm font-medium transition-all',
-                  exForm.noAttend
-                    ? 'bg-rose-100 text-rose-700 ring-1 ring-rose-300'
-                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200',
-                ].join(' ')}
-              >
-                No atiendo este día
-              </button>
-            </div>
-
-            {/* Time inputs — only when attending */}
-            {!exForm.noAttend && (
+            <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Horario
-                </label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Fecha</label>
+                <input
+                  type="date"
+                  value={addForm.date}
+                  onChange={e => setAddForm(p => ({ ...p, date: e.target.value }))}
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Horario</label>
                 <div className="mt-1.5 flex items-center gap-2">
                   <input
                     type="time"
-                    value={exForm.start_time}
-                    onChange={e => setExForm(p => ({ ...p, start_time: e.target.value }))}
+                    value={addForm.start_time}
+                    onChange={e => setAddForm(p => ({ ...p, start_time: e.target.value }))}
                     className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <span className="text-sm text-slate-400">—</span>
                   <input
                     type="time"
-                    value={exForm.end_time}
-                    onChange={e => setExForm(p => ({ ...p, end_time: e.target.value }))}
+                    value={addForm.end_time}
+                    onChange={e => setAddForm(p => ({ ...p, end_time: e.target.value }))}
                     className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
-            )}
-
-            {exError && <p className="text-sm text-red-600">{exError}</p>}
-
+            </div>
+            {addError && <p className="text-sm text-red-600">{addError}</p>}
             <div className="flex gap-2">
               <button
-                onClick={handleAddException}
-                disabled={savingEx}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition disabled:opacity-50"
+                onClick={handleAddExtraDay}
+                disabled={savingAdd}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition disabled:opacity-50"
               >
-                {savingEx && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {savingAdd && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 Guardar
               </button>
               <button
-                onClick={() => { setShowExForm(false); setExForm(EMPTY_EX); setExError(null) }}
+                onClick={() => { setShowAddForm(false); setAddForm({ date: '', start_time: '08:00', end_time: '17:00' }); setAddError(null) }}
                 className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
               >
                 Cancelar
@@ -447,27 +438,20 @@ export function AvailabilityEditor() {
           </div>
         )}
 
-        {/* Exception list */}
-        {loadingSched ? null : exceptions.length === 0 && !showExForm ? (
-          <div className="px-6 py-10 text-center">
-            <p className="text-sm text-slate-400">Sin excepciones configuradas.</p>
-          </div>
+        {extraDays.length === 0 && !showAddForm ? (
+          <p className="px-6 py-8 text-center text-sm text-slate-400">Sin días adicionales.</p>
         ) : (
           <div className="divide-y divide-slate-100">
-            {exceptions.map(ex => (
+            {extraDays.map(ex => (
               <div key={ex.id} className="flex items-center justify-between px-6 py-4">
                 <div>
-                  <p className="text-sm font-medium capitalize text-slate-900">
-                    {fmtDate(ex.specific_date)}
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    {ex.active && ex.start_time && ex.end_time
-                      ? `${ex.start_time.slice(0, 5)} — ${ex.end_time.slice(0, 5)}`
-                      : 'No disponible'}
+                  <p className="text-sm font-medium capitalize text-slate-900">{fmtDate(ex.specific_date)}</p>
+                  <p className="mt-0.5 text-xs font-medium text-emerald-600">
+                    {ex.start_time?.slice(0, 5)} — {ex.end_time?.slice(0, 5)}
                   </p>
                 </div>
                 <button
-                  onClick={() => handleDeleteException(ex.id)}
+                  onClick={() => handleDelete(ex.id)}
                   className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-500"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -477,6 +461,82 @@ export function AvailabilityEditor() {
           </div>
         )}
       </div>
+
+      {/* ── Días bloqueados ───────────────────────────────────────────────────── */}
+      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">Días bloqueados</h3>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Días sin atención (festivos, vacaciones)
+            </p>
+          </div>
+          {!showBlkForm && (
+            <button
+              onClick={() => { setShowBlkForm(true); setBlkError(null) }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Bloquear día
+            </button>
+          )}
+        </div>
+
+        {showBlkForm && (
+          <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-5 space-y-4">
+            <div className="max-w-xs">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Fecha</label>
+              <input
+                type="date"
+                value={blkForm.date}
+                onChange={e => setBlkForm({ date: e.target.value })}
+                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            {blkError && <p className="text-sm text-red-600">{blkError}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={handleBlockDay}
+                disabled={savingBlk}
+                className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 transition disabled:opacity-50"
+              >
+                {savingBlk && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Bloquear
+              </button>
+              <button
+                onClick={() => { setShowBlkForm(false); setBlkForm({ date: '' }); setBlkError(null) }}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {blockedDays.length === 0 && !showBlkForm ? (
+          <p className="px-6 py-8 text-center text-sm text-slate-400">Sin días bloqueados.</p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {blockedDays.map(ex => (
+              <div key={ex.id} className="flex items-center justify-between px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-100">
+                    <Lock className="h-3.5 w-3.5 text-rose-500" />
+                  </span>
+                  <p className="text-sm font-medium capitalize text-slate-900">{fmtDate(ex.specific_date)}</p>
+                </div>
+                <button
+                  onClick={() => handleDelete(ex.id)}
+                  className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-500"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
     </div>
   )
 }
