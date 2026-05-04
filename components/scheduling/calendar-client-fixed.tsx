@@ -86,6 +86,25 @@ function modalityFromNotes(notes: string | null): string {
   return '—'
 }
 
+function getDateRange(range: 'hoy' | 'semana' | 'mes' | 'todos'): { from: string; to: string } | null {
+  const today = todayStr()
+  if (range === 'hoy') return { from: today, to: today }
+  if (range === 'semana') {
+    const d = new Date(today + 'T12:00:00')
+    const dow = d.getDay() === 0 ? 6 : d.getDay() - 1
+    const mon = new Date(d); mon.setDate(d.getDate() - dow)
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6)
+    const fmt = (dt: Date) => dt.toISOString().slice(0, 10)
+    return { from: fmt(mon), to: fmt(sun) }
+  }
+  if (range === 'mes') {
+    const y = today.slice(0, 4), m = today.slice(5, 7)
+    const last = new Date(Number(y), Number(m), 0).getDate()
+    return { from: `${y}-${m}-01`, to: `${y}-${m}-${String(last).padStart(2, '0')}` }
+  }
+  return null
+}
+
 function isoToLocalDate(iso: string): string {
   const d = new Date(iso)
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -133,8 +152,9 @@ export function CalendarClient({ userId }: CalendarClientProps) {
   const [error, setError] = useState<string | null>(null)
 
   // ── View/filter state
-  const [viewMode,       setViewMode]       = useState<'calendar' | 'list'>('calendar')
-  const [showCancelled,  setShowCancelled]  = useState(true)
+  const [viewMode,      setViewMode]      = useState<'calendar' | 'list'>('list')
+  const [showCancelled, setShowCancelled] = useState(true)
+  const [listRange,     setListRange]     = useState<'hoy' | 'semana' | 'mes' | 'todos'>('semana')
   const [filterDoctor, setFilterDoctor] = useState('')
   const [search, setSearch] = useState('')
 
@@ -238,8 +258,15 @@ export function CalendarClient({ userId }: CalendarClientProps) {
   // ── List view data ─────────────────────────────────────────────────────────
 
   const listData = useMemo(() => {
+    const range = getDateRange(listRange)
+    const source = range
+      ? filteredAppointments.filter(a => {
+          const day = a.scheduled_at.slice(0, 10)
+          return day >= range.from && day <= range.to
+        })
+      : filteredAppointments
     const grouped: Record<string, AppointmentRecord[]> = {}
-    filteredAppointments.forEach(apt => {
+    source.forEach(apt => {
       const day = apt.scheduled_at.slice(0, 10)
       if (!grouped[day]) grouped[day] = []
       grouped[day].push(apt)
@@ -248,9 +275,8 @@ export function CalendarClient({ userId }: CalendarClientProps) {
       apts.sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
     )
     const days = Object.keys(grouped).sort()
-    const hasModalidad = filteredAppointments.some(a => modalityFromNotes(a.notes) !== '—')
-    return { grouped, days, hasModalidad }
-  }, [filteredAppointments])
+    return { grouped, days }
+  }, [filteredAppointments, listRange])
 
   // ── Modal handlers ─────────────────────────────────────────────────────────
 
@@ -643,70 +669,82 @@ export function CalendarClient({ userId }: CalendarClientProps) {
       <div className="space-y-4">
         {/* Controls: filters + toggle + new appointment */}
         <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            {/* Left: filters */}
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center flex-1 min-w-0">
-              <select
-                value={filterDoctor}
-                onChange={e => setFilterDoctor(e.target.value)}
-                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Todos los médicos</option>
-                {doctors.map(d => (
-                  <option key={d.id} value={d.id}>{d.metadata?.name || 'Médico'}</option>
-                ))}
-              </select>
-              <div className="relative flex-1 min-w-0">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Buscar paciente..."
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
+            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              {/* Left: toggle prominente + filtros */}
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center flex-1 min-w-0">
+                {/* View toggle */}
+                <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm shrink-0">
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={['flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition',
+                      viewMode === 'list' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'].join(' ')}
+                  >
+                    <List className="h-4 w-4" /> Lista
+                  </button>
+                  <button
+                    onClick={() => setViewMode('calendar')}
+                    className={['flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition',
+                      viewMode === 'calendar' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'].join(' ')}
+                  >
+                    <CalendarDays className="h-4 w-4" /> Calendario
+                  </button>
+                </div>
 
-            {/* Right: view toggle + new button */}
-            <div className="flex items-center gap-2 shrink-0">
-              {/* View toggle */}
-              <div className="flex items-center rounded-xl border border-slate-200 p-0.5">
-                <button
-                  onClick={() => setViewMode('calendar')}
-                  className={[
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition',
-                    viewMode === 'calendar' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50',
-                  ].join(' ')}
+                <select
+                  value={filterDoctor}
+                  onChange={e => setFilterDoctor(e.target.value)}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  Calendario
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={[
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition',
-                    viewMode === 'list' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50',
-                  ].join(' ')}
-                >
-                  <List className="h-3.5 w-3.5" />
-                  Lista
-                </button>
+                  <option value="">Todos los médicos</option>
+                  {doctors.map(d => (
+                    <option key={d.id} value={d.id}>{d.metadata?.name || 'Médico'}</option>
+                  ))}
+                </select>
+                <div className="relative flex-1 min-w-0">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <input
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Buscar paciente..."
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
               </div>
 
-              {/* New appointment button */}
+              {/* Right: nueva cita */}
               <button
                 onClick={() => setShowCreate(prev => !prev)}
-                className={[
-                  'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold shadow-sm transition',
-                  showCreate
-                    ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    : 'bg-emerald-600 text-white hover:bg-emerald-700',
-                ].join(' ')}
+                className={['inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold shadow-sm transition shrink-0',
+                  showCreate ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-emerald-600 text-white hover:bg-emerald-700'].join(' ')}
               >
                 <Plus className="h-4 w-4 shrink-0" />
                 {showCreate ? 'Cerrar' : 'Nueva cita'}
               </button>
             </div>
+
+            {/* Date range pills — solo en vista lista */}
+            {viewMode === 'list' && (
+              <div className="flex gap-1.5 flex-wrap">
+                {([
+                  { value: 'hoy',    label: 'Hoy' },
+                  { value: 'semana', label: 'Esta semana' },
+                  { value: 'mes',    label: 'Este mes' },
+                  { value: 'todos',  label: 'Todos' },
+                ] as const).map(r => (
+                  <button
+                    key={r.value}
+                    onClick={() => setListRange(r.value)}
+                    className={['rounded-full px-3 py-1 text-xs font-medium transition',
+                      listRange === r.value
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'].join(' ')}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
