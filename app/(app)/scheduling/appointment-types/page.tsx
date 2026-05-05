@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Copy, Check, Loader2, Pencil, Link2, X, Save, Settings, Clock, ClipboardList } from 'lucide-react'
+import { Plus, Copy, Check, Loader2, Pencil, Link2, X, Save, Settings, Clock, ClipboardList, GripVertical, Trash2 } from 'lucide-react'
 
 type AssignmentMode = 'one_on_one' | 'round_robin_proportional' | 'round_robin_availability' | 'hybrid'
 
@@ -22,6 +22,34 @@ interface AppointmentType {
   buffer_before_min: number
   buffer_after_min: number
   languages: string[]
+}
+
+interface FormFieldRow {
+  id: string
+  field_name: string
+  field_label: string
+  field_type: string
+  placeholder: string
+  required: boolean
+  sort_order: number
+  active: boolean
+}
+
+const FIELD_TYPES = [
+  { value: 'text',     label: 'Texto' },
+  { value: 'email',    label: 'Email' },
+  { value: 'tel',      label: 'Teléfono' },
+  { value: 'number',   label: 'Número' },
+  { value: 'date',     label: 'Fecha' },
+  { value: 'textarea', label: 'Área de texto' },
+]
+
+const EMPTY_FIELD = {
+  field_label:  '',
+  field_name:   '',
+  field_type:   'text',
+  placeholder:  '',
+  required:     false,
 }
 
 interface DoctorOption {
@@ -86,6 +114,11 @@ export default function AppointmentTypesPage() {
   const [copiedId,      setCopiedId]      = useState<string | null>(null)
   const [slugManual,    setSlugManual]    = useState(false)
   const [activeTab,     setActiveTab]     = useState<'general' | 'rules' | 'form'>('general')
+  const [formFields,    setFormFields]    = useState<FormFieldRow[]>([])
+  const [fieldsLoading, setFieldsLoading] = useState(false)
+  const [addingField,   setAddingField]   = useState(false)
+  const [newField,      setNewField]      = useState({ ...EMPTY_FIELD })
+  const [savingField,   setSavingField]   = useState(false)
 
   const supabase = createClient()
 
@@ -131,6 +164,18 @@ export default function AppointmentTypesPage() {
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+
+  useEffect(() => {
+    if (activeTab !== 'form' || !editing) return
+    setFieldsLoading(true)
+    supabase
+      .from('appointment_form_fields')
+      .select('*')
+      .eq('appointment_type_id', editing.id)
+      .eq('active', true)
+      .order('sort_order')
+      .then(({ data }) => { setFormFields(data ?? []); setFieldsLoading(false) })
+  }, [activeTab, editing?.id])
 
   const openCreate = () => {
     setEditing(null)
@@ -566,10 +611,155 @@ export default function AppointmentTypesPage() {
 
                   {/* ── Tab: Formulario ──────────────────────────────────── */}
                   {activeTab === 'form' && (
-                    <div className="flex flex-col items-center justify-center py-16 text-center">
-                      <ClipboardList className="h-10 w-10 text-slate-300 mb-3" />
-                      <p className="text-sm font-medium text-slate-600">Configuración del formulario del paciente</p>
-                      <p className="mt-1 text-xs text-slate-400">Próximamente</p>
+                    <div className="space-y-3">
+                      <p className="text-xs text-slate-500">Campos adicionales que el paciente debe completar al agendar.</p>
+
+                      {fieldsLoading ? (
+                        <div className="flex items-center gap-2 py-6 text-slate-400">
+                          <Loader2 className="h-4 w-4 animate-spin" /> Cargando campos...
+                        </div>
+                      ) : formFields.length === 0 && !addingField ? (
+                        <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 py-10 text-center">
+                          <ClipboardList className="h-8 w-8 text-slate-300" />
+                          <p className="text-sm text-slate-500">Sin campos personalizados</p>
+                          <button
+                            onClick={() => { setNewField({ ...EMPTY_FIELD }); setAddingField(true) }}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition"
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Agregar campo
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Field list */}
+                          <div className="space-y-2">
+                            {formFields.map(f => (
+                              <div key={f.id} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                                <GripVertical className="h-4 w-4 shrink-0 text-slate-300" />
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm font-medium text-slate-800">{f.field_label}</span>
+                                </div>
+                                <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                                  {FIELD_TYPES.find(t => t.value === f.field_type)?.label ?? f.field_type}
+                                </span>
+                                {f.required && (
+                                  <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600">
+                                    Requerido
+                                  </span>
+                                )}
+                                <button
+                                  onClick={async () => {
+                                    await supabase.from('appointment_form_fields').update({ active: false }).eq('id', f.id)
+                                    setFormFields(prev => prev.filter(x => x.id !== f.id))
+                                  }}
+                                  className="shrink-0 rounded-lg p-1 text-slate-300 hover:bg-red-50 hover:text-red-500 transition"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Add field button (when list is non-empty and not adding) */}
+                          {!addingField && (
+                            <button
+                              onClick={() => { setNewField({ ...EMPTY_FIELD }); setAddingField(true) }}
+                              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition"
+                            >
+                              <Plus className="h-3.5 w-3.5" /> Agregar campo
+                            </button>
+                          )}
+                        </>
+                      )}
+
+                      {/* Inline add form */}
+                      {addingField && (
+                        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 space-y-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nuevo campo</p>
+                          <div>
+                            <label className="text-xs font-medium text-slate-600">Etiqueta *</label>
+                            <input
+                              value={newField.field_label}
+                              onChange={e => setNewField(p => ({
+                                ...p,
+                                field_label: e.target.value,
+                                field_name:  toSlug(e.target.value),
+                              }))}
+                              placeholder="Ej: Número de seguro"
+                              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs font-medium text-slate-600">Tipo</label>
+                              <select
+                                value={newField.field_type}
+                                onChange={e => setNewField(p => ({ ...p, field_type: e.target.value }))}
+                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                {FIELD_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium text-slate-600">Placeholder</label>
+                              <input
+                                value={newField.placeholder}
+                                onChange={e => setNewField(p => ({ ...p, placeholder: e.target.value }))}
+                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                            </div>
+                          </div>
+                          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                            <input
+                              type="checkbox"
+                              className="rounded border-slate-300 accent-blue-600"
+                              checked={newField.required}
+                              onChange={e => setNewField(p => ({ ...p, required: e.target.checked }))}
+                            />
+                            Campo requerido
+                          </label>
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              disabled={savingField || !newField.field_label.trim()}
+                              onClick={async () => {
+                                if (!editing || !org) return
+                                setSavingField(true)
+                                const { data, error } = await supabase
+                                  .from('appointment_form_fields')
+                                  .insert({
+                                    organization_id:     org.id,
+                                    appointment_type_id: editing.id,
+                                    field_name:          newField.field_name || toSlug(newField.field_label),
+                                    field_label:         newField.field_label.trim(),
+                                    field_type:          newField.field_type,
+                                    placeholder:         newField.placeholder.trim() || null,
+                                    required:            newField.required,
+                                    sort_order:          formFields.length,
+                                    active:              true,
+                                  })
+                                  .select()
+                                  .single()
+                                setSavingField(false)
+                                if (!error && data) {
+                                  setFormFields(prev => [...prev, data as FormFieldRow])
+                                  setAddingField(false)
+                                  setNewField({ ...EMPTY_FIELD })
+                                }
+                              }}
+                              className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition disabled:opacity-50"
+                            >
+                              {savingField ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                              Guardar
+                            </button>
+                            <button
+                              onClick={() => { setAddingField(false); setNewField({ ...EMPTY_FIELD }) }}
+                              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
