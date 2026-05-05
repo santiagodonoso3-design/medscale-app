@@ -191,6 +191,51 @@ superadmins, webhook_logs
 - [ ] Validar que filtro global afecte correctamente funnel + gráfica + tabla médicos
 - [ ] "Citas de hoy" debe ignorar filtros siempre
 
+## Módulo: Tipos de Cita + Booking Form
+
+### Arquitectura definida
+
+**Tipos de cita** son configurables por cliente (multi-tenant). Cada tipo tiene:
+- Nombre
+- Duración (min)
+- Modo de asignación:
+  - `one_on_one` → paciente escoge médico
+  - `round_robin_proportional` → asigna médico con menos citas del mes que tenga el slot libre
+  - `round_robin_availability` → asigna primer médico disponible
+  - `hybrid` → paciente puede escoger médico o dejar que el sistema asigne
+- Médicos asignados (array de doctor_ids)
+- Aviso mínimo (horas)
+- Link público (auto-generado desde el nombre)
+- Activo: sí/no
+
+### Regla de asignación Round Robin proporcional
+1. Filtrar médicos asignados al tipo que tengan el slot disponible (según schedules)
+2. De esos, escoger el que tenga menos citas en el mes actual
+3. Empate → el que tenga menos citas en los últimos 7 días
+4. Asignar y confirmar
+
+### Flujo del Booking Form (vista paciente — máximo 4 pasos)
+
+**Paso 1** — Escoge tipo de cita (cards)
+**Paso 2** — Preferencia de médico (SOLO si modo = hybrid Y médicos asignados >= 2)
+  - Si modo = one_on_one → va directo a escoger médico (sin pregunta)
+  - Si modo = round_robin_* → se salta este paso completamente
+  - Si médicos asignados = 1 → se salta este paso, se usa ese médico
+**Paso 3** — Escoge fecha y hora (solo slots disponibles)
+**Paso 4** — Datos del paciente (nombre, teléfono, email)
+**Confirmación** — muestra médico asignado
+
+### Plan de construcción (en orden)
+- [ ] Paso 1: Construir UI de tipos de cita en /scheduling/appointment-types (CRUD completo)
+- [ ] Paso 2: Crear tabla appointment_types en Supabase si no existe
+- [ ] Paso 3: Conectar booking form /book/[org-slug] para que consuma tipos de cita
+- [ ] Paso 4: Implementar lógica de asignación round robin en server action
+- [ ] Paso 5: Adaptar booking form para renderizar según configuración del tipo de cita
+
+### Pendiente antes de Paso 1
+- Revisar si appointment_types ya existe en Supabase
+- Revisar cómo funciona actualmente /book/[org-slug]
+
 ## 📊 Métricas
 - Archivos: 35+, Componentes: 18+, Server Actions: 6+
 - Tablas BD: 16 con RLS, Clientes beta: 1 (Ferttes)
