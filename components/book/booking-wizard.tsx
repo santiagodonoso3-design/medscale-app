@@ -56,6 +56,7 @@ interface AppointmentTypeOption {
   duration_minutes: number
   modality: 'presencial' | 'virtual'
   color: string
+  doctor_ids?: string[]
 }
 
 interface BookingWizardProps {
@@ -429,6 +430,7 @@ export default function BookingWizard({
   locations,
   schedules,
   formFields,
+  appointmentType,
 }: BookingWizardProps) {
   const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormData] = useState({
@@ -446,7 +448,12 @@ export default function BookingWizard({
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  const availableDoctors = doctors.filter((d) => d.is_active)
+  // If the appointment type specifies assigned doctors, restrict to that subset.
+  // Falls back to all active org doctors when doctor_ids is absent or empty.
+  const assignedIds = appointmentType?.doctor_ids?.length ? appointmentType.doctor_ids : null
+  const availableDoctors = doctors.filter(
+    (d) => d.is_active && (assignedIds === null || assignedIds.includes(d.id))
+  )
 
   const selectedDoctor = useMemo(
     () => availableDoctors.find((d) => d.id === formData.doctor_id) ?? null,
