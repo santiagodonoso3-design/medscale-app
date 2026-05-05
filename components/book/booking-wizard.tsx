@@ -68,6 +68,123 @@ const LANGUAGE_OPTIONS = [
   { value: 'pt', label: 'Português', flag: '🇧🇷' },
 ]
 
+const TRANSLATIONS = {
+  es: {
+    // Step indicator
+    stepPreferences:  'Preferencias',
+    stepDate:         'Fecha',
+    stepConfirmation: 'Confirmación',
+    // Step 1
+    step1Heading:     'Tu cita',
+    step1Subtitle:    'Elige tus preferencias',
+    langLabel:        'Idioma',
+    modalityLabel:    'Modalidad',
+    presencial:       '📍 Presencial',
+    virtual:          '💻 Virtual',
+    noPreference:     'Sin preferencia',
+    autoAssignSub:    'Asignación automática al médico disponible',
+    availableToday:   'Disponible hoy',
+    docFallback:      'Médico',
+    // Step 2
+    step2Heading:     'Fecha y hora',
+    // Step 3
+    step3Heading:     'Tus datos',
+    sumType:          'Tipo',
+    sumDoctor:        'Médico',
+    sumDate:          'Fecha',
+    sumTime:          'Hora',
+    sumModality:      'Modalidad',
+    sumLanguage:      'Idioma',
+    sumPresencial:    'Presencial',
+    sumVirtual:       'Virtual',
+    fieldName:        'Nombre completo *',
+    fieldPhone:       'Teléfono *',
+    fieldEmail:       'Email *',
+    fieldId:          'Cédula *',
+    submitting:       'Agendando...',
+    confirmBtn:       'Confirmar cita',
+    autoAssign:       'Asignación automática',
+    // Step 4 success
+    successTitle:     '¡Cita agendada!',
+    successSub:       'Recibirás una confirmación por email.',
+    summaryTitle:     'Resumen',
+    autoAssigned:     'Asignado automáticamente',
+    sumPatient:       'Paciente',
+    // Step 4 error
+    errorTitle:       'No se pudo agendar',
+    errorLabel:       'Error',
+    errorDefault:     'Error desconocido. Intenta de nuevo.',
+    retryBtn:         'Volver e intentar de nuevo',
+    // Header & nav
+    headerLabel:      'Reservar cita',
+    publicBookings:   'Reservas públicas',
+    badgePresencial:  '📍 Solo presencial',
+    badgeVirtual:     '💻 Solo virtual',
+    next:             'Siguiente',
+    previous:         'Anterior',
+    // CalendarPicker
+    calOrg:           'Organización',
+    calDoctor:        'Médico',
+    calAutoAssign:    'Asignación automática',
+    calSelected:      'Seleccionado',
+    calLoading:       'Cargando horarios...',
+    calNoSlots:       'No hay horarios disponibles.',
+  },
+  en: {
+    stepPreferences:  'Preferences',
+    stepDate:         'Date',
+    stepConfirmation: 'Confirmation',
+    step1Heading:     'Your appointment',
+    step1Subtitle:    'Choose your preferences',
+    langLabel:        'Language',
+    modalityLabel:    'Modality',
+    presencial:       '📍 In person',
+    virtual:          '💻 Virtual',
+    noPreference:     'No preference',
+    autoAssignSub:    'Automatic assignment to available doctor',
+    availableToday:   'Available today',
+    docFallback:      'Doctor',
+    step2Heading:     'Date & time',
+    step3Heading:     'Your details',
+    sumType:          'Type',
+    sumDoctor:        'Doctor',
+    sumDate:          'Date',
+    sumTime:          'Time',
+    sumModality:      'Modality',
+    sumLanguage:      'Language',
+    sumPresencial:    'In person',
+    sumVirtual:       'Virtual',
+    fieldName:        'Full name *',
+    fieldPhone:       'Phone *',
+    fieldEmail:       'Email *',
+    fieldId:          'ID number *',
+    submitting:       'Booking...',
+    confirmBtn:       'Confirm appointment',
+    autoAssign:       'Automatic assignment',
+    successTitle:     'Appointment booked!',
+    successSub:       'You will receive a confirmation by email.',
+    summaryTitle:     'Summary',
+    autoAssigned:     'Automatically assigned',
+    sumPatient:       'Patient',
+    errorTitle:       'Could not book',
+    errorLabel:       'Error',
+    errorDefault:     'Unknown error. Please try again.',
+    retryBtn:         'Go back and try again',
+    headerLabel:      'Book appointment',
+    publicBookings:   'Online booking',
+    badgePresencial:  '📍 In person only',
+    badgeVirtual:     '💻 Virtual only',
+    next:             'Next',
+    previous:         'Previous',
+    calOrg:           'Organization',
+    calDoctor:        'Doctor',
+    calAutoAssign:    'Automatic assignment',
+    calSelected:      'Selected',
+    calLoading:       'Loading times...',
+    calNoSlots:       'No available time slots.',
+  },
+} satisfies Record<string, Record<string, string>>
+
 interface BookingWizardProps {
   orgName: string
   orgSlug: string
@@ -136,6 +253,10 @@ interface CalendarPickerProps {
   onSelect: (date: string, time: string) => void
   doctorId: string
   durationOverride?: number
+  texts: {
+    org: string; doctor: string; autoAssign: string
+    selected: string; loading: string; noSlots: string; docFallback: string
+  }
 }
 
 function CalendarPicker({
@@ -147,6 +268,7 @@ function CalendarPicker({
   onSelect,
   doctorId,
   durationOverride,
+  texts,
 }: CalendarPickerProps) {
   const today = todayBogota()
   const todayYear = Number(today.slice(0, 4))
@@ -164,8 +286,8 @@ function CalendarPicker({
   )
 
   const doctorName = selectedDoctor
-    ? String(selectedDoctor.metadata?.name ?? 'Médico')
-    : 'Sin preferencia'
+    ? String(selectedDoctor.metadata?.name ?? texts.docFallback)
+    : texts.autoAssign
 
   useEffect(() => {
     if (!doctorId) {
@@ -233,18 +355,18 @@ function CalendarPicker({
           <span className="text-xs text-gray-300 sm:hidden">·</span>
           <p className="text-xs text-gray-700 font-medium sm:hidden">{doctorName}</p>
           <div className="hidden sm:block">
-            <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">Organización</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">{texts.org}</p>
             <p className="font-semibold text-gray-900 text-sm">{orgName}</p>
           </div>
         </div>
         <div className="hidden sm:block">
-          <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">Médico</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">{texts.doctor}</p>
           <p className="font-medium text-gray-800 text-sm leading-snug">{doctorName}</p>
           {selectedDoctor?.specialty && (
             <p className="text-xs text-gray-500 mt-0.5">{selectedDoctor.specialty}</p>
           )}
           {!selectedDoctor && (
-            <p className="text-xs text-gray-400 mt-0.5">Asignación automática</p>
+            <p className="text-xs text-gray-400 mt-0.5">{texts.autoAssign}</p>
           )}
         </div>
         <div className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 rounded-full px-2.5 py-1 text-xs font-semibold">
@@ -253,7 +375,7 @@ function CalendarPicker({
         </div>
         {selectedDate && selectedTime && (
           <div className="hidden sm:block bg-gray-50 rounded-xl p-3 mt-auto w-full">
-            <p className="text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">Seleccionado</p>
+            <p className="text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">{texts.selected}</p>
             <p className="text-xs text-gray-600 capitalize">
               {new Intl.DateTimeFormat('es-CO', {
                 weekday: 'long', day: 'numeric', month: 'short', timeZone: 'America/Bogota',
@@ -320,10 +442,10 @@ function CalendarPicker({
             {slotsLoading ? (
               <div className="flex items-center gap-2 text-sm text-gray-400">
                 <div className="w-4 h-4 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
-                Cargando horarios...
+                {texts.loading}
               </div>
             ) : slotsForDate.length === 0 ? (
-              <p className="text-sm text-gray-400">No hay horarios disponibles.</p>
+              <p className="text-sm text-gray-400">{texts.noSlots}</p>
             ) : (
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-2">
                 {slotsForDate.map((time) => {
@@ -423,6 +545,9 @@ export default function BookingWizard({
   const [error,   setError]   = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
+  // Reactive translations — updates when user picks a different language in step 1
+  const t = TRANSLATIONS[formData.language as 'es' | 'en'] ?? TRANSLATIONS.es
+
   const selectedDoctor = useMemo(
     () => availableDoctors.find((d) => d.id === formData.doctor_id) ?? null,
     [availableDoctors, formData.doctor_id]
@@ -486,7 +611,7 @@ export default function BookingWizard({
 
   // ── Step indicator (always 3 visible steps) ───────────────────────────────
 
-  const INDICATOR_LABELS = ['Preferencias', 'Fecha', 'Confirmación']
+  const INDICATOR_LABELS = [t.stepPreferences, t.stepDate, t.stepConfirmation]
 
   const renderStepIndicator = () => (
     <div className="flex items-center justify-center mb-8">
@@ -515,8 +640,8 @@ export default function BookingWizard({
   const renderStep1 = () => (
     <div className="space-y-6">
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-900">Tu cita</h2>
-        <p className="text-gray-500 mt-1 text-sm">Elige tus preferencias</p>
+        <h2 className="text-2xl font-bold text-gray-900">{t.step1Heading}</h2>
+        <p className="text-gray-500 mt-1 text-sm">{t.step1Subtitle}</p>
       </div>
 
       {/* Inline pill toggles */}
@@ -524,7 +649,7 @@ export default function BookingWizard({
         <div className="flex flex-wrap gap-4">
           {showLangToggle && (
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-500">Idioma</span>
+              <span className="text-xs font-medium text-gray-500">{t.langLabel}</span>
               <div className="flex rounded-full border border-gray-200 bg-gray-50 p-0.5 gap-0.5">
                 {LANGUAGE_OPTIONS
                   .filter(l => appointmentType?.languages?.includes(l.value))
@@ -544,9 +669,9 @@ export default function BookingWizard({
           )}
           {showModalityToggle && (
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-500">Modalidad</span>
+              <span className="text-xs font-medium text-gray-500">{t.modalityLabel}</span>
               <div className="flex rounded-full border border-gray-200 bg-gray-50 p-0.5 gap-0.5">
-                {[{ value: 'presencial', label: '📍 Presencial' }, { value: 'virtual', label: '💻 Virtual' }].map(m => (
+                {[{ value: 'presencial', label: t.presencial }, { value: 'virtual', label: t.virtual }].map(m => (
                   <button key={m.value}
                     onClick={() => setFormData(p => ({ ...p, modality: m.value as 'presencial' | 'virtual' }))}
                     className={`rounded-full px-3 py-1 text-xs font-medium transition ${
@@ -576,15 +701,15 @@ export default function BookingWizard({
               <UserPlus className="h-5 w-5 text-gray-400" />
             </div>
             <div>
-              <p className="font-semibold text-gray-900">Sin preferencia</p>
-              <p className="text-sm text-gray-500">Asignación automática al médico disponible</p>
+              <p className="font-semibold text-gray-900">{t.noPreference}</p>
+              <p className="text-sm text-gray-500">{t.autoAssignSub}</p>
             </div>
           </button>
 
           {/* Doctor cards — 2-column grid */}
           <div className="grid grid-cols-2 gap-3">
             {availableDoctors.map(doc => {
-              const name     = String(doc.metadata?.name ?? 'Médico')
+              const name     = String(doc.metadata?.name ?? t.docFallback)
               const photoUrl = doc.metadata?.photo_url as string | null | undefined
               const isToday  = hasSlotToday(doc.id)
               const isSelected = formData.doctor_id === doc.id
@@ -596,7 +721,7 @@ export default function BookingWizard({
                     isSelected ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
                   }`}>
                   {isToday && (
-                    <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-emerald-500" title="Disponible hoy" />
+                    <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-emerald-500" title={t.availableToday} />
                   )}
                   <DoctorAvatar name={name} photoUrl={photoUrl} color={typeColor} size="lg" />
                   <div>
@@ -615,12 +740,12 @@ export default function BookingWizard({
   // ── Step 2 — Fecha y hora ─────────────────────────────────────────────────
 
   const renderStep2 = () => {
-    const docName  = selectedDoctor ? String(selectedDoctor.metadata?.name ?? 'Médico') : null
+    const docName  = selectedDoctor ? String(selectedDoctor.metadata?.name ?? t.docFallback) : null
     const photoUrl = selectedDoctor?.metadata?.photo_url as string | null | undefined
     return (
       <div>
         <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Fecha y hora</h2>
+          <h2 className="text-2xl font-bold text-gray-900">{t.step2Heading}</h2>
           {docName && (
             <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-gray-50 px-3 py-1.5">
               <DoctorAvatar name={docName} photoUrl={photoUrl} color={typeColor} size="sm" />
@@ -636,6 +761,7 @@ export default function BookingWizard({
           selectedTime={formData.time}
           onSelect={(date, time) => setFormData(p => ({ ...p, date, time }))}
           doctorId={formData.doctor_id}
+          texts={{ org: t.calOrg, doctor: t.calDoctor, autoAssign: t.calAutoAssign, selected: t.calSelected, loading: t.calLoading, noSlots: t.calNoSlots, docFallback: t.docFallback }}
         />
       </div>
     )
@@ -644,7 +770,7 @@ export default function BookingWizard({
   // ── Step 3 — Tus datos + summary + confirm ────────────────────────────────
 
   const renderStep3 = () => {
-    const docName  = selectedDoctor ? String(selectedDoctor.metadata?.name ?? 'Médico') : 'Asignación automática'
+    const docName  = selectedDoctor ? String(selectedDoctor.metadata?.name ?? t.docFallback) : t.autoAssign
     const photoUrl = selectedDoctor?.metadata?.photo_url as string | null | undefined
     const langLabel = LANGUAGE_OPTIONS.find(l => l.value === formData.language)?.label ?? 'Español'
     const canSubmit = !loading && !!formData.patient_name && !!formData.phone && !!formData.email && !!formData.cedula
@@ -652,26 +778,26 @@ export default function BookingWizard({
     return (
       <div className="space-y-6">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900">Tus datos</h2>
+          <h2 className="text-2xl font-bold text-gray-900">{t.step3Heading}</h2>
         </div>
 
         {/* Summary */}
         <div className="rounded-2xl bg-gray-50 px-5 py-4 space-y-2.5 text-sm">
           {appointmentType && (
             <div className="flex justify-between">
-              <span className="text-gray-500">Tipo</span>
+              <span className="text-gray-500">{t.sumType}</span>
               <span className="font-medium text-gray-900">{appointmentType.name}</span>
             </div>
           )}
           <div className="flex items-center justify-between">
-            <span className="text-gray-500">Médico</span>
+            <span className="text-gray-500">{t.sumDoctor}</span>
             <div className="flex items-center gap-1.5">
               {selectedDoctor && <DoctorAvatar name={docName} photoUrl={photoUrl} color={typeColor} size="sm" />}
               <span className="font-medium text-gray-900">{docName}</span>
             </div>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">Fecha</span>
+            <span className="text-gray-500">{t.sumDate}</span>
             <span className="font-medium text-gray-900">
               {formData.date
                 ? new Intl.DateTimeFormat('es-CO', {
@@ -681,16 +807,16 @@ export default function BookingWizard({
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">Hora</span>
+            <span className="text-gray-500">{t.sumTime}</span>
             <span className="font-medium text-gray-900">{formData.time || '—'}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">Modalidad</span>
-            <span className="font-medium text-gray-900">{formData.modality === 'presencial' ? 'Presencial' : 'Virtual'}</span>
+            <span className="text-gray-500">{t.sumModality}</span>
+            <span className="font-medium text-gray-900">{formData.modality === 'presencial' ? t.sumPresencial : t.sumVirtual}</span>
           </div>
           {showLangToggle && (
             <div className="flex justify-between">
-              <span className="text-gray-500">Idioma</span>
+              <span className="text-gray-500">{t.sumLanguage}</span>
               <span className="font-medium text-gray-900">{langLabel}</span>
             </div>
           )}
@@ -699,25 +825,25 @@ export default function BookingWizard({
         {/* Patient form */}
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Nombre completo *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t.fieldName}</label>
             <input type="text" value={formData.patient_name}
               onChange={e => setFormData(p => ({ ...p, patient_name: e.target.value }))}
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition" required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Teléfono *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t.fieldPhone}</label>
             <input type="tel" value={formData.phone}
               onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))}
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition" required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t.fieldEmail}</label>
             <input type="email" value={formData.email}
               onChange={e => setFormData(p => ({ ...p, email: e.target.value }))}
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition" required />
           </div>
           <div className="col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Cédula *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t.fieldId}</label>
             <input type="text" value={formData.cedula}
               onChange={e => setFormData(p => ({ ...p, cedula: e.target.value }))}
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition" required />
@@ -744,8 +870,8 @@ export default function BookingWizard({
         <button onClick={handleSubmit} disabled={!canSubmit}
           className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
           {loading
-            ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Agendando...</>
-            : <><UserPlus className="w-4 h-4" /> Confirmar cita</>}
+            ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> {t.submitting}</>
+            : <><UserPlus className="w-4 h-4" /> {t.confirmBtn}</>}
         </button>
       </div>
     )
@@ -758,20 +884,20 @@ export default function BookingWizard({
       return (
         <div className="text-center space-y-6">
           <CheckCircle className="w-16 h-16 text-green-600 mx-auto" />
-          <h2 className="text-2xl font-bold text-gray-900">¡Cita agendada!</h2>
-          <p className="text-gray-600">Recibirás una confirmación por email.</p>
+          <h2 className="text-2xl font-bold text-gray-900">{t.successTitle}</h2>
+          <p className="text-gray-600">{t.successSub}</p>
           <div className="bg-gray-50 p-6 rounded-2xl text-left space-y-3 text-sm">
-            <p className="font-semibold text-gray-900 text-base mb-1">Resumen</p>
+            <p className="font-semibold text-gray-900 text-base mb-1">{t.summaryTitle}</p>
             <div className="flex justify-between border-b border-gray-100 pb-2">
-              <span className="text-gray-500">Médico</span>
+              <span className="text-gray-500">{t.sumDoctor}</span>
               <span className="font-medium text-gray-900">
                 {selectedDoctor
-                  ? String(selectedDoctor.metadata?.name ?? 'Asignado automáticamente')
-                  : 'Asignado automáticamente'}
+                  ? String(selectedDoctor.metadata?.name ?? t.autoAssigned)
+                  : t.autoAssigned}
               </span>
             </div>
             <div className="flex justify-between border-b border-gray-100 pb-2">
-              <span className="text-gray-500">Fecha</span>
+              <span className="text-gray-500">{t.sumDate}</span>
               <span className="font-medium text-gray-900">
                 {new Intl.DateTimeFormat('es-CO', {
                   weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Bogota',
@@ -779,17 +905,17 @@ export default function BookingWizard({
               </span>
             </div>
             <div className="flex justify-between border-b border-gray-100 pb-2">
-              <span className="text-gray-500">Hora</span>
+              <span className="text-gray-500">{t.sumTime}</span>
               <span className="font-medium text-gray-900">{formData.time}</span>
             </div>
             <div className="flex justify-between border-b border-gray-100 pb-2">
-              <span className="text-gray-500">Modalidad</span>
+              <span className="text-gray-500">{t.sumModality}</span>
               <span className="font-medium text-gray-900">
-                {formData.modality === 'presencial' ? 'Presencial' : 'Virtual'}
+                {formData.modality === 'presencial' ? t.sumPresencial : t.sumVirtual}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Paciente</span>
+              <span className="text-gray-500">{t.sumPatient}</span>
               <span className="font-medium text-gray-900">{formData.patient_name}</span>
             </div>
           </div>
@@ -802,15 +928,15 @@ export default function BookingWizard({
         <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto">
           <XCircle className="w-8 h-8 text-red-600" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900">No se pudo agendar</h2>
+        <h2 className="text-2xl font-bold text-gray-900">{t.errorTitle}</h2>
         <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 text-left">
-          <p className="font-semibold mb-1">Error</p>
-          <p>{error || 'Error desconocido. Intenta de nuevo.'}</p>
+          <p className="font-semibold mb-1">{t.errorLabel}</p>
+          <p>{error || t.errorDefault}</p>
         </div>
         <button onClick={() => { setError(null); goPrev() }}
           className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium">
           <ArrowLeft className="w-4 h-4" />
-          Volver e intentar de nuevo
+          {t.retryBtn}
         </button>
       </div>
     )
@@ -827,19 +953,19 @@ export default function BookingWizard({
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-gray-500">Reservar cita</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-gray-500">{t.headerLabel}</p>
             <h1 className="text-3xl font-bold text-gray-900">{orgName}</h1>
             {appointmentType && (
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
                 <p className="text-base font-medium text-gray-700">{appointmentType.name}</p>
                 {fixedModality === 'presencial' && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
-                    📍 Solo presencial
+                    {t.badgePresencial}
                   </span>
                 )}
                 {fixedModality === 'virtual' && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
-                    💻 Solo virtual
+                    {t.badgeVirtual}
                   </span>
                 )}
               </div>
@@ -847,7 +973,7 @@ export default function BookingWizard({
           </div>
           <div className="inline-flex items-center gap-2 rounded-3xl bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-700">
             <CalendarDays className="h-4 w-4 text-violet-600" />
-            Reservas públicas
+            {t.publicBookings}
           </div>
         </div>
 
@@ -866,12 +992,12 @@ export default function BookingWizard({
             {currentStep > stepOrder[0] ? (
               <button onClick={goPrev}
                 className="flex items-center gap-2 px-5 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
-                <ArrowLeft className="w-4 h-4" /> Anterior
+                <ArrowLeft className="w-4 h-4" /> {t.previous}
               </button>
             ) : <div />}
             <button onClick={goNext} disabled={!step2Ready}
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 ml-auto transition disabled:opacity-40 disabled:cursor-not-allowed">
-              Siguiente <ArrowRight className="w-4 h-4" />
+              {t.next} <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         )}
@@ -879,7 +1005,7 @@ export default function BookingWizard({
           <div className="mt-8">
             <button onClick={goPrev}
               className="flex items-center gap-2 px-5 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition">
-              <ArrowLeft className="w-4 h-4" /> Anterior
+              <ArrowLeft className="w-4 h-4" /> {t.previous}
             </button>
           </div>
         )}
