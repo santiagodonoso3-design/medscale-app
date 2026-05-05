@@ -184,6 +184,9 @@ superadmins, webhook_logs
 
 ## Pendientes
 
+### Tipos de cita — features pendientes
+- [ ] Idioma por médico (granular filtering): hoy el filtro de idioma muestra todos los médicos asignados; en el futuro cada médico tendrá su propio array de idiomas y el wizard solo mostrará los que hablen el idioma seleccionado
+
 ### Dashboard — mejoras pendientes
 - [ ] Filtros de año/mes (chips) no quedaron al 100% — revisar y completar
 - [ ] Agregar más métricas al funnel visual (% conversión entre pasos)

@@ -57,7 +57,14 @@ interface AppointmentTypeOption {
   modality: 'presencial' | 'virtual' | 'patient_choice'
   color: string
   doctor_ids?: string[]
+  languages?: string[]
 }
+
+const LANGUAGE_OPTIONS = [
+  { value: 'es', label: 'Español',    flag: '🇨🇴' },
+  { value: 'en', label: 'English',    flag: '🇺🇸' },
+  { value: 'pt', label: 'Português',  flag: '🇧🇷' },
+]
 
 interface BookingWizardProps {
   orgName: string
@@ -437,9 +444,20 @@ export default function BookingWizard({
     appointmentType?.modality === 'presencial' ? 'presencial' :
     appointmentType?.modality === 'virtual'    ? 'virtual'    : null
 
-  const [currentStep, setCurrentStep] = useState(fixedModality ? 2 : 1)
+  // Language step shown only when the type offers 2+ languages
+  const showLangStep = (appointmentType?.languages?.length ?? 0) > 1
+
+  // Ordered list of step numbers actually visited (step 6 = confirmation)
+  const stepOrder: number[] = [
+    ...(!fixedModality ? [1] : []),
+    ...(showLangStep   ? [2] : []),
+    3, 4, 5, 6,
+  ]
+
+  const [currentStep, setCurrentStep] = useState(stepOrder[0])
   const [formData, setFormData] = useState({
     modality: (fixedModality ?? 'presencial') as 'presencial' | 'virtual',
+    language: appointmentType?.languages?.[0] ?? 'es',
     doctor_id: '',
     date: '',
     time: '',
@@ -474,13 +492,14 @@ export default function BookingWizard({
     [schedules, formData.doctor_id]
   )
 
-  const handleNext = () => {
-    if (currentStep < 5) setCurrentStep(currentStep + 1)
+  const goNext = () => {
+    const i = stepOrder.indexOf(currentStep)
+    if (i < stepOrder.length - 1) setCurrentStep(stepOrder[i + 1])
   }
 
-  const handlePrev = () => {
-    const minStep = fixedModality ? 2 : 1
-    if (currentStep > minStep) setCurrentStep(currentStep - 1)
+  const goPrev = () => {
+    const i = stepOrder.indexOf(currentStep)
+    if (i > 0) setCurrentStep(stepOrder[i - 1])
   }
 
   const handleSubmit = async () => {
@@ -491,6 +510,7 @@ export default function BookingWizard({
       const payload = {
         org_slug: orgSlug,
         modality: formData.modality,
+        language: formData.language,
         doctor_id: formData.doctor_id || null,
         date: formData.date,
         time: formData.time,
@@ -513,20 +533,24 @@ export default function BookingWizard({
       }
 
       setSuccess(true)
-      setCurrentStep(5)
+      setCurrentStep(6)
     } catch (err) {
       setError((err as Error).message)
-      setCurrentStep(5) // muestra pantalla de error en step 5
+      setCurrentStep(6) // muestra pantalla de error en step 6
     } finally {
       setLoading(false)
     }
   }
 
-  const STEP_LABELS = ['Tipo', 'Médico', 'Fecha', 'Datos']
+  const STEP_LABEL_MAP: Record<number, string> = {
+    1: 'Modalidad', 2: 'Idioma', 3: 'Médico', 4: 'Fecha', 5: 'Datos',
+  }
+  // Indicator only shows steps that lead up to (but not including) the confirmation step
+  const indicatorSteps = stepOrder.filter(s => s < 6)
 
   const renderStepIndicator = () => (
     <div className="flex items-center justify-center mb-8">
-      {[1, 2, 3, 4].map((step) => (
+      {indicatorSteps.map((step, idx) => (
         <div key={step} className="flex items-center">
           <div className="flex flex-col items-center gap-1.5">
             <div
@@ -534,22 +558,14 @@ export default function BookingWizard({
                 step <= currentStep ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400'
               }`}
             >
-              {step}
+              {idx + 1}
             </div>
-            <span
-              className={`text-[11px] font-medium ${
-                step <= currentStep ? 'text-blue-600' : 'text-gray-400'
-              }`}
-            >
-              {STEP_LABELS[step - 1]}
+            <span className={`text-[11px] font-medium ${step <= currentStep ? 'text-blue-600' : 'text-gray-400'}`}>
+              {STEP_LABEL_MAP[step]}
             </span>
           </div>
-          {step < 4 && (
-            <div
-              className={`w-10 h-0.5 mx-2 mb-4 transition-colors ${
-                step < currentStep ? 'bg-blue-600' : 'bg-gray-200'
-              }`}
-            />
+          {idx < indicatorSteps.length - 1 && (
+            <div className={`w-10 h-0.5 mx-2 mb-4 transition-colors ${step < currentStep ? 'bg-blue-600' : 'bg-gray-200'}`} />
           )}
         </div>
       ))}
@@ -635,6 +651,34 @@ export default function BookingWizard({
             <div className="text-sm text-gray-600">{doctor.specialty || 'General'}</div>
           </button>
         ))}
+      </div>
+    </div>
+  )
+
+  // Step 2 — language selection (only rendered when showLangStep is true)
+  const renderLangStep = () => (
+    <div className="space-y-6">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold text-gray-900">Idioma</h2>
+        <p className="text-gray-600 mt-2">¿En qué idioma prefieres tu consulta?</p>
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        {LANGUAGE_OPTIONS
+          .filter(l => appointmentType?.languages?.includes(l.value))
+          .map(l => (
+            <button
+              key={l.value}
+              onClick={() => setFormData(prev => ({ ...prev, language: l.value }))}
+              className={`p-6 rounded-2xl border-2 text-center transition ${
+                formData.language === l.value
+                  ? 'border-blue-600 bg-blue-50'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <div className="text-4xl mb-2">{l.flag}</div>
+              <div className="font-semibold text-gray-900">{l.label}</div>
+            </button>
+          ))}
       </div>
     </div>
   )
@@ -787,7 +831,7 @@ export default function BookingWizard({
         <button
           onClick={() => {
             setError(null)
-            setCurrentStep(4)
+            goPrev()
           }}
           className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-medium"
         >
@@ -798,7 +842,7 @@ export default function BookingWizard({
     )
   }
 
-  const step3Ready = currentStep !== 3 || (!!formData.date && !!formData.time)
+  const step4Ready = currentStep !== 4 || (!!formData.date && !!formData.time)
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -809,6 +853,21 @@ export default function BookingWizard({
               Reservar cita
             </p>
             <h1 className="text-3xl font-bold text-gray-900">{orgName}</h1>
+            {appointmentType && (
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <p className="text-base font-medium text-gray-700">{appointmentType.name}</p>
+                {fixedModality === 'presencial' && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+                    📍 Solo presencial
+                  </span>
+                )}
+                {fixedModality === 'virtual' && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
+                    💻 Solo virtual
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <div className="inline-flex items-center gap-2 rounded-3xl bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-700">
             <CalendarDays className="h-4 w-4 text-violet-600" />
@@ -816,37 +875,38 @@ export default function BookingWizard({
           </div>
         </div>
 
-        {currentStep < 5 && renderStepIndicator()}
+        {currentStep < 6 && renderStepIndicator()}
 
         <div className="min-h-[420px]">
           {currentStep === 1 && renderStep1()}
-          {currentStep === 2 && renderStep2()}
-          {currentStep === 3 && renderStep3()}
-          {currentStep === 4 && renderStep4()}
-          {currentStep === 5 && renderStep5()}
+          {currentStep === 2 && renderLangStep()}
+          {currentStep === 3 && renderStep2()}
+          {currentStep === 4 && renderStep3()}
+          {currentStep === 5 && renderStep4()}
+          {currentStep === 6 && renderStep5()}
         </div>
 
         <div className="flex justify-between mt-8">
-          {currentStep > 1 && currentStep < 5 && (
+          {currentStep > stepOrder[0] && currentStep < 6 && (
             <button
-              onClick={handlePrev}
+              onClick={goPrev}
               className="flex items-center gap-2 px-5 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
             >
               <ArrowLeft className="w-4 h-4" />
               Anterior
             </button>
           )}
-          {currentStep < 4 && (
+          {currentStep < 5 && (
             <button
-              onClick={handleNext}
-              disabled={!step3Ready}
+              onClick={goNext}
+              disabled={!step4Ready}
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 ml-auto transition disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Siguiente
               <ArrowRight className="w-4 h-4" />
             </button>
           )}
-          {currentStep === 4 && (
+          {currentStep === 5 && (
             <button
               onClick={handleSubmit}
               disabled={loading}

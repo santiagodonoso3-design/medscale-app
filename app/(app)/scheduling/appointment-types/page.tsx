@@ -18,6 +18,7 @@ interface AppointmentType {
   assignment_mode: AssignmentMode
   doctor_ids: string[]
   min_notice_hours: number
+  languages: string[]
 }
 
 interface DoctorOption {
@@ -52,6 +53,7 @@ const EMPTY_FORM = {
   assignment_mode: 'hybrid' as AssignmentMode,
   doctor_ids: [] as string[],
   min_notice_hours: 24,
+  languages: ['es'] as string[],
 }
 
 function toSlug(text: string): string {
@@ -143,6 +145,7 @@ export default function AppointmentTypesPage() {
       assignment_mode:  t.assignment_mode,
       doctor_ids:       t.doctor_ids ?? [],
       min_notice_hours: t.min_notice_hours ?? 24,
+      languages:        t.languages?.length ? t.languages : ['es'],
     })
     setSlugManual(true)
     setFormError(null)
@@ -180,6 +183,7 @@ export default function AppointmentTypesPage() {
       assignment_mode:  form.assignment_mode,
       doctor_ids:       form.doctor_ids,
       min_notice_hours: Number(form.min_notice_hours),
+      languages:        form.languages.length ? form.languages : ['es'],
     }
 
     if (editing) {
@@ -489,6 +493,36 @@ export default function AppointmentTypesPage() {
                   onChange={e => setForm(p => ({ ...p, min_notice_hours: Number(e.target.value) }))}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              {/* Languages */}
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Idiomas disponibles *</label>
+                <div className="mt-2 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  {[
+                    { value: 'es', label: 'Español' },
+                    { value: 'en', label: 'English' },
+                    { value: 'pt', label: 'Português' },
+                  ].map(lang => (
+                    <label key={lang.value} className="flex cursor-pointer items-center gap-2.5 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        className="rounded border-slate-300 accent-blue-600"
+                        checked={form.languages.includes(lang.value)}
+                        onChange={e => setForm(p => ({
+                          ...p,
+                          languages: e.target.checked
+                            ? [...p.languages, lang.value]
+                            : p.languages.length > 1
+                              ? p.languages.filter(l => l !== lang.value)
+                              : p.languages, // prevent deselecting last
+                        }))}
+                      />
+                      {lang.label}
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-slate-400">Al menos un idioma debe estar seleccionado.</p>
               </div>
 
               {/* Doctor selection */}
