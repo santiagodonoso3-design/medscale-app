@@ -23,35 +23,10 @@ function toBogotaYM(iso: string): string {
   }).format(new Date(iso)).slice(0, 7)
 }
 
-function currentYM(): string {
-  return toBogotaYM(new Date().toISOString())
-}
-
-function prevYM(): string {
-  const now = new Date()
-  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  return toBogotaYM(prev.toISOString())
-}
-
-// Last 6 months ending with current month, as YYYY-MM strings
-function getLast6Months(): string[] {
-  const now = new Date()
-  return Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (4 - i), 1)
-    return new Intl.DateTimeFormat('en-CA', {
-      year: 'numeric', month: '2-digit', timeZone: 'America/Bogota',
-    }).format(d).slice(0, 7)
-  })
-}
-
-const MONTH_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-function monthLabel(ym: string): string {
-  return MONTH_LABELS[Number(ym.slice(5)) - 1]
-}
-
-// Compute % delta; returns null when prev is 0 (avoids division by zero noise)
-function delta(curr: number, prev: number): number | null {
-  return prev > 0 ? Math.round(((curr - prev) / prev) * 100) : null
+function currentBogotaYear(): number {
+  return Number(
+    new Intl.DateTimeFormat('en-CA', { year: 'numeric', timeZone: 'America/Bogota' }).format(new Date())
+  )
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -64,63 +39,66 @@ export interface TodayAppointment {
   doctorName: string | null
 }
 
-export interface DoctorStat {
+export interface RawAppointment {
+  id: string
+  scheduled_at: string
+  status: string
+  doctor_id: string
+  ym: string  // YYYY-MM in Bogota tz, pre-computed server-side
+}
+
+export interface RawLead {
+  id: string
+  status: string
+  created_at: string
+  ym: string  // YYYY-MM in Bogota tz, pre-computed server-side
+}
+
+export interface RawDoctor {
+  id: string
   name: string
-  total: number
-  completed: number
 }
 
-export interface MonthPoint {
-  label: string
-  count: number
-}
-
-export interface FunnelCard {
-  value: number
-  delta: number | null
-}
-
-export interface DashboardData {
-  // Funnel KPIs
-  leadsThisMonth: FunnelCard
-  inConversation: number
-  citasThisMonth: FunnelCard
-  attendedThisMonth: FunnelCard
-  inProcedure: number
-  // Today
+export interface RawDashboardData {
+  year: number
+  appointments: RawAppointment[]
+  yearLeads: RawLead[]
+  inConversationCount: number  // current state — no date filter
+  inProcedureCount: number     // current state — no date filter
+  doctors: RawDoctor[]
   todayAppointments: TodayAppointment[]
-  // Chart
-  monthlyTrend: MonthPoint[]
-  trendVsPrev: number | null
-  monthlyAvg: number
-  // Doctor table
-  doctorStats: DoctorStat[]
 }
 
-// ── Main fetch ────────────────────────────────────────────────────────────────
+// ── Fetch all data for a given year ──────────────────────────────────────────
 
-export async function getDashboardData(): Promise<DashboardData | null> {
-  noStore() // opt out of Next.js data cache — always fetch at runtime
+export async function getDashboardRawData(year: number): Promise<RawDashboardData | null> {
+  noStore()
   try {
-    const months      = getLast6Months()
-    const fromDate    = months[0] + '-01'
-    const thisYM      = currentYM()
-    const lastYM      = prevYM()
-    const today       = todayBogota()
-    const thisMonthISO = thisYM + '-01T00:00:00.000Z'
-    const prevMonthISO = lastYM + '-01T00:00:00.000Z'
+    const today    = todayBogota()
+    const fromDate = `${year}-01-01`
+    const toDate   = `${year + 1}-01-01`
 
     const [
       { data: apts },
-      { data: leads },
-      { data: doctors },
+      { data: yearLeadsRaw },
+      { data: stateLeads },
+      { data: doctorsRaw },
       { data: todayRaw },
     ] = await Promise.all([
       admin.from('appointments')
         .select('id, scheduled_at, status, doctor_id')
-        .gte('scheduled_at', fromDate),
-      admin.from('leads').select('id, status, created_at'),
-      admin.from('doctors').select('id, metadata').eq('is_active', true),
+        .gte('scheduled_at', fromDate)
+        .lt('scheduled_at', toDate),
+      admin.from('leads')
+        .select('id, status, created_at')
+        .gte('created_at', fromDate)
+        .lt('created_at', toDate),
+      admin.from('leads')
+        .select('id, status')
+        .in('status', ['contactado', 'contacted', 'en_procedimiento', 'in_procedure']),
+      admin.from('doctors')
+        .select('id, metadata')
+        .eq('is_active', true),
       admin.from('appointments')
         .select('id, scheduled_at, status, lead:lead_id(contact_name), doctor:doctor_id(metadata)')
         .gte('scheduled_at', today + 'T00:00:00')
@@ -128,85 +106,53 @@ export async function getDashboardData(): Promise<DashboardData | null> {
         .order('scheduled_at', { ascending: true }),
     ])
 
-    const A = apts    ?? []
-    const L = leads   ?? []
-    const D = doctors ?? []
+    const appointments: RawAppointment[] = (apts ?? []).map((a: any) => ({
+      id: a.id, scheduled_at: a.scheduled_at, status: a.status, doctor_id: a.doctor_id,
+      ym: toBogotaYM(a.scheduled_at),
+    }))
 
-    // ── Funnel KPIs ───────────────────────────────────────────────────────────
+    const yearLeads: RawLead[] = (yearLeadsRaw ?? []).map((l: any) => ({
+      id: l.id, status: l.status, created_at: l.created_at,
+      ym: toBogotaYM(l.created_at),
+    }))
 
-    const leadsThisMonthVal  = L.filter(l => l.created_at >= thisMonthISO).length
-    const leadsPrevMonthVal  = L.filter(l => l.created_at >= prevMonthISO && l.created_at < thisMonthISO).length
+    const sl = stateLeads ?? []
+    const inConversationCount = sl.filter((l: any) => ['contactado', 'contacted'].includes(l.status)).length
+    const inProcedureCount    = sl.filter((l: any) => ['en_procedimiento', 'in_procedure'].includes(l.status)).length
 
-    const inConversation = L.filter(l => ['contactado', 'contacted'].includes(l.status)).length
-    const inProcedure    = L.filter(l => ['en_procedimiento', 'in_procedure'].includes(l.status)).length
-
-    const citasThisMonthVal = A.filter(a =>
-      toBogotaYM(a.scheduled_at) === thisYM && a.status !== 'cancelled'
-    ).length
-    const citasPrevMonthVal = A.filter(a =>
-      toBogotaYM(a.scheduled_at) === lastYM && a.status !== 'cancelled'
-    ).length
-
-    const attendedThisMonthVal = A.filter(a =>
-      toBogotaYM(a.scheduled_at) === thisYM && a.status === 'completed'
-    ).length
-    const attendedPrevMonthVal = A.filter(a =>
-      toBogotaYM(a.scheduled_at) === lastYM && a.status === 'completed'
-    ).length
-
-    // ── Today's appointments ──────────────────────────────────────────────────
+    const doctors: RawDoctor[] = (doctorsRaw ?? []).map((d: any) => ({
+      id: d.id, name: String(d.metadata?.name ?? 'Médico'),
+    }))
 
     const todayAppointments: TodayAppointment[] = (todayRaw ?? []).map((a: any) => ({
-      id:          a.id,
-      scheduled_at: a.scheduled_at,
-      status:      a.status,
+      id: a.id, scheduled_at: a.scheduled_at, status: a.status,
       patientName: (Array.isArray(a.lead) ? a.lead[0]?.contact_name : a.lead?.contact_name) ?? null,
       doctorName:  (Array.isArray(a.doctor) ? a.doctor[0]?.metadata?.name : a.doctor?.metadata?.name) ?? null,
     }))
 
-    // ── Chart: last 6 months ──────────────────────────────────────────────────
-
-    const monthlyTrend: MonthPoint[] = months.map(ym => ({
-      label: monthLabel(ym),
-      count: A.filter(a => toBogotaYM(a.scheduled_at) === ym && a.status !== 'cancelled').length,
-    }))
-
-    const monthlyAvg = monthlyTrend.length
-      ? Math.round(monthlyTrend.reduce((s, m) => s + m.count, 0) / monthlyTrend.length)
-      : 0
-
-    const currentCount = monthlyTrend[5]?.count ?? 0
-    const prevCount    = monthlyTrend[4]?.count ?? 0
-    const trendVsPrev  = delta(currentCount, prevCount)
-
-    // ── Doctor stats ──────────────────────────────────────────────────────────
-
-    const docMap = new Map<string, { name: string; total: number; completed: number }>()
-    D.forEach(d => docMap.set(d.id, {
-      name: String(d.metadata?.name ?? 'Médico'), total: 0, completed: 0,
-    }))
-    A.forEach(a => {
-      const e = docMap.get(a.doctor_id)
-      if (!e) return
-      e.total++
-      if (a.status === 'completed') e.completed++
-    })
-    const doctorStats: DoctorStat[] = Array.from(docMap.values())
-      .filter(d => d.total > 0)
-      .sort((a, b) => b.total - a.total)
-
-    return {
-      leadsThisMonth:    { value: leadsThisMonthVal,  delta: delta(leadsThisMonthVal, leadsPrevMonthVal) },
-      inConversation,
-      citasThisMonth:    { value: citasThisMonthVal,  delta: delta(citasThisMonthVal, citasPrevMonthVal) },
-      attendedThisMonth: { value: attendedThisMonthVal, delta: delta(attendedThisMonthVal, attendedPrevMonthVal) },
-      inProcedure,
-      todayAppointments,
-      monthlyTrend, trendVsPrev, monthlyAvg,
-      doctorStats,
-    }
+    return { year, appointments, yearLeads, inConversationCount, inProcedureCount, doctors, todayAppointments }
   } catch (e) {
-    console.error('getDashboardData error:', e)
+    console.error('getDashboardRawData error:', e)
     return null
+  }
+}
+
+// ── Years that have appointment or lead data ──────────────────────────────────
+
+export async function getDashboardYears(): Promise<number[]> {
+  try {
+    const curYear = currentBogotaYear()
+    const [{ data: firstApt }, { data: firstLead }] = await Promise.all([
+      admin.from('appointments').select('scheduled_at').order('scheduled_at', { ascending: true }).limit(1),
+      admin.from('leads').select('created_at').order('created_at', { ascending: true }).limit(1),
+    ])
+    let minYear = curYear
+    if (firstApt?.[0]?.scheduled_at) minYear = Math.min(minYear, Number(firstApt[0].scheduled_at.slice(0, 4)))
+    if (firstLead?.[0]?.created_at)  minYear = Math.min(minYear, Number(firstLead[0].created_at.slice(0, 4)))
+    const years: number[] = []
+    for (let y = minYear; y <= curYear; y++) years.push(y)
+    return years
+  } catch {
+    return [new Date().getFullYear()]
   }
 }
