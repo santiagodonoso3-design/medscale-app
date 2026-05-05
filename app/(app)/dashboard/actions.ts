@@ -37,7 +37,7 @@ function prevYM(): string {
 function getLast6Months(): string[] {
   const now = new Date()
   return Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
+    const d = new Date(now.getFullYear(), now.getMonth() - (4 - i), 1)
     return new Intl.DateTimeFormat('en-CA', {
       year: 'numeric', month: '2-digit', timeZone: 'America/Bogota',
     }).format(d).slice(0, 7)
@@ -101,12 +101,6 @@ export interface DashboardData {
 
 export async function getDashboardData(): Promise<DashboardData | null> {
   noStore() // opt out of Next.js data cache — always fetch at runtime
-  console.log('DEBUG DATE CHECK:', {
-    now: new Date().toISOString(),
-    currentYM: currentYM(),
-    last6months: getLast6Months(),
-    nodeVersion: process.version,
-  })
   try {
     const months      = getLast6Months()
     const fromDate    = months[0] + '-01'
