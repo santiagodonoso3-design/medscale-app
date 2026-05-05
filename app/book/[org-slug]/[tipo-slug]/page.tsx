@@ -58,9 +58,11 @@ export default async function BookTypePage({ params }: PageProps) {
     supabaseAdmin.from('locations').select('id, name').eq('organization_id', organization.id),
     supabaseAdmin
       .from('appointment_form_fields')
-      .select('field_name, field_type, required, order')
+      .select('field_name, field_label, field_type, placeholder, required, sort_order')
       .eq('organization_id', organization.id)
-      .order('order', { ascending: true }),
+      .eq('appointment_type_id', appointmentType.id)
+      .eq('active', true)
+      .order('sort_order', { ascending: true }),
   ])
 
   const { data: schedules } = await supabaseAdmin

@@ -46,9 +46,11 @@ interface ScheduleOption {
 
 interface FormField {
   field_name: string
-  field_type: 'text' | 'email' | 'tel' | 'number'
+  field_label?: string
+  field_type: 'text' | 'email' | 'tel' | 'number' | 'date' | 'textarea'
+  placeholder?: string
   required: boolean
-  order: number
+  sort_order: number
 }
 
 interface AppointmentTypeOption {
@@ -855,19 +857,33 @@ export default function BookingWizard({
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition" required />
           </div>
           {formFields.map(field => (
-            <div key={field.field_name} className={field.field_type === 'text' ? 'col-span-2' : ''}>
+            <div key={field.field_name} className={field.field_type === 'textarea' || field.field_type === 'text' ? 'col-span-2' : ''}>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                {field.field_name} {field.required ? '*' : ''}
+                {field.field_label ?? field.field_name} {field.required ? '*' : ''}
               </label>
-              <input
-                type={field.field_type}
-                value={formData.customFields[field.field_name] || ''}
-                onChange={e => setFormData(p => ({
-                  ...p, customFields: { ...p.customFields, [field.field_name]: e.target.value },
-                }))}
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                required={field.required}
-              />
+              {field.field_type === 'textarea' ? (
+                <textarea
+                  value={formData.customFields[field.field_name] || ''}
+                  onChange={e => setFormData(p => ({
+                    ...p, customFields: { ...p.customFields, [field.field_name]: e.target.value },
+                  }))}
+                  placeholder={field.placeholder}
+                  rows={3}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition resize-none"
+                  required={field.required}
+                />
+              ) : (
+                <input
+                  type={field.field_type}
+                  value={formData.customFields[field.field_name] || ''}
+                  onChange={e => setFormData(p => ({
+                    ...p, customFields: { ...p.customFields, [field.field_name]: e.target.value },
+                  }))}
+                  placeholder={field.placeholder}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                  required={field.required}
+                />
+              )}
             </div>
           ))}
         </div>
