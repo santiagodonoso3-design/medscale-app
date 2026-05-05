@@ -35,7 +35,7 @@ export default async function BookTypePage({ params }: PageProps) {
 
   const { data: appointmentType, error: typeError } = await supabaseAdmin
     .from('appointment_types')
-    .select('id, name, slug, duration_minutes, modality, color')
+    .select('id, name, slug, duration_minutes, modality, color, doctor_ids, min_notice_hours')
     .eq('organization_id', organization.id)
     .eq('slug', tipoSlug)
     .eq('active', true)
@@ -82,8 +82,9 @@ export default async function BookTypePage({ params }: PageProps) {
           name:             appointmentType.name,
           slug:             appointmentType.slug,
           duration_minutes: appointmentType.duration_minutes,
-          modality:         appointmentType.modality as 'presencial' | 'virtual',
+          modality:         appointmentType.modality as 'presencial' | 'virtual' | 'patient_choice',
           color:            appointmentType.color,
+          doctor_ids:       appointmentType.doctor_ids ?? [],
         }}
       />
     </div>

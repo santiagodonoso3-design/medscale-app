@@ -54,7 +54,7 @@ interface AppointmentTypeOption {
   name: string
   slug: string
   duration_minutes: number
-  modality: 'presencial' | 'virtual'
+  modality: 'presencial' | 'virtual' | 'patient_choice'
   color: string
   doctor_ids?: string[]
 }
@@ -432,9 +432,14 @@ export default function BookingWizard({
   formFields,
   appointmentType,
 }: BookingWizardProps) {
-  const [currentStep, setCurrentStep] = useState(1)
+  // 'presencial'/'virtual' → skip modality step; 'patient_choice'/null → show it
+  const fixedModality: 'presencial' | 'virtual' | null =
+    appointmentType?.modality === 'presencial' ? 'presencial' :
+    appointmentType?.modality === 'virtual'    ? 'virtual'    : null
+
+  const [currentStep, setCurrentStep] = useState(fixedModality ? 2 : 1)
   const [formData, setFormData] = useState({
-    modality: 'presencial' as 'presencial' | 'virtual',
+    modality: (fixedModality ?? 'presencial') as 'presencial' | 'virtual',
     doctor_id: '',
     date: '',
     time: '',
@@ -474,7 +479,8 @@ export default function BookingWizard({
   }
 
   const handlePrev = () => {
-    if (currentStep > 1) setCurrentStep(currentStep - 1)
+    const minStep = fixedModality ? 2 : 1
+    if (currentStep > minStep) setCurrentStep(currentStep - 1)
   }
 
   const handleSubmit = async () => {
