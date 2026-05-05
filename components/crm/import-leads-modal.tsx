@@ -93,7 +93,7 @@ function _buildXlsx(): Uint8Array {
   ]
   const SAMPLE = [
     'María García', '1234567890', '3001234567', 'maria@email.com',
-    'instagram', 'nuevo', '2026-01-15', 'Interesada en consulta inicial',
+    'instagram', 'contactado', '2026-01-15', 'Interesada en consulta inicial',
   ]
   const L = 'ABCDEFGH'.split('')
 
@@ -113,7 +113,7 @@ function _buildXlsx(): Uint8Array {
     // Native dropdown validations — formula1 quotes are element content, no XML escaping needed
     '<dataValidations count="2">',
     '<dataValidation type="list" allowBlank="1" sqref="E2:E1000"><formula1>"instagram,referido,web,whatsapp,otro"</formula1></dataValidation>',
-    '<dataValidation type="list" allowBlank="1" sqref="F2:F1000"><formula1>"nuevo,contactado,en_procedimiento,perdido"</formula1></dataValidation>',
+    '<dataValidation type="list" allowBlank="1" sqref="F2:F1000"><formula1>"contactado,cita_valoracion_agendada,asistio_cita,cancelo_cita,en_tratamiento_medico,finalizado"</formula1></dataValidation>',
     '</dataValidations>',
     '</worksheet>',
   ].join('')
@@ -167,7 +167,7 @@ export function downloadLeadTemplate() {
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
-const VALID_ESTADOS = new Set(['nuevo', 'contactado', 'en_procedimiento', 'perdido'])
+const VALID_ESTADOS = new Set(['contactado', 'cita_valoracion_agendada', 'asistio_cita', 'cancelo_cita', 'en_tratamiento_medico', 'finalizado'])
 const VALID_FUENTES = new Set(['instagram', 'referido', 'web', 'whatsapp', 'otro'])
 
 interface ParsedRow {

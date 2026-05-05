@@ -74,7 +74,7 @@ export async function POST(request: Request) {
         contact_email: email || null,
         source: normalizedSource,
         notes: notes || null,
-        status: 'nuevo',
+        status: 'contactado',
       })
       .select('id')
       .single()

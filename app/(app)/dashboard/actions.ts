@@ -95,7 +95,7 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
         .lt('created_at', toDate),
       admin.from('leads')
         .select('id, status')
-        .in('status', ['contactado', 'contacted', 'en_procedimiento', 'in_procedure']),
+        .in('status', ['contactado', 'en_tratamiento_medico']),
       admin.from('doctors')
         .select('id, metadata')
         .eq('is_active', true),
@@ -117,8 +117,8 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
     }))
 
     const sl = stateLeads ?? []
-    const inConversationCount = sl.filter((l: any) => ['contactado', 'contacted'].includes(l.status)).length
-    const inProcedureCount    = sl.filter((l: any) => ['en_procedimiento', 'in_procedure'].includes(l.status)).length
+    const inConversationCount = sl.filter((l: any) => l.status === 'contactado').length
+    const inProcedureCount    = sl.filter((l: any) => l.status === 'en_tratamiento_medico').length
 
     const doctors: RawDoctor[] = (doctorsRaw ?? []).map((d: any) => ({
       id: d.id, name: String(d.metadata?.name ?? 'Médico'),

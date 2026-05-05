@@ -55,7 +55,7 @@ export async function importLeads(
       contact_phone:   row.telefono.trim(),
       contact_email:   email,
       source:          row.fuente  || 'manual',
-      status:          row.estado  || 'nuevo',
+      status:          row.estado  || 'contactado',
       notes:           row.notas?.trim() || null,
       created_at:      row.fecha_creacion
         ? new Date(row.fecha_creacion).toISOString()

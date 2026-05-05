@@ -52,7 +52,7 @@
 - ✅ Migración 003: columna specific_date DATE en tabla schedules
 
 ### CRM /crm
-- ✅ Estados del pipeline: nuevo → contactado → agendado → en_procedimiento → finalizado → perdido
+- ✅ Estados del pipeline: contactado → cita_valoracion_agendada → asistio_cita → cancelo_cita → en_tratamiento_medico → finalizado
 - ✅ Pipeline clicable: clic en tarjeta filtra la tabla, color de acento por etapa
 - ✅ Fuentes actualizadas: instagram, whatsapp, facebook, web, book, referido, manual (legacy manychat → whatsapp)
 - ✅ contact_cedula en leads (migración 006)
@@ -66,7 +66,7 @@
 - ✅ Modal: sección de comentarios con autor + tiempo relativo (tabla lead_comments, migración 007)
 - ✅ Modal: agendamiento interno — selector médico + calendario visual + slots (sin salir del CRM)
 - ✅ Toast de éxito al guardar lead y al agendar cita; modal se cierra automáticamente
-- ✅ Crear lead manual: fuente default 'manual', estado inicial 'nuevo'
+- ✅ Crear lead manual: fuente default 'manual', estado inicial 'contactado'
 
 ### Sidebar y navegación
 - ✅ 7 items: Dashboard, CRM, Agenda, Conversaciones, Doctores, Equipo, Configuración
@@ -81,8 +81,9 @@
 ---
 
 ## 🐛 Bugs conocidos (corregir próxima sesión)
-- ✅ CRM: estados legacy normalizados en carga (STATUS_NORMALIZE: new→nuevo, contacted→contactado, etc.)
+- ✅ CRM: estados legacy normalizados en carga (STATUS_NORMALIZE cubre inglés y español pre-migración)
 - ✅ CRM: pipeline muestra conteos correctos tras normalización
+- ✅ Migración 008: nuevo→contactado, en_procedimiento→en_tratamiento_medico, perdido→cancelo_cita
 - ✅ CRM: fuentes legacy manychat/manychat_n8n → whatsapp (migración 005 + normalización en carga)
 
 ## 🔴 PRIORIDAD 1 — Probar y corregir en producción
@@ -117,7 +118,7 @@
 - [ ] Reportes y analítica avanzada
 - [ ] API RESTful pública
 - [ ] Tabla de procedimientos médicos por organización
-- [ ] Vincular procedimiento al lead cuando status = en_procedimiento
+- [ ] Vincular procedimiento al lead cuando status = en_tratamiento_medico
 - [ ] Motor de automatizaciones: triggers (lead creado, cita agendada, sin respuesta)
   → acciones: enviar email, WhatsApp, crear tarea, asignar usuario
 - [ ] Constructor visual de flujos + integración n8n
@@ -180,6 +181,15 @@ appointments, doctors, schedules (+ specific_date DATE), appointment_logs,
 conversation_messages, lead_fields, lead_values,
 locations_rooms, permissions, user_permissions,
 superadmins, webhook_logs
+
+## Pendientes
+
+### Dashboard — mejoras pendientes
+- [ ] Filtros de año/mes (chips) no quedaron al 100% — revisar y completar
+- [ ] Agregar más métricas al funnel visual (% conversión entre pasos)
+- [ ] Selector de año en gráfica debe re-fetch data desde Supabase, no solo filtrar client-side
+- [ ] Validar que filtro global afecte correctamente funnel + gráfica + tabla médicos
+- [ ] "Citas de hoy" debe ignorar filtros siempre
 
 ## 📊 Métricas
 - Archivos: 35+, Componentes: 18+, Server Actions: 6+

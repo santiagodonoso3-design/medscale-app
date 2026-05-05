@@ -45,12 +45,12 @@ interface LeadComment {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const STATUS_PIPELINE = [
-  { value: 'nuevo',            label: 'Nuevo' },
-  { value: 'contactado',       label: 'Contactado' },
-  { value: 'agendado',         label: 'Agendado' },
-  { value: 'en_procedimiento', label: 'En procedimiento' },
-  { value: 'finalizado',       label: 'Finalizado' },
-  { value: 'perdido',          label: 'Perdido' },
+  { value: 'contactado',               label: 'Contactado' },
+  { value: 'cita_valoracion_agendada', label: 'Cita de valoración agendada' },
+  { value: 'asistio_cita',             label: 'Asistió a cita' },
+  { value: 'cancelo_cita',             label: 'Canceló cita' },
+  { value: 'en_tratamiento_medico',    label: 'En tratamiento médico' },
+  { value: 'finalizado',               label: 'Finalizado' },
 ]
 
 const STATUS_ORDER: Record<string, number> = Object.fromEntries(
@@ -58,38 +58,44 @@ const STATUS_ORDER: Record<string, number> = Object.fromEntries(
 )
 
 const STATUS_COLORS: Record<string, string> = {
-  nuevo:            'bg-slate-100 text-slate-700',
-  contactado:       'bg-blue-100 text-blue-700',
-  agendado:         'bg-amber-100 text-amber-800',
-  en_procedimiento: 'bg-violet-100 text-violet-700',
-  finalizado:       'bg-emerald-100 text-emerald-800',
-  perdido:          'bg-red-100 text-red-700',
+  contactado:               'bg-blue-100 text-blue-700',
+  cita_valoracion_agendada: 'bg-purple-100 text-purple-700',
+  asistio_cita:             'bg-emerald-100 text-emerald-700',
+  cancelo_cita:             'bg-red-100 text-red-700',
+  en_tratamiento_medico:    'bg-orange-100 text-orange-700',
+  finalizado:               'bg-slate-100 text-slate-600',
 }
 
+// Normalize legacy DB values (English pre-migration + Spanish pre-008 migration)
 const STATUS_NORMALIZE: Record<string, string> = {
-  new:       'nuevo',
-  contacted: 'contactado',
-  scheduled: 'agendado',
-  converted: 'finalizado',
-  lost:      'perdido',
+  new:              'contactado',
+  contacted:        'contactado',
+  scheduled:        'cita_valoracion_agendada',
+  in_procedure:     'en_tratamiento_medico',
+  converted:        'finalizado',
+  lost:             'cancelo_cita',
+  nuevo:            'contactado',
+  agendado:         'cita_valoracion_agendada',
+  en_procedimiento: 'en_tratamiento_medico',
+  perdido:          'cancelo_cita',
 }
 
 const PIPELINE_ACCENT: Record<string, string> = {
-  nuevo:            'border-slate-300  bg-slate-50',
-  contactado:       'border-blue-300   bg-blue-50',
-  agendado:         'border-amber-300  bg-amber-50',
-  en_procedimiento: 'border-violet-300 bg-violet-50',
-  finalizado:       'border-emerald-300 bg-emerald-50',
-  perdido:          'border-red-300    bg-red-50',
+  contactado:               'border-blue-300   bg-blue-50',
+  cita_valoracion_agendada: 'border-purple-300 bg-purple-50',
+  asistio_cita:             'border-emerald-300 bg-emerald-50',
+  cancelo_cita:             'border-red-300    bg-red-50',
+  en_tratamiento_medico:    'border-orange-300 bg-orange-50',
+  finalizado:               'border-slate-300  bg-slate-50',
 }
 
 const KANBAN_HEADER: Record<string, string> = {
-  nuevo:            'bg-slate-200/60',
-  contactado:       'bg-blue-100',
-  agendado:         'bg-amber-100',
-  en_procedimiento: 'bg-violet-100',
-  finalizado:       'bg-emerald-100',
-  perdido:          'bg-red-100',
+  contactado:               'bg-blue-100',
+  cita_valoracion_agendada: 'bg-purple-100',
+  asistio_cita:             'bg-emerald-100',
+  cancelo_cita:             'bg-red-100',
+  en_tratamiento_medico:    'bg-orange-100',
+  finalizado:               'bg-slate-200/60',
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -472,7 +478,7 @@ export default function CrmPage() {
       organization_id: organizationId,
       contact_name: payload.full_name, contact_phone: payload.phone,
       contact_email: payload.email, source: payload.source,
-      notes: payload.notes, status: 'nuevo',
+      notes: payload.notes, status: 'contactado',
     })
     if (error) return { success: false, error: error.message }
     await loadLeads(); return { success: true }
