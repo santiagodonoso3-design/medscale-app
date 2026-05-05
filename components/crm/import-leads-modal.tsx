@@ -179,14 +179,17 @@ interface ParsedRow {
 
 function parseSheetRows(raw: Record<string, string>[]): ParsedRow[] {
   return raw.map((row, i) => {
+    // Strip asterisks + whitespace from header keys before matching so the
+    // template's "nombre*", "cedula*", etc. resolve correctly.
     const get = (key: string) => {
-      const k = Object.keys(row).find(k => k.toLowerCase().trim() === key)
+      const k = Object.keys(row).find(k => k.replace(/\*/g, '').trim().toLowerCase() === key)
       return k ? String(row[k] ?? '').trim() : ''
     }
 
     const nombre   = get('nombre')
-    const cedula   = get('cedula')
-    const telefono = get('telefono')
+    // Coerce to string — SheetJS reads numeric cells (e.g. 573016884022) as numbers
+    const cedula   = String(get('cedula')   || '').trim()
+    const telefono = String(get('telefono') || '').trim()
     const email    = get('email')
     const fuente   = get('fuente').toLowerCase()
     const estado   = get('estado').toLowerCase()
