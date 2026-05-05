@@ -46,14 +46,15 @@ const STATUS_BADGE: Record<string, string> = {
   no_show: 'bg-red-100 text-red-700',
 }
 
-// Context-sensitive status transitions for inline badge dropdown
-const STATUS_TRANSITIONS: Record<string, Array<{ value: string; label: string }>> = {
-  scheduled:  [{ value: 'completed', label: 'Completada' }, { value: 'cancelled', label: 'Cancelada' }],
-  confirmed:  [{ value: 'completed', label: 'Completada' }, { value: 'cancelled', label: 'Cancelada' }],
-  completed:  [{ value: 'scheduled', label: 'Programada' }],
-  cancelled:  [{ value: 'scheduled', label: 'Programada' }],
-  no_show:    [{ value: 'scheduled', label: 'Programada' }],
-}
+// All reachable statuses from any status — every state can go to every other state
+const ALL_STATUSES = [
+  { value: 'scheduled',  label: 'Programada'  },
+  { value: 'completed',  label: 'Completada'  },
+  { value: 'cancelled',  label: 'Cancelada'   },
+]
+const STATUS_TRANSITIONS = Object.fromEntries(
+  ALL_STATUSES.map(s => [s.value, ALL_STATUSES.filter(t => t.value !== s.value)])
+)
 
 const MONTH_NAMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
