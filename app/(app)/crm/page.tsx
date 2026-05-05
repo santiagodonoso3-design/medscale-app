@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { ImportLeadsModal, downloadLeadTemplate } from '@/components/crm/import-leads-modal'
 import { deleteLeads } from '@/app/(app)/crm/actions/deleteLeads'
+import { bulkUpdateLeadStatus, bulkUpdateLeadSource } from '@/app/(app)/crm/actions/bulkLeadActions'
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -299,10 +300,11 @@ export default function CrmPage() {
   const [bookingModalOpen, setBookingModalOpen] = useState(false)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
 
-  // delete
+  // delete / bulk
   const [selectedIds,   setSelectedIds]   = useState<Set<string>>(new Set())
   const [deleteConfirm, setDeleteConfirm] = useState<string[] | null>(null)
   const [deleting,      setDeleting]      = useState(false)
+  const [bulkWorking,   setBulkWorking]   = useState(false)
   const selectAllRef = useRef<HTMLInputElement>(null)
 
   // comments
@@ -397,6 +399,33 @@ export default function CrmPage() {
     if (result.error) { setError(result.error); return }
     setLeads(prev => prev.filter(l => !ids.includes(l.id)))
     setSelectedIds(new Set())
+    if (selectedLead && ids.includes(selectedLead.id)) closeDetail()
+  }
+
+  const handleBulkStatus = async (status: string) => {
+    const ids = [...selectedIds]
+    setBulkWorking(true)
+    setLeads(prev => prev.map(l => ids.includes(l.id) ? { ...l, status } : l))
+    setSelectedIds(new Set())
+    const result = await bulkUpdateLeadStatus(ids, status)
+    setBulkWorking(false)
+    if (result.error) { setError(result.error); await loadLeads(); return }
+    const label = STATUS_PIPELINE.find(s => s.value === status)?.label ?? status
+    setSuccessToast(`Estado "${label}" aplicado a ${ids.length} lead${ids.length !== 1 ? 's' : ''}`)
+    setTimeout(() => setSuccessToast(null), 3500)
+  }
+
+  const handleBulkSource = async (source: string) => {
+    const ids = [...selectedIds]
+    setBulkWorking(true)
+    setLeads(prev => prev.map(l => ids.includes(l.id) ? { ...l, source } : l))
+    setSelectedIds(new Set())
+    const result = await bulkUpdateLeadSource(ids, source)
+    setBulkWorking(false)
+    if (result.error) { setError(result.error); await loadLeads(); return }
+    const label = SOURCE_OPTIONS.find(s => s.value === source)?.label ?? source
+    setSuccessToast(`Fuente "${label}" aplicada a ${ids.length} lead${ids.length !== 1 ? 's' : ''}`)
+    setTimeout(() => setSuccessToast(null), 3500)
   }
 
 
@@ -601,15 +630,44 @@ export default function CrmPage() {
 
         {/* Bulk-action bar */}
         {selectedIds.size > 0 && (
-          <div className="flex items-center gap-3 border-b border-slate-100 bg-blue-50 px-5 py-2.5">
-            <span className="text-sm font-medium text-blue-700">{selectedIds.size} lead{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}</span>
-            <button
-              onClick={() => setDeleteConfirm([...selectedIds])}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-blue-50 px-5 py-2.5">
+            <span className="shrink-0 text-sm font-medium text-blue-700">
+              {selectedIds.size} lead{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
+            </span>
+
+            {/* Cambiar estado */}
+            <select
+              disabled={bulkWorking}
+              value=""
+              onChange={e => { if (e.target.value) handleBulkStatus(e.target.value) }}
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 focus:outline-none disabled:opacity-50"
             >
-              <Trash2 className="h-3.5 w-3.5" /> Eliminar seleccionados
+              <option value="" disabled>Cambiar estado</option>
+              {STATUS_PIPELINE.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+
+            {/* Cambiar fuente */}
+            <select
+              disabled={bulkWorking}
+              value=""
+              onChange={e => { if (e.target.value) handleBulkSource(e.target.value) }}
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 focus:outline-none disabled:opacity-50"
+            >
+              <option value="" disabled>Cambiar fuente</option>
+              {SOURCE_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+
+            {/* Eliminar */}
+            <button
+              disabled={bulkWorking}
+              onClick={() => setDeleteConfirm([...selectedIds])}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
+            >
+              {bulkWorking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              Eliminar
             </button>
-            <button onClick={() => setSelectedIds(new Set())} className="text-xs text-blue-500 underline hover:text-blue-700">
+
+            <button onClick={() => setSelectedIds(new Set())} className="ml-auto text-xs text-blue-500 underline hover:text-blue-700">
               Deseleccionar
             </button>
           </div>
@@ -643,16 +701,15 @@ export default function CrmPage() {
                   <SortTh field="created_at" label="Creado"      sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
                   <SortTh field="updated_at" label="Actualizado" sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Notas</th>
-                  <th className="w-10 px-3 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {isLoading ? (
-                  <tr><td colSpan={12} className="px-5 py-12 text-center text-slate-400">
+                  <tr><td colSpan={11} className="px-5 py-12 text-center text-slate-400">
                     <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Cargando...</span>
                   </td></tr>
                 ) : filteredLeads.length === 0 ? (
-                  <tr><td colSpan={12} className="px-5 py-12 text-center text-slate-400">No hay leads con los filtros seleccionados.</td></tr>
+                  <tr><td colSpan={11} className="px-5 py-12 text-center text-slate-400">No hay leads con los filtros seleccionados.</td></tr>
                 ) : filteredLeads.map(lead => {
                   const aptCount = aptCounts[lead.id] ?? 0
                   return (
@@ -707,15 +764,6 @@ export default function CrmPage() {
                               {lead.notes.length > 40 ? lead.notes.slice(0, 40) + '…' : lead.notes}
                             </span>
                           : <span className="text-xs text-slate-300">—</span>}
-                      </td>
-                      <td className="w-10 px-3 py-3.5" onClick={e => e.stopPropagation()}>
-                        <button
-                          onClick={() => setDeleteConfirm([lead.id])}
-                          className="rounded-lg p-1.5 text-slate-300 transition hover:bg-red-50 hover:text-red-500"
-                          title="Eliminar lead"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
                       </td>
                     </tr>
                   )
@@ -862,6 +910,17 @@ export default function CrmPage() {
                   className="ml-auto inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition disabled:opacity-50">
                   {savingLead ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   Guardar
+                </button>
+              </div>
+
+              {/* Danger zone */}
+              <div className="border-t border-slate-100 pt-4">
+                <button
+                  onClick={() => selectedLead && setDeleteConfirm([selectedLead.id])}
+                  className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Eliminar lead
                 </button>
               </div>
 
