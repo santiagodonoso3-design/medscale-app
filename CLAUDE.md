@@ -236,6 +236,29 @@ superadmins, webhook_logs
 - Revisar si appointment_types ya existe en Supabase
 - Revisar cómo funciona actualmente /book/[org-slug]
 
+## Estrategia de Pricing
+
+### Modelo: Por clínica (org), cobro mensual en USD
+
+| Plan | Precio/mes | Límites | Módulos incluidos |
+|---|---|---|---|
+| Free | $0 | 1 médico, 50 leads, 20 citas/mes | Solo CRM básico |
+| Starter | $29 USD | 3 médicos, leads ilimitados, 100 citas/mes | CRM + Agenda + Booking |
+| Growth | $79 USD | 8 médicos, todo ilimitado | Todo + Conversaciones + Reportes |
+| Scale | $149 USD | Médicos ilimitados | Todo + Multiubicación + API |
+
+### Reglas de enforcement (pendiente de implementar)
+- [ ] Campo `plan` en tabla `organizations` (free | starter | growth | scale)
+- [ ] Middleware que valide límites por plan antes de crear leads, citas, médicos
+- [ ] UI que muestre upgrade prompt cuando se alcanza un límite
+- [ ] Ferttes está en plan Growth (cliente beta, acceso completo sin restricciones)
+
+### Decisiones tomadas
+- Cobro por clínica, no por seat (evita fricción cultural en Colombia)
+- Moneda: USD
+- Mercado actual: Solo Colombia (próximos 6 meses)
+- Free engancha con límites reales que se sienten rápido (50 leads = ~2 semanas en clínica activa)
+
 ## 📊 Métricas
 - Archivos: 35+, Componentes: 18+, Server Actions: 6+
 - Tablas BD: 16 con RLS, Clientes beta: 1 (Ferttes)
