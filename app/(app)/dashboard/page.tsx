@@ -5,6 +5,7 @@ import { getDashboardData } from './actions'
 import { DashboardClient } from './dashboard-client'
 
 export default async function DashboardPage() {
+  console.log('DASHBOARD PAGE EXECUTING', new Date().toISOString())
   const data = await getDashboardData()
 
   if (!data) {
