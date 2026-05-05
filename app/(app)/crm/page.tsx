@@ -7,7 +7,9 @@ import { BookAppointmentModal } from '@/components/crm/book-appointment-modal'
 import {
   Plus, Loader2, Search, X, Save, List, LayoutGrid,
   ChevronDown, CalendarPlus, ChevronUp, ChevronsUpDown, Send,
+  FileDown, Upload,
 } from 'lucide-react'
+import { ImportLeadsModal, downloadLeadTemplate } from '@/components/crm/import-leads-modal'
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -288,6 +290,7 @@ export default function CrmPage() {
   const [saveLeadError, setSaveLeadError] = useState<string | null>(null)
   const [successToast,    setSuccessToast]    = useState<string | null>(null)
   const [bookingModalOpen, setBookingModalOpen] = useState(false)
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false)
 
   // comments
   const [leadComments,    setLeadComments]    = useState<LeadComment[]>([])
@@ -509,6 +512,18 @@ export default function CrmPage() {
               <LayoutGrid className="h-4 w-4" /> Kanban
             </button>
           </div>
+          <button
+            onClick={downloadLeadTemplate}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-600 shadow-sm hover:bg-slate-50 transition"
+          >
+            <FileDown className="h-4 w-4" /> Template
+          </button>
+          <button
+            onClick={() => setIsImportModalOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-600 shadow-sm hover:bg-slate-50 transition"
+          >
+            <Upload className="h-4 w-4" /> Importar
+          </button>
           <button onClick={() => setIsModalOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition">
             <Plus className="h-4 w-4" /> Crear lead
           </button>
@@ -883,6 +898,21 @@ export default function CrmPage() {
         onClose={() => setIsModalOpen(false)}
         onSuccess={() => { setIsModalOpen(false); loadLeads() }}
         onCreateLead={createLead}
+      />
+
+      <ImportLeadsModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        organizationId={organizationId}
+        onSuccess={(imported, skipped) => {
+          setIsImportModalOpen(false)
+          loadLeads()
+          const msg = skipped > 0
+            ? `${imported} leads importados, ${skipped} duplicados omitidos`
+            : `${imported} leads importados`
+          setSuccessToast(msg)
+          setTimeout(() => setSuccessToast(null), 4000)
+        }}
       />
 
       {successToast && (
