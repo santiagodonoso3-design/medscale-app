@@ -101,6 +101,12 @@ export interface DashboardData {
 
 export async function getDashboardData(): Promise<DashboardData | null> {
   noStore() // opt out of Next.js data cache — always fetch at runtime
+  console.log('DEBUG DATE CHECK:', {
+    now: new Date().toISOString(),
+    currentYM: currentYM(),
+    last6months: getLast6Months(),
+    nodeVersion: process.version,
+  })
   try {
     const months      = getLast6Months()
     const fromDate    = months[0] + '-01'
