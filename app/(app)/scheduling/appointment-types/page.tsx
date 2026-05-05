@@ -90,6 +90,13 @@ const EMPTY_FORM = {
   languages: ['es'] as string[],
 }
 
+const BASE_FIELDS = [
+  { label: 'Nombre completo', type: 'Texto' },
+  { label: 'Teléfono',        type: 'Teléfono' },
+  { label: 'Email',           type: 'Email' },
+  { label: 'Cédula',          type: 'Texto' },
+]
+
 function toSlug(text: string): string {
   return text
     .toLowerCase()
@@ -613,15 +620,34 @@ export default function AppointmentTypesPage() {
 
                   {/* ── Tab: Formulario ──────────────────────────────────── */}
                   {activeTab === 'form' && (
-                    <div className="space-y-3">
-                      <p className="text-xs text-slate-500">Campos adicionales que el paciente debe completar al agendar.</p>
+                    <div className="space-y-4">
 
+                      {/* Base fields — always present, non-interactive */}
+                      <div className="space-y-2">
+                        <p className="text-xs text-slate-400">Campos base (siempre incluidos)</p>
+                        {BASE_FIELDS.map(f => (
+                          <div key={f.label} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 opacity-60">
+                            <GripVertical className="h-4 w-4 shrink-0 text-slate-200" />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium text-slate-700">{f.label}</span>
+                            </div>
+                            <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                              {f.type}
+                            </span>
+                            <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+                              Base
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Dynamic fields */}
                       {fieldsLoading ? (
-                        <div className="flex items-center gap-2 py-6 text-slate-400">
+                        <div className="flex items-center gap-2 py-4 text-slate-400">
                           <Loader2 className="h-4 w-4 animate-spin" /> Cargando campos...
                         </div>
                       ) : formFields.length === 0 && !addingField ? (
-                        <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 py-10 text-center">
+                        <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 py-8 text-center">
                           <ClipboardList className="h-8 w-8 text-slate-300" />
                           <p className="text-sm text-slate-500">Sin campos personalizados</p>
                           <button
@@ -635,6 +661,7 @@ export default function AppointmentTypesPage() {
                         <>
                           {/* Field list */}
                           <div className="space-y-2">
+                            <p className="text-xs text-slate-400">Campos adicionales</p>
                             {formFields.map(f => (
                               editingFieldId === f.id ? (
                                 /* ── Inline edit panel ── */
