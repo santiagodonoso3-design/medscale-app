@@ -119,6 +119,8 @@ export default function AppointmentTypesPage() {
   const [addingField,   setAddingField]   = useState(false)
   const [newField,      setNewField]      = useState({ ...EMPTY_FIELD })
   const [savingField,   setSavingField]   = useState(false)
+  const [editingFieldId,   setEditingFieldId]   = useState<string | null>(null)
+  const [editingFieldData, setEditingFieldData] = useState({ ...EMPTY_FIELD })
 
   const supabase = createClient()
 
@@ -634,29 +636,134 @@ export default function AppointmentTypesPage() {
                           {/* Field list */}
                           <div className="space-y-2">
                             {formFields.map(f => (
-                              <div key={f.id} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                                <GripVertical className="h-4 w-4 shrink-0 text-slate-300" />
-                                <div className="flex-1 min-w-0">
-                                  <span className="text-sm font-medium text-slate-800">{f.field_label}</span>
+                              editingFieldId === f.id ? (
+                                /* ── Inline edit panel ── */
+                                <div key={f.id} className="rounded-2xl border border-blue-200 bg-blue-50 p-4 space-y-3">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Editar campo</p>
+                                  <div>
+                                    <label className="text-xs font-medium text-slate-600">Etiqueta *</label>
+                                    <input
+                                      value={editingFieldData.field_label}
+                                      onChange={e => setEditingFieldData(p => ({
+                                        ...p,
+                                        field_label: e.target.value,
+                                        field_name:  toSlug(e.target.value),
+                                      }))}
+                                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="text-xs font-medium text-slate-600">Tipo</label>
+                                      <select
+                                        value={editingFieldData.field_type}
+                                        onChange={e => setEditingFieldData(p => ({ ...p, field_type: e.target.value }))}
+                                        className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      >
+                                        {FIELD_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="text-xs font-medium text-slate-600">Placeholder</label>
+                                      <input
+                                        value={editingFieldData.placeholder}
+                                        onChange={e => setEditingFieldData(p => ({ ...p, placeholder: e.target.value }))}
+                                        className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                  </div>
+                                  <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+                                    <input
+                                      type="checkbox"
+                                      className="rounded border-slate-300 accent-blue-600"
+                                      checked={editingFieldData.required}
+                                      onChange={e => setEditingFieldData(p => ({ ...p, required: e.target.checked }))}
+                                    />
+                                    Campo requerido
+                                  </label>
+                                  <div className="flex gap-2 pt-1">
+                                    <button
+                                      disabled={savingField || !editingFieldData.field_label.trim()}
+                                      onClick={async () => {
+                                        setSavingField(true)
+                                        const { error } = await supabase
+                                          .from('appointment_form_fields')
+                                          .update({
+                                            field_name:  editingFieldData.field_name || toSlug(editingFieldData.field_label),
+                                            field_label: editingFieldData.field_label.trim(),
+                                            field_type:  editingFieldData.field_type,
+                                            placeholder: editingFieldData.placeholder.trim() || null,
+                                            required:    editingFieldData.required,
+                                          })
+                                          .eq('id', f.id)
+                                        setSavingField(false)
+                                        if (!error) {
+                                          setFormFields(prev => prev.map(x => x.id !== f.id ? x : {
+                                            ...x,
+                                            field_name:  editingFieldData.field_name || toSlug(editingFieldData.field_label),
+                                            field_label: editingFieldData.field_label.trim(),
+                                            field_type:  editingFieldData.field_type,
+                                            placeholder: editingFieldData.placeholder.trim(),
+                                            required:    editingFieldData.required,
+                                          }))
+                                          setEditingFieldId(null)
+                                        }
+                                      }}
+                                      className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition disabled:opacity-50"
+                                    >
+                                      {savingField ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                                      Guardar
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingFieldId(null)}
+                                      className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition"
+                                    >
+                                      Cancelar
+                                    </button>
+                                  </div>
                                 </div>
-                                <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                                  {FIELD_TYPES.find(t => t.value === f.field_type)?.label ?? f.field_type}
-                                </span>
-                                {f.required && (
-                                  <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600">
-                                    Requerido
+                              ) : (
+                                /* ── Normal row ── */
+                                <div key={f.id} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                                  <GripVertical className="h-4 w-4 shrink-0 text-slate-300" />
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-sm font-medium text-slate-800">{f.field_label}</span>
+                                  </div>
+                                  <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                                    {FIELD_TYPES.find(t => t.value === f.field_type)?.label ?? f.field_type}
                                   </span>
-                                )}
-                                <button
-                                  onClick={async () => {
-                                    await supabase.from('appointment_form_fields').update({ active: false }).eq('id', f.id)
-                                    setFormFields(prev => prev.filter(x => x.id !== f.id))
-                                  }}
-                                  className="shrink-0 rounded-lg p-1 text-slate-300 hover:bg-red-50 hover:text-red-500 transition"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
+                                  {f.required && (
+                                    <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600">
+                                      Requerido
+                                    </span>
+                                  )}
+                                  <button
+                                    onClick={() => {
+                                      setEditingFieldId(f.id)
+                                      setEditingFieldData({
+                                        field_label: f.field_label,
+                                        field_name:  f.field_name,
+                                        field_type:  f.field_type,
+                                        placeholder: f.placeholder ?? '',
+                                        required:    f.required,
+                                      })
+                                      setAddingField(false)
+                                    }}
+                                    className="shrink-0 rounded-lg p-1 text-slate-300 hover:bg-slate-200 hover:text-slate-600 transition"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      await supabase.from('appointment_form_fields').update({ active: false }).eq('id', f.id)
+                                      setFormFields(prev => prev.filter(x => x.id !== f.id))
+                                    }}
+                                    className="shrink-0 rounded-lg p-1 text-slate-300 hover:bg-red-50 hover:text-red-500 transition"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              )
                             ))}
                           </div>
 
