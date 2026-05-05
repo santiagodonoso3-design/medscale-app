@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { getDashboardData } from './actions'
 import { DashboardClient } from './dashboard-client'
 
