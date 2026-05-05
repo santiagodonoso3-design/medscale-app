@@ -2,105 +2,154 @@
 
 import { createClient } from '@/lib/supabase/server'
 
-export interface UpcomingAppointment {
-  id: string
-  scheduled_at: string
-  status: string
-  notes: string | null
-  patient_name: string | null
-  patient_phone: string | null
-  doctor_name: string | null
+// ── Timezone helpers ──────────────────────────────────────────────────────────
+
+function toBogotaYM(iso: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric', month: '2-digit', timeZone: 'America/Bogota',
+  }).format(new Date(iso)).slice(0, 7)
 }
 
-export interface RecentLead {
-  id: string
-  contact_name: string | null
-  contact_phone: string | null
-  source: string | null
-  status: string
-  created_at: string
+function currentYM(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric', month: '2-digit', timeZone: 'America/Bogota',
+  }).format(new Date()).slice(0, 7)
 }
 
-export interface OrgDashboardMetrics {
-  appointmentsToday: number
-  appointmentsThisWeek: number
-  totalLeads: number
-  totalPatients: number
-  upcomingAppointments: UpcomingAppointment[]
-  recentLeads: RecentLead[]
+function getLast7Months(): string[] {
+  const now = new Date()
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (6 - i), 1)
+    return new Intl.DateTimeFormat('en-CA', {
+      year: 'numeric', month: '2-digit', timeZone: 'America/Bogota',
+    }).format(d).slice(0, 7)
+  })
 }
 
-export async function getOrgDashboardMetrics(): Promise<OrgDashboardMetrics | null> {
+const MONTH_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+function monthLabel(ym: string): string {
+  return MONTH_LABELS[Number(ym.slice(5)) - 1]
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface DoctorStat {
+  name: string
+  total: number
+  completed: number
+  no_show: number
+  cancelled: number
+  attendanceRate: number
+}
+
+export interface MonthPoint {
+  label: string
+  count: number
+}
+
+export interface DashboardData {
+  appointmentsThisMonth: number
+  attendanceRate: number
+  activeInProcedure: number
+  newLeadsThisMonth: number
+  monthlyTrend: MonthPoint[]
+  trendVsPrev: number
+  monthlyAvg: number
+  totalInProcedure: number
+  avgProcedurePerMonth: number
+  leadToProcedureRate: number
+  doctorStats: DoctorStat[]
+}
+
+// ── Main fetch ────────────────────────────────────────────────────────────────
+
+export async function getDashboardData(): Promise<DashboardData | null> {
   const supabase = await createClient()
-
   try {
-    const now = new Date()
+    const months   = getLast7Months()
+    const fromDate = months[0] + '-01'
+    const thisYM   = currentYM()
 
-    const todayStart = new Date(now)
-    todayStart.setHours(0, 0, 0, 0)
-    const tomorrowStart = new Date(todayStart)
-    tomorrowStart.setDate(todayStart.getDate() + 1)
+    const thisMonthStart = new Date(thisYM + '-01T00:00:00.000Z').toISOString()
 
-    // Week: Monday → Sunday
-    const dow = now.getDay()
-    const daysFromMonday = dow === 0 ? 6 : dow - 1
-    const weekStart = new Date(todayStart)
-    weekStart.setDate(weekStart.getDate() - daysFromMonday)
-    const weekEnd = new Date(weekStart)
-    weekEnd.setDate(weekStart.getDate() + 7)
-
-    const [
-      todayResult,
-      weekResult,
-      leadsResult,
-      upcomingResult,
-      recentLeadsResult,
-    ] = await Promise.all([
-      supabase
-        .from('appointments')
-        .select('id', { count: 'exact', head: true })
-        .gte('scheduled_at', todayStart.toISOString())
-        .lt('scheduled_at', tomorrowStart.toISOString()),
-      supabase
-        .from('appointments')
-        .select('id', { count: 'exact', head: true })
-        .gte('scheduled_at', weekStart.toISOString())
-        .lt('scheduled_at', weekEnd.toISOString()),
-      supabase.from('leads').select('id', { count: 'exact', head: true }),
-      supabase
-        .from('appointments')
-        .select('id, scheduled_at, status, notes, lead:lead_id(contact_name, contact_phone), doctor:doctor_id(metadata)')
-        .gte('scheduled_at', now.toISOString())
-        .neq('status', 'cancelled')
-        .order('scheduled_at', { ascending: true })
-        .limit(10),
-      supabase
-        .from('leads')
-        .select('id, contact_name, contact_phone, source, status, created_at')
-        .order('created_at', { ascending: false })
-        .limit(10),
+    const [{ data: apts }, { data: leads }, { data: doctors }] = await Promise.all([
+      supabase.from('appointments')
+        .select('id, scheduled_at, status, doctor_id')
+        .gte('scheduled_at', fromDate),
+      supabase.from('leads').select('id, status, created_at'),
+      supabase.from('doctors').select('id, metadata').eq('is_active', true),
     ])
 
-    const upcoming: UpcomingAppointment[] = (upcomingResult.data ?? []).map((a: any) => ({
-      id: a.id,
-      scheduled_at: a.scheduled_at,
-      status: a.status,
-      notes: a.notes ?? null,
-      patient_name: a.lead?.[0]?.contact_name ?? null,
-      patient_phone: a.lead?.[0]?.contact_phone ?? null,
-      doctor_name: a.doctor?.[0]?.metadata?.name ?? null,
+    const A = apts    ?? []
+    const L = leads   ?? []
+    const D = doctors ?? []
+
+    // ── Block 1 KPIs ──────────────────────────────────────────────────────────
+    const thisMonthApts  = A.filter(a => toBogotaYM(a.scheduled_at) === thisYM)
+    const appointmentsThisMonth = thisMonthApts.length
+
+    const totalNonCancelled = A.filter(a => a.status !== 'cancelled').length
+    const totalCompleted    = A.filter(a => a.status === 'completed').length
+    const attendanceRate    = totalNonCancelled > 0
+      ? Math.round((totalCompleted / totalNonCancelled) * 100) : 0
+
+    const activeInProcedure  = L.filter(l => l.status === 'en_procedimiento').length
+    const newLeadsThisMonth  = L.filter(l => l.created_at >= thisMonthStart).length
+
+    // ── Block 2 Trend ─────────────────────────────────────────────────────────
+    const monthlyTrend: MonthPoint[] = months.map(ym => ({
+      label: monthLabel(ym),
+      count: A.filter(a => toBogotaYM(a.scheduled_at) === ym && a.status !== 'cancelled').length,
     }))
 
+    // avg from first 6 months (exclude current partial month)
+    const pastCounts  = monthlyTrend.slice(0, 6).map(m => m.count)
+    const monthlyAvg  = pastCounts.length
+      ? Math.round(pastCounts.reduce((s, c) => s + c, 0) / pastCounts.length) : 0
+
+    const currentCount = monthlyTrend[6]?.count ?? 0
+    const prevCount    = monthlyTrend[5]?.count ?? 0
+    const trendVsPrev  = prevCount > 0
+      ? Math.round(((currentCount - prevCount) / prevCount) * 100) : 0
+
+    // ── Block 3 Procedures ────────────────────────────────────────────────────
+    const totalInProcedure      = activeInProcedure
+    const avgProcedurePerMonth  = monthlyAvg  // use overall avg as proxy
+    const leadToProcedureRate   = L.length > 0
+      ? Math.round((activeInProcedure / L.length) * 100) : 0
+
+    // ── Block 4 By doctor ─────────────────────────────────────────────────────
+    const docMap = new Map<string, { name: string; total: number; completed: number; no_show: number; cancelled: number }>()
+    D.forEach(d => docMap.set(d.id, {
+      name: String(d.metadata?.name ?? 'Médico'),
+      total: 0, completed: 0, no_show: 0, cancelled: 0,
+    }))
+    A.forEach(a => {
+      const e = docMap.get(a.doctor_id)
+      if (!e) return
+      e.total++
+      if (a.status === 'completed') e.completed++
+      else if (a.status === 'no_show') e.no_show++
+      else if (a.status === 'cancelled') e.cancelled++
+    })
+    const doctorStats: DoctorStat[] = Array.from(docMap.values())
+      .filter(d => d.total > 0)
+      .map(d => ({
+        ...d,
+        attendanceRate: (d.total - d.cancelled) > 0
+          ? Math.round((d.completed / (d.total - d.cancelled)) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total)
+
     return {
-      appointmentsToday: todayResult.count ?? 0,
-      appointmentsThisWeek: weekResult.count ?? 0,
-      totalLeads: leadsResult.count ?? 0,
-      totalPatients: leadsResult.count ?? 0,
-      upcomingAppointments: upcoming,
-      recentLeads: (recentLeadsResult.data ?? []) as RecentLead[],
+      appointmentsThisMonth, attendanceRate,
+      activeInProcedure, newLeadsThisMonth,
+      monthlyTrend, trendVsPrev, monthlyAvg,
+      totalInProcedure, avgProcedurePerMonth, leadToProcedureRate,
+      doctorStats,
     }
-  } catch (error) {
-    console.error('Error fetching org dashboard metrics:', error)
+  } catch (e) {
+    console.error('getDashboardData error:', e)
     return null
   }
 }

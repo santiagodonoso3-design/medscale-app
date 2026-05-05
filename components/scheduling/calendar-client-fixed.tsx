@@ -8,6 +8,7 @@ import {
   updateAppointmentNotes,
   rescheduleAppointment,
   logCancellation,
+  updateAppointmentStatus,
 } from '@/app/(app)/scheduling/actions'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -324,6 +325,16 @@ export function CalendarClient({ userId }: CalendarClientProps) {
       await fetchData()
       setSelected(prev => prev ? { ...prev, scheduled_at: scheduledAt, ends_at: endsAt } : null)
     }
+    setModalSaving(false)
+  }
+
+  async function handleUpdateStatus(newStatus: 'completed' | 'no_show') {
+    if (!selected) return
+    setModalSaving(true)
+    setModalError(null)
+    const result = await updateAppointmentStatus(selected.id, newStatus)
+    if (result.error) { setModalError(result.error) }
+    else { await fetchData(); closeModal() }
     setModalSaving(false)
   }
 
@@ -917,6 +928,26 @@ export function CalendarClient({ userId }: CalendarClientProps) {
 
               {modalError && (
                 <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{modalError}</p>
+              )}
+
+              {/* Quick status: Completada / No asistió */}
+              {!['cancelled', 'completed', 'no_show'].includes(selected.status) && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleUpdateStatus('completed')}
+                    disabled={modalSaving}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition disabled:opacity-50"
+                  >
+                    ✓ Completada
+                  </button>
+                  <button
+                    onClick={() => handleUpdateStatus('no_show')}
+                    disabled={modalSaving}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white hover:bg-orange-600 transition disabled:opacity-50"
+                  >
+                    ✗ No asistió
+                  </button>
+                </div>
               )}
 
               {/* Cancel — with required reason */}

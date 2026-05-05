@@ -50,6 +50,14 @@ interface FormField {
   order: number
 }
 
+interface AppointmentTypeOption {
+  name: string
+  slug: string
+  duration_minutes: number
+  modality: 'presencial' | 'virtual'
+  color: string
+}
+
 interface BookingWizardProps {
   orgName: string
   orgSlug: string
@@ -58,6 +66,7 @@ interface BookingWizardProps {
   locations: LocationOption[]
   schedules: ScheduleOption[]
   formFields: FormField[]
+  appointmentType?: AppointmentTypeOption
 }
 
 // ── Calendar utilities ────────────────────────────────────────────────────────
@@ -118,6 +127,7 @@ interface CalendarPickerProps {
   selectedTime: string
   onSelect: (date: string, time: string) => void
   doctorId: string
+  durationOverride?: number
 }
 
 function CalendarPicker({
@@ -128,6 +138,7 @@ function CalendarPicker({
   selectedTime,
   onSelect,
   doctorId,
+  durationOverride,
 }: CalendarPickerProps) {
   const today = todayBogota()
   const todayYear = Number(today.slice(0, 4))

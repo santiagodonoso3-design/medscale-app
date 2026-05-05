@@ -44,6 +44,17 @@ export async function updateAppointmentNotes(
   return {}
 }
 
+export async function updateAppointmentStatus(
+  id: string,
+  status: 'completed' | 'no_show' | 'confirmed'
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('appointments').update({ status }).eq('id', id)
+  if (error) return { error: error.message }
+  revalidatePath('/scheduling/calendar')
+  return {}
+}
+
 export async function rescheduleAppointment(
   id: string,
   scheduledAt: string,
