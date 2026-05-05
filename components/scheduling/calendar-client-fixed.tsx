@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Search, X, Loader2, CalendarDays, List, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Search, X, Loader2, CalendarDays, List, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
 import {
   cancelAppointment,
   updateAppointmentNotes,
@@ -44,6 +44,15 @@ const STATUS_BADGE: Record<string, string> = {
   completed: 'bg-emerald-100 text-emerald-800',
   cancelled: 'bg-slate-100 text-slate-500',
   no_show: 'bg-red-100 text-red-700',
+}
+
+// Context-sensitive status transitions for inline badge dropdown
+const STATUS_TRANSITIONS: Record<string, Array<{ value: string; label: string }>> = {
+  scheduled:  [{ value: 'completed', label: 'Completada' }, { value: 'cancelled', label: 'Cancelada' }],
+  confirmed:  [{ value: 'completed', label: 'Completada' }, { value: 'cancelled', label: 'Cancelada' }],
+  completed:  [{ value: 'scheduled', label: 'Programada' }],
+  cancelled:  [{ value: 'scheduled', label: 'Programada' }],
+  no_show:    [{ value: 'scheduled', label: 'Programada' }],
 }
 
 const MONTH_NAMES = [
@@ -189,6 +198,10 @@ export function CalendarClient({ userId }: CalendarClientProps) {
   const [modalError, setModalError] = useState<string | null>(null)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
+
+  // ── Inline status popover
+  const [statusPopover, setStatusPopover] = useState<{ aptId: string; top: number; left: number } | null>(null)
+  const [statusToast,   setStatusToast]   = useState<string | null>(null)
 
   const supabase = createClient()
 
@@ -350,6 +363,22 @@ export function CalendarClient({ userId }: CalendarClientProps) {
       closeModal()
     }
     setModalSaving(false)
+  }
+
+  // ── Inline status change (list view badge) ────────────────────────────────
+
+  async function handleInlineStatusChange(aptId: string, newStatus: string) {
+    const prev = appointments.find(a => a.id === aptId)?.status
+    // Optimistic update
+    setAppointments(all => all.map(a => a.id === aptId ? { ...a, status: newStatus } : a))
+    setStatusPopover(null)
+    const result = await updateAppointmentStatus(aptId, newStatus as Parameters<typeof updateAppointmentStatus>[1])
+    if (result.error) {
+      // Revert on failure
+      setAppointments(all => all.map(a => a.id === aptId ? { ...a, status: prev ?? a.status } : a))
+      setStatusToast(result.error)
+      setTimeout(() => setStatusToast(null), 4000)
+    }
   }
 
   // ── Create handlers ────────────────────────────────────────────────────────
@@ -656,10 +685,24 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                         <td className={`px-3 py-2.5 font-medium ${cancelled ? 'text-slate-400' : 'text-slate-900'}`}>
                           {d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
                         </td>
-                        <td className="px-3 py-2.5">
-                          <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE[apt.status] ?? 'bg-slate-100 text-slate-600'}`}>
-                            {STATUS_LABELS[apt.status] ?? apt.status}
-                          </span>
+                        <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
+                          {STATUS_TRANSITIONS[apt.status]?.length ? (
+                            <button
+                              onClick={e => {
+                                if (statusPopover?.aptId === apt.id) { setStatusPopover(null); return }
+                                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                                setStatusPopover({ aptId: apt.id, top: rect.bottom + 4, left: rect.left })
+                              }}
+                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold transition hover:opacity-75 ${STATUS_BADGE[apt.status] ?? 'bg-slate-100 text-slate-600'}`}
+                            >
+                              {STATUS_LABELS[apt.status] ?? apt.status}
+                              <ChevronDown className="h-3 w-3 opacity-60" />
+                            </button>
+                          ) : (
+                            <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE[apt.status] ?? 'bg-slate-100 text-slate-600'}`}>
+                              {STATUS_LABELS[apt.status] ?? apt.status}
+                            </span>
+                          )}
                         </td>
                       </tr>
                     )
@@ -988,6 +1031,35 @@ export function CalendarClient({ userId }: CalendarClientProps) {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Inline status popover */}
+      {statusPopover && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setStatusPopover(null)} />
+          <div
+            className="fixed z-50 min-w-[150px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+            style={{ top: statusPopover.top, left: statusPopover.left }}
+          >
+            {(STATUS_TRANSITIONS[appointments.find(a => a.id === statusPopover.aptId)?.status ?? ''] ?? []).map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => handleInlineStatusChange(statusPopover.aptId, opt.value)}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
+              >
+                <span className={`h-2 w-2 shrink-0 rounded-full ${statusDotColor(opt.value)}`} />
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Error toast for inline status update failures */}
+      {statusToast && (
+        <div className="fixed bottom-4 right-4 z-50 rounded-2xl bg-red-600 px-5 py-3 text-sm text-white shadow-lg">
+          {statusToast}
         </div>
       )}
     </>

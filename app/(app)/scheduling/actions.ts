@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 export async function cancelAppointment(id: string): Promise<{ error?: string }> {
@@ -46,10 +46,19 @@ export async function updateAppointmentNotes(
 
 export async function updateAppointmentStatus(
   id: string,
-  status: 'completed' | 'no_show' | 'confirmed'
+  status: 'scheduled' | 'completed' | 'cancelled' | 'no_show' | 'confirmed'
 ): Promise<{ error?: string }> {
   const supabase = await createClient()
-  const { error } = await supabase.from('appointments').update({ status }).eq('id', id)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+  const { data: profile } = await supabase.from('users').select('organization_id').eq('id', user.id).single()
+  if (!profile?.organization_id) return { error: 'Organización no encontrada' }
+  const admin = await createServiceClient()
+  const { error } = await admin
+    .from('appointments')
+    .update({ status })
+    .eq('id', id)
+    .eq('organization_id', profile.organization_id)
   if (error) return { error: error.message }
   revalidatePath('/scheduling/calendar')
   return {}
