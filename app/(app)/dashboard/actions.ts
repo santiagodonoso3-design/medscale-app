@@ -1,8 +1,20 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 
-// ── Timezone helpers ──────────────────────────────────────────────────────────
+// ── Admin client (bypasses RLS) ───────────────────────────────────────────────
+
+const admin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+)
+
+// ── Timezone helpers (Bogotá = UTC-5, no DST) ────────────────────────────────
+
+function todayBogota(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
+}
 
 function toBogotaYM(iso: string): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -11,15 +23,20 @@ function toBogotaYM(iso: string): string {
 }
 
 function currentYM(): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    year: 'numeric', month: '2-digit', timeZone: 'America/Bogota',
-  }).format(new Date()).slice(0, 7)
+  return toBogotaYM(new Date().toISOString())
 }
 
-function getLast7Months(): string[] {
+function prevYM(): string {
   const now = new Date()
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (6 - i), 1)
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  return toBogotaYM(prev.toISOString())
+}
+
+// Last 6 months ending with current month, as YYYY-MM strings
+function getLast6Months(): string[] {
+  const now = new Date()
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
     return new Intl.DateTimeFormat('en-CA', {
       year: 'numeric', month: '2-digit', timeZone: 'America/Bogota',
     }).format(d).slice(0, 7)
@@ -31,15 +48,25 @@ function monthLabel(ym: string): string {
   return MONTH_LABELS[Number(ym.slice(5)) - 1]
 }
 
+// Compute % delta; returns null when prev is 0 (avoids division by zero noise)
+function delta(curr: number, prev: number): number | null {
+  return prev > 0 ? Math.round(((curr - prev) / prev) * 100) : null
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface TodayAppointment {
+  id: string
+  scheduled_at: string
+  status: string
+  patientName: string | null
+  doctorName: string | null
+}
 
 export interface DoctorStat {
   name: string
   total: number
   completed: number
-  no_show: number
-  cancelled: number
-  attendanceRate: number
 }
 
 export interface MonthPoint {
@@ -47,105 +74,133 @@ export interface MonthPoint {
   count: number
 }
 
+export interface FunnelCard {
+  value: number
+  delta: number | null
+}
+
 export interface DashboardData {
-  appointmentsThisMonth: number
-  attendanceRate: number
-  activeInProcedure: number
-  newLeadsThisMonth: number
+  // Funnel KPIs
+  leadsThisMonth: FunnelCard
+  inConversation: number
+  citasThisMonth: FunnelCard
+  attendedThisMonth: FunnelCard
+  inProcedure: number
+  // Today
+  todayAppointments: TodayAppointment[]
+  // Chart
   monthlyTrend: MonthPoint[]
-  trendVsPrev: number
+  trendVsPrev: number | null
   monthlyAvg: number
-  totalInProcedure: number
-  avgProcedurePerMonth: number
-  leadToProcedureRate: number
+  // Doctor table
   doctorStats: DoctorStat[]
 }
 
 // ── Main fetch ────────────────────────────────────────────────────────────────
 
 export async function getDashboardData(): Promise<DashboardData | null> {
-  const supabase = await createClient()
   try {
-    const months   = getLast7Months()
-    const fromDate = months[0] + '-01'
-    const thisYM   = currentYM()
+    const months      = getLast6Months()
+    const fromDate    = months[0] + '-01'
+    const thisYM      = currentYM()
+    const lastYM      = prevYM()
+    const today       = todayBogota()
+    const thisMonthISO = thisYM + '-01T00:00:00.000Z'
+    const prevMonthISO = lastYM + '-01T00:00:00.000Z'
 
-    const thisMonthStart = new Date(thisYM + '-01T00:00:00.000Z').toISOString()
-
-    const [{ data: apts }, { data: leads }, { data: doctors }] = await Promise.all([
-      supabase.from('appointments')
+    const [
+      { data: apts },
+      { data: leads },
+      { data: doctors },
+      { data: todayRaw },
+    ] = await Promise.all([
+      admin.from('appointments')
         .select('id, scheduled_at, status, doctor_id')
         .gte('scheduled_at', fromDate),
-      supabase.from('leads').select('id, status, created_at'),
-      supabase.from('doctors').select('id, metadata').eq('is_active', true),
+      admin.from('leads').select('id, status, created_at'),
+      admin.from('doctors').select('id, metadata').eq('is_active', true),
+      admin.from('appointments')
+        .select('id, scheduled_at, status, lead:lead_id(contact_name), doctor:doctor_id(metadata)')
+        .gte('scheduled_at', today + 'T00:00:00')
+        .lte('scheduled_at', today + 'T23:59:59')
+        .order('scheduled_at', { ascending: true }),
     ])
 
     const A = apts    ?? []
     const L = leads   ?? []
     const D = doctors ?? []
 
-    // ── Block 1 KPIs ──────────────────────────────────────────────────────────
-    const thisMonthApts  = A.filter(a => toBogotaYM(a.scheduled_at) === thisYM)
-    const appointmentsThisMonth = thisMonthApts.length
+    // ── Funnel KPIs ───────────────────────────────────────────────────────────
 
-    const totalNonCancelled = A.filter(a => a.status !== 'cancelled').length
-    const totalCompleted    = A.filter(a => a.status === 'completed').length
-    const attendanceRate    = totalNonCancelled > 0
-      ? Math.round((totalCompleted / totalNonCancelled) * 100) : 0
+    const leadsThisMonthVal  = L.filter(l => l.created_at >= thisMonthISO).length
+    const leadsPrevMonthVal  = L.filter(l => l.created_at >= prevMonthISO && l.created_at < thisMonthISO).length
 
-    const activeInProcedure  = L.filter(l => l.status === 'en_procedimiento').length
-    const newLeadsThisMonth  = L.filter(l => l.created_at >= thisMonthStart).length
+    const inConversation = L.filter(l => ['contactado', 'contacted'].includes(l.status)).length
+    const inProcedure    = L.filter(l => ['en_procedimiento', 'in_procedure'].includes(l.status)).length
 
-    // ── Block 2 Trend ─────────────────────────────────────────────────────────
+    const citasThisMonthVal = A.filter(a =>
+      toBogotaYM(a.scheduled_at) === thisYM && a.status !== 'cancelled'
+    ).length
+    const citasPrevMonthVal = A.filter(a =>
+      toBogotaYM(a.scheduled_at) === lastYM && a.status !== 'cancelled'
+    ).length
+
+    const attendedThisMonthVal = A.filter(a =>
+      toBogotaYM(a.scheduled_at) === thisYM && a.status === 'completed'
+    ).length
+    const attendedPrevMonthVal = A.filter(a =>
+      toBogotaYM(a.scheduled_at) === lastYM && a.status === 'completed'
+    ).length
+
+    // ── Today's appointments ──────────────────────────────────────────────────
+
+    const todayAppointments: TodayAppointment[] = (todayRaw ?? []).map((a: any) => ({
+      id:          a.id,
+      scheduled_at: a.scheduled_at,
+      status:      a.status,
+      patientName: (Array.isArray(a.lead) ? a.lead[0]?.contact_name : a.lead?.contact_name) ?? null,
+      doctorName:  (Array.isArray(a.doctor) ? a.doctor[0]?.metadata?.name : a.doctor?.metadata?.name) ?? null,
+    }))
+
+    // ── Chart: last 6 months ──────────────────────────────────────────────────
+
     const monthlyTrend: MonthPoint[] = months.map(ym => ({
       label: monthLabel(ym),
       count: A.filter(a => toBogotaYM(a.scheduled_at) === ym && a.status !== 'cancelled').length,
     }))
 
-    // avg from first 6 months (exclude current partial month)
-    const pastCounts  = monthlyTrend.slice(0, 6).map(m => m.count)
-    const monthlyAvg  = pastCounts.length
-      ? Math.round(pastCounts.reduce((s, c) => s + c, 0) / pastCounts.length) : 0
+    const monthlyAvg = monthlyTrend.length
+      ? Math.round(monthlyTrend.reduce((s, m) => s + m.count, 0) / monthlyTrend.length)
+      : 0
 
-    const currentCount = monthlyTrend[6]?.count ?? 0
-    const prevCount    = monthlyTrend[5]?.count ?? 0
-    const trendVsPrev  = prevCount > 0
-      ? Math.round(((currentCount - prevCount) / prevCount) * 100) : 0
+    const currentCount = monthlyTrend[5]?.count ?? 0
+    const prevCount    = monthlyTrend[4]?.count ?? 0
+    const trendVsPrev  = delta(currentCount, prevCount)
 
-    // ── Block 3 Procedures ────────────────────────────────────────────────────
-    const totalInProcedure      = activeInProcedure
-    const avgProcedurePerMonth  = monthlyAvg  // use overall avg as proxy
-    const leadToProcedureRate   = L.length > 0
-      ? Math.round((activeInProcedure / L.length) * 100) : 0
+    // ── Doctor stats ──────────────────────────────────────────────────────────
 
-    // ── Block 4 By doctor ─────────────────────────────────────────────────────
-    const docMap = new Map<string, { name: string; total: number; completed: number; no_show: number; cancelled: number }>()
+    const docMap = new Map<string, { name: string; total: number; completed: number }>()
     D.forEach(d => docMap.set(d.id, {
-      name: String(d.metadata?.name ?? 'Médico'),
-      total: 0, completed: 0, no_show: 0, cancelled: 0,
+      name: String(d.metadata?.name ?? 'Médico'), total: 0, completed: 0,
     }))
     A.forEach(a => {
       const e = docMap.get(a.doctor_id)
       if (!e) return
       e.total++
       if (a.status === 'completed') e.completed++
-      else if (a.status === 'no_show') e.no_show++
-      else if (a.status === 'cancelled') e.cancelled++
     })
     const doctorStats: DoctorStat[] = Array.from(docMap.values())
       .filter(d => d.total > 0)
-      .map(d => ({
-        ...d,
-        attendanceRate: (d.total - d.cancelled) > 0
-          ? Math.round((d.completed / (d.total - d.cancelled)) * 100) : 0,
-      }))
       .sort((a, b) => b.total - a.total)
 
     return {
-      appointmentsThisMonth, attendanceRate,
-      activeInProcedure, newLeadsThisMonth,
+      leadsThisMonth:    { value: leadsThisMonthVal,  delta: delta(leadsThisMonthVal, leadsPrevMonthVal) },
+      inConversation,
+      citasThisMonth:    { value: citasThisMonthVal,  delta: delta(citasThisMonthVal, citasPrevMonthVal) },
+      attendedThisMonth: { value: attendedThisMonthVal, delta: delta(attendedThisMonthVal, attendedPrevMonthVal) },
+      inProcedure,
+      todayAppointments,
       monthlyTrend, trendVsPrev, monthlyAvg,
-      totalInProcedure, avgProcedurePerMonth, leadToProcedureRate,
       doctorStats,
     }
   } catch (e) {
