@@ -1,15 +1,16 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { CreateLeadModal } from '@/components/crm/create-lead-modal'
 import { BookAppointmentModal } from '@/components/crm/book-appointment-modal'
 import {
   Plus, Loader2, Search, X, Save, List, LayoutGrid,
   ChevronDown, CalendarPlus, ChevronUp, ChevronsUpDown, Send,
-  FileDown, Upload,
+  FileDown, Upload, Trash2,
 } from 'lucide-react'
 import { ImportLeadsModal, downloadLeadTemplate } from '@/components/crm/import-leads-modal'
+import { deleteLeads } from '@/app/(app)/crm/actions/deleteLeads'
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -298,6 +299,12 @@ export default function CrmPage() {
   const [bookingModalOpen, setBookingModalOpen] = useState(false)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
 
+  // delete
+  const [selectedIds,   setSelectedIds]   = useState<Set<string>>(new Set())
+  const [deleteConfirm, setDeleteConfirm] = useState<string[] | null>(null)
+  const [deleting,      setDeleting]      = useState(false)
+  const selectAllRef = useRef<HTMLInputElement>(null)
+
   // comments
   const [leadComments,    setLeadComments]    = useState<LeadComment[]>([])
   const [loadingComments, setLoadingComments] = useState(false)
@@ -379,6 +386,19 @@ export default function CrmPage() {
     if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortField(field); setSortDir('asc') }
   }
+
+  // ── Delete ────────────────────────────────────────────────────────────────────
+
+  const handleDelete = async (ids: string[]) => {
+    setDeleting(true)
+    const result = await deleteLeads(ids)
+    setDeleting(false)
+    setDeleteConfirm(null)
+    if (result.error) { setError(result.error); return }
+    setLeads(prev => prev.filter(l => !ids.includes(l.id)))
+    setSelectedIds(new Set())
+  }
+
 
   // ── Lead detail ──────────────────────────────────────────────────────────────
 
@@ -469,6 +489,15 @@ export default function CrmPage() {
       return sortDir === 'asc' ? cmp : -cmp
     })
   }, [leads, statusFilter, sourceFilter, search, sortField, sortDir])
+
+  // Keep select-all checkbox indeterminate when only some rows are selected
+  useEffect(() => {
+    const el = selectAllRef.current
+    if (!el) return
+    const some = filteredLeads.some(l => selectedIds.has(l.id))
+    const all  = filteredLeads.length > 0 && filteredLeads.every(l => selectedIds.has(l.id))
+    el.indeterminate = some && !all
+  }, [selectedIds, filteredLeads])
 
   const createLead = async (payload: {
     full_name: string; phone: string; email: string; source: string; notes: string
@@ -570,12 +599,40 @@ export default function CrmPage() {
           <p className="shrink-0 text-sm text-slate-500">{filteredLeads.length} leads</p>
         </div>
 
+        {/* Bulk-action bar */}
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-3 border-b border-slate-100 bg-blue-50 px-5 py-2.5">
+            <span className="text-sm font-medium text-blue-700">{selectedIds.size} lead{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}</span>
+            <button
+              onClick={() => setDeleteConfirm([...selectedIds])}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Eliminar seleccionados
+            </button>
+            <button onClick={() => setSelectedIds(new Set())} className="text-xs text-blue-500 underline hover:text-blue-700">
+              Deseleccionar
+            </button>
+          </div>
+        )}
+
         {/* List view */}
         {view === 'list' && (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100">
+                  <th className="w-10 px-3 py-3">
+                    <input
+                      ref={selectAllRef}
+                      type="checkbox"
+                      className="rounded border-slate-300 accent-blue-600"
+                      checked={filteredLeads.length > 0 && filteredLeads.every(l => selectedIds.has(l.id))}
+                      onChange={e => {
+                        if (e.target.checked) setSelectedIds(new Set(filteredLeads.map(l => l.id)))
+                        else setSelectedIds(new Set())
+                      }}
+                    />
+                  </th>
                   <SortTh field="contact_name" label="Nombre"  sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-left" />
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Cédula</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Teléfono</th>
@@ -586,19 +643,32 @@ export default function CrmPage() {
                   <SortTh field="created_at" label="Creado"      sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
                   <SortTh field="updated_at" label="Actualizado" sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Notas</th>
+                  <th className="w-10 px-3 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {isLoading ? (
-                  <tr><td colSpan={10} className="px-5 py-12 text-center text-slate-400">
+                  <tr><td colSpan={12} className="px-5 py-12 text-center text-slate-400">
                     <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Cargando...</span>
                   </td></tr>
                 ) : filteredLeads.length === 0 ? (
-                  <tr><td colSpan={10} className="px-5 py-12 text-center text-slate-400">No hay leads con los filtros seleccionados.</td></tr>
+                  <tr><td colSpan={12} className="px-5 py-12 text-center text-slate-400">No hay leads con los filtros seleccionados.</td></tr>
                 ) : filteredLeads.map(lead => {
                   const aptCount = aptCounts[lead.id] ?? 0
                   return (
                     <tr key={lead.id} onClick={() => openLeadDetail(lead)} className="cursor-pointer hover:bg-slate-50 transition-colors">
+                      <td className="w-10 px-3 py-3.5" onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="rounded border-slate-300 accent-blue-600"
+                          checked={selectedIds.has(lead.id)}
+                          onChange={e => setSelectedIds(prev => {
+                            const next = new Set(prev)
+                            e.target.checked ? next.add(lead.id) : next.delete(lead.id)
+                            return next
+                          })}
+                        />
+                      </td>
                       <td className="px-5 py-3.5 font-medium text-slate-900">{lead.contact_name || 'Sin nombre'}</td>
                       <td className="px-5 py-3.5 text-xs text-slate-500">{lead.contact_cedula || '—'}</td>
                       <td className="px-5 py-3.5 text-slate-600">{lead.contact_phone || '—'}</td>
@@ -637,6 +707,15 @@ export default function CrmPage() {
                               {lead.notes.length > 40 ? lead.notes.slice(0, 40) + '…' : lead.notes}
                             </span>
                           : <span className="text-xs text-slate-300">—</span>}
+                      </td>
+                      <td className="w-10 px-3 py-3.5" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => setDeleteConfirm([lead.id])}
+                          className="rounded-lg p-1.5 text-slate-300 transition hover:bg-red-50 hover:text-red-500"
+                          title="Eliminar lead"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </td>
                     </tr>
                   )
@@ -920,6 +999,35 @@ export default function CrmPage() {
           setTimeout(() => setSuccessToast(null), 4000)
         }}
       />
+
+      {/* Delete confirmation dialog */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="text-base font-semibold text-slate-900">
+              {deleteConfirm.length === 1 ? '¿Eliminar este lead?' : `¿Eliminar ${deleteConfirm.length} leads?`}
+            </h2>
+            <p className="mt-2 text-sm text-slate-500">Esta acción no se puede deshacer.</p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                disabled={deleting}
+                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirm)}
+                disabled={deleting}
+                className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {successToast && (
         <div className="fixed bottom-4 right-4 rounded-2xl bg-emerald-600 px-5 py-3 text-sm text-white shadow-lg">
