@@ -1,5 +1,6 @@
 'use server'
 
+import { unstable_noStore as noStore } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 
 // ── Admin client (bypasses RLS) ───────────────────────────────────────────────
@@ -99,6 +100,7 @@ export interface DashboardData {
 // ── Main fetch ────────────────────────────────────────────────────────────────
 
 export async function getDashboardData(): Promise<DashboardData | null> {
+  noStore() // opt out of Next.js data cache — always fetch at runtime
   try {
     const months      = getLast6Months()
     const fromDate    = months[0] + '-01'
