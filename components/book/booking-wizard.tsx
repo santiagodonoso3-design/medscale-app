@@ -711,18 +711,14 @@ export default function BookingWizard({
             {availableDoctors.map(doc => {
               const name     = String(doc.metadata?.name ?? t.docFallback)
               const photoUrl = doc.metadata?.photo_url as string | null | undefined
-              const isToday  = hasSlotToday(doc.id)
               const isSelected = formData.doctor_id === doc.id
               return (
                 <button
                   key={doc.id}
                   onClick={() => setFormData(p => ({ ...p, doctor_id: doc.id, date: '', time: '' }))}
-                  className={`relative flex flex-col items-center gap-2 rounded-2xl border-2 p-4 text-center transition ${
+                  className={`flex flex-col items-center gap-2 rounded-2xl border-2 p-4 text-center transition ${
                     isSelected ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
                   }`}>
-                  {isToday && (
-                    <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-emerald-500" title={t.availableToday} />
-                  )}
                   <DoctorAvatar name={name} photoUrl={photoUrl} color={typeColor} size="lg" />
                   <div>
                     <p className="font-semibold text-gray-900 text-sm leading-tight">{name}</p>
