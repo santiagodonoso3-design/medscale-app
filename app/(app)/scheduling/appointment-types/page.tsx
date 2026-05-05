@@ -12,7 +12,7 @@ interface AppointmentType {
   slug: string
   duration_minutes: number
   color: string
-  modality: 'presencial' | 'virtual'
+  modality: 'presencial' | 'virtual' | 'patient_choice'
   price: number | null
   active: boolean
   assignment_mode: AssignmentMode
@@ -47,7 +47,7 @@ const EMPTY_FORM = {
   slug: '',
   duration_minutes: 60,
   color: '#3B82F6',
-  modality: 'presencial' as 'presencial' | 'virtual',
+  modality: 'patient_choice' as 'presencial' | 'virtual' | 'patient_choice',
   price: '',
   assignment_mode: 'hybrid' as AssignmentMode,
   doctor_ids: [] as string[],
@@ -294,11 +294,13 @@ export default function AppointmentTypesPage() {
                   <td className="px-5 py-3.5 text-slate-600">{t.duration_minutes} min</td>
                   <td className="px-5 py-3.5">
                     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      t.modality === 'presencial'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-emerald-100 text-emerald-700'
+                      t.modality === 'presencial'   ? 'bg-blue-100 text-blue-700' :
+                      t.modality === 'virtual'      ? 'bg-emerald-100 text-emerald-700' :
+                                                      'bg-slate-100 text-slate-600'
                     }`}>
-                      {t.modality === 'presencial' ? 'Presencial' : 'Virtual'}
+                      {t.modality === 'presencial' ? 'Solo presencial' :
+                       t.modality === 'virtual'    ? 'Solo virtual' :
+                                                     'Paciente elige'}
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-slate-600">
@@ -415,21 +417,31 @@ export default function AppointmentTypesPage() {
                 </div>
               </div>
 
+              {/*
+               * Modality controls booking wizard behaviour (not yet implemented):
+               * - 'presencial'     → skip modality step, always use presencial
+               * - 'virtual'        → skip modality step, always use virtual
+               * - 'patient_choice' → show Presencial/Virtual toggle in wizard step 1
+               */}
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Modalidad *</label>
-                <div className="mt-1 grid grid-cols-2 gap-2">
-                  {(['presencial', 'virtual'] as const).map(m => (
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Modalidad del servicio *</label>
+                <div className="mt-1 grid grid-cols-3 gap-2">
+                  {([
+                    { value: 'presencial',     label: 'Solo presencial' },
+                    { value: 'virtual',        label: 'Solo virtual' },
+                    { value: 'patient_choice', label: 'Paciente elige' },
+                  ] as const).map(m => (
                     <button
-                      key={m}
+                      key={m.value}
                       type="button"
-                      onClick={() => setForm(p => ({ ...p, modality: m }))}
-                      className={`rounded-xl border-2 px-3 py-2 text-sm font-medium transition capitalize ${
-                        form.modality === m
+                      onClick={() => setForm(p => ({ ...p, modality: m.value }))}
+                      className={`rounded-xl border-2 px-3 py-2 text-sm font-medium transition ${
+                        form.modality === m.value
                           ? 'border-blue-600 bg-blue-50 text-blue-700'
                           : 'border-slate-200 text-slate-600 hover:border-slate-300'
                       }`}
                     >
-                      {m === 'presencial' ? 'Presencial' : 'Virtual'}
+                      {m.label}
                     </button>
                   ))}
                 </div>
