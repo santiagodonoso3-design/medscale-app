@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Copy, Check, Loader2, Pencil, Link2, X, Save } from 'lucide-react'
+import { Plus, Copy, Check, Loader2, Pencil, Link2, X, Save, Settings, Clock, ClipboardList } from 'lucide-react'
 
 type AssignmentMode = 'one_on_one' | 'round_robin_proportional' | 'round_robin_availability' | 'hybrid'
 
@@ -18,6 +18,9 @@ interface AppointmentType {
   assignment_mode: AssignmentMode
   doctor_ids: string[]
   min_notice_hours: number
+  max_notice_days: number
+  buffer_before_min: number
+  buffer_after_min: number
   languages: string[]
 }
 
@@ -53,6 +56,9 @@ const EMPTY_FORM = {
   assignment_mode: 'hybrid' as AssignmentMode,
   doctor_ids: [] as string[],
   min_notice_hours: 24,
+  max_notice_days: 60,
+  buffer_before_min: 0,
+  buffer_after_min: 0,
   languages: ['es'] as string[],
 }
 
@@ -79,6 +85,7 @@ export default function AppointmentTypesPage() {
   const [formError,     setFormError]     = useState<string | null>(null)
   const [copiedId,      setCopiedId]      = useState<string | null>(null)
   const [slugManual,    setSlugManual]    = useState(false)
+  const [activeTab,     setActiveTab]     = useState<'general' | 'rules' | 'form'>('general')
 
   const supabase = createClient()
 
@@ -144,11 +151,15 @@ export default function AppointmentTypesPage() {
       price:            t.price != null ? String(t.price) : '',
       assignment_mode:  t.assignment_mode,
       doctor_ids:       t.doctor_ids ?? [],
-      min_notice_hours: t.min_notice_hours ?? 24,
-      languages:        t.languages?.length ? t.languages : ['es'],
+      min_notice_hours:  t.min_notice_hours  ?? 24,
+      max_notice_days:   t.max_notice_days   ?? 60,
+      buffer_before_min: t.buffer_before_min ?? 0,
+      buffer_after_min:  t.buffer_after_min  ?? 0,
+      languages:         t.languages?.length ? t.languages : ['es'],
     })
     setSlugManual(true)
     setFormError(null)
+    setActiveTab('general')
     setModalOpen(true)
   }
 
@@ -182,8 +193,11 @@ export default function AppointmentTypesPage() {
       price:            form.price ? Number(form.price) : null,
       assignment_mode:  form.assignment_mode,
       doctor_ids:       form.doctor_ids,
-      min_notice_hours: Number(form.min_notice_hours),
-      languages:        form.languages.length ? form.languages : ['es'],
+      min_notice_hours:  Number(form.min_notice_hours),
+      max_notice_days:   Number(form.max_notice_days),
+      buffer_before_min: Number(form.buffer_before_min),
+      buffer_after_min:  Number(form.buffer_after_min),
+      languages:         form.languages.length ? form.languages : ['es'],
     }
 
     if (editing) {
@@ -359,7 +373,9 @@ export default function AppointmentTypesPage() {
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModalOpen(false)} />
-          <div className="relative z-10 flex max-h-[92vh] w-full max-w-md flex-col rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+          <div className={`relative z-10 flex w-full flex-col rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl ${
+            editing ? 'max-h-[90vh] max-w-2xl' : 'max-h-[92vh] max-w-md'
+          }`}>
 
             {/* Header */}
             <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
@@ -371,8 +387,200 @@ export default function AppointmentTypesPage() {
               </button>
             </div>
 
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+            {/* Body — tabbed layout when editing, single column when creating */}
+            {editing ? (
+              <div className="flex flex-1 overflow-hidden">
+
+                {/* Vertical tab sidebar */}
+                <nav className="w-40 shrink-0 border-r border-slate-100 py-4 space-y-1 px-2">
+                  {([
+                    { id: 'general',    label: 'General',    Icon: Settings },
+                    { id: 'rules',      label: 'Reglas',     Icon: Clock },
+                    { id: 'form',       label: 'Formulario', Icon: ClipboardList },
+                  ] as const).map(({ id, label, Icon }) => (
+                    <button
+                      key={id}
+                      onClick={() => setActiveTab(id)}
+                      className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition ${
+                        activeTab === id
+                          ? 'bg-slate-900 text-white'
+                          : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      {label}
+                    </button>
+                  ))}
+                </nav>
+
+                {/* Tab content */}
+                <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+
+                  {/* ── Tab: General ─────────────────────────────────────── */}
+                  {activeTab === 'general' && (<>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Nombre *</label>
+                      <input value={form.name} onChange={e => handleNameChange(e.target.value)} placeholder="Ej: Consulta inicial"
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Slug (URL) *</label>
+                      <div className="mt-1 flex items-center rounded-xl border border-slate-200 bg-slate-50 focus-within:ring-2 focus-within:ring-blue-500">
+                        <span className="pl-3 text-sm text-slate-400 shrink-0">/book/{org?.slug}/</span>
+                        <input value={form.slug} onChange={e => handleSlugChange(e.target.value)}
+                          className="flex-1 bg-transparent px-1 py-2 text-sm focus:outline-none" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Duración (min) *</label>
+                        <input type="number" min={5} step={5} value={form.duration_minutes}
+                          onChange={e => setForm(p => ({ ...p, duration_minutes: Number(e.target.value) }))}
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Precio (opcional)</label>
+                        <input type="number" min={0} value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))}
+                          placeholder="Sin precio"
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                    </div>
+                    {/*
+                     * Modality controls booking wizard behaviour:
+                     * - 'presencial'     → skip modality step, always use presencial
+                     * - 'virtual'        → skip modality step, always use virtual
+                     * - 'patient_choice' → show Presencial/Virtual toggle in wizard step 1
+                     */}
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Modalidad del servicio *</label>
+                      <div className="mt-1 grid grid-cols-3 gap-2">
+                        {([
+                          { value: 'presencial',     label: 'Solo presencial' },
+                          { value: 'virtual',        label: 'Solo virtual' },
+                          { value: 'patient_choice', label: 'Paciente elige' },
+                        ] as const).map(m => (
+                          <button key={m.value} type="button" onClick={() => setForm(p => ({ ...p, modality: m.value }))}
+                            className={`rounded-xl border-2 px-3 py-2 text-sm font-medium transition ${
+                              form.modality === m.value ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                            }`}>
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Color</label>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {PRESET_COLORS.map(c => (
+                          <button key={c} type="button" onClick={() => setForm(p => ({ ...p, color: c }))}
+                            className={`h-8 w-8 rounded-full transition ring-offset-2 ${form.color === c ? 'ring-2 ring-slate-700' : 'hover:scale-110'}`}
+                            style={{ backgroundColor: c }} />
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Modo de asignación *</label>
+                      <select value={form.assignment_mode} onChange={e => setForm(p => ({ ...p, assignment_mode: e.target.value as AssignmentMode }))}
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        {ASSIGNMENT_MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Idiomas disponibles *</label>
+                      <div className="mt-2 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        {[{ value: 'es', label: 'Español' }, { value: 'en', label: 'English' }, { value: 'pt', label: 'Português' }].map(lang => (
+                          <label key={lang.value} className="flex cursor-pointer items-center gap-2.5 text-sm text-slate-700">
+                            <input type="checkbox" className="rounded border-slate-300 accent-blue-600"
+                              checked={form.languages.includes(lang.value)}
+                              onChange={e => setForm(p => ({
+                                ...p,
+                                languages: e.target.checked ? [...p.languages, lang.value]
+                                  : p.languages.length > 1 ? p.languages.filter(l => l !== lang.value) : p.languages,
+                              }))} />
+                            {lang.label}
+                          </label>
+                        ))}
+                      </div>
+                      <p className="mt-1.5 text-xs text-slate-400">Al menos un idioma debe estar seleccionado.</p>
+                    </div>
+                    {doctors.length > 0 && (
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Médicos asignados</label>
+                        <div className="mt-2 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          {doctors.map(d => (
+                            <label key={d.id} className="flex cursor-pointer items-center gap-2.5 text-sm text-slate-700">
+                              <input type="checkbox" className="rounded border-slate-300 accent-blue-600"
+                                checked={form.doctor_ids.includes(d.id)}
+                                onChange={e => setForm(p => ({
+                                  ...p,
+                                  doctor_ids: e.target.checked ? [...p.doctor_ids, d.id] : p.doctor_ids.filter(id => id !== d.id),
+                                }))} />
+                              {d.name}
+                            </label>
+                          ))}
+                        </div>
+                        {form.doctor_ids.length === 0 && (
+                          <p className="mt-1.5 text-xs text-slate-400">Sin médicos asignados — se usarán todos los activos.</p>
+                        )}
+                      </div>
+                    )}
+                  </>)}
+
+                  {/* ── Tab: Reglas ──────────────────────────────────────── */}
+                  {activeTab === 'rules' && (<>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Aviso mínimo</label>
+                      <p className="mt-0.5 text-xs text-slate-400">Mínimo de horas antes de que un paciente pueda agendar</p>
+                      <input type="number" min={0} max={168} value={form.min_notice_hours}
+                        onChange={e => setForm(p => ({ ...p, min_notice_hours: Number(e.target.value) }))}
+                        className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Aviso máximo</label>
+                      <p className="mt-0.5 text-xs text-slate-400">Máximo de días en el futuro que un paciente puede agendar</p>
+                      <input type="number" min={1} max={365} value={form.max_notice_days}
+                        onChange={e => setForm(p => ({ ...p, max_notice_days: Number(e.target.value) }))}
+                        className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Buffer antes de la cita</label>
+                      <p className="mt-0.5 text-xs text-slate-400">Tiempo de preparación antes de cada cita</p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <input type="number" min={0} max={120} value={form.buffer_before_min}
+                          onChange={e => setForm(p => ({ ...p, buffer_before_min: Number(e.target.value) }))}
+                          className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        <span className="text-sm text-slate-500">minutos</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Buffer después de la cita</label>
+                      <p className="mt-0.5 text-xs text-slate-400">Tiempo de cierre después de cada cita</p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <input type="number" min={0} max={120} value={form.buffer_after_min}
+                          onChange={e => setForm(p => ({ ...p, buffer_after_min: Number(e.target.value) }))}
+                          className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        <span className="text-sm text-slate-500">minutos</span>
+                      </div>
+                    </div>
+                  </>)}
+
+                  {/* ── Tab: Formulario ──────────────────────────────────── */}
+                  {activeTab === 'form' && (
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <ClipboardList className="h-10 w-10 text-slate-300 mb-3" />
+                      <p className="text-sm font-medium text-slate-600">Configuración del formulario del paciente</p>
+                      <p className="mt-1 text-xs text-slate-400">Próximamente</p>
+                    </div>
+                  )}
+
+                  {formError && (
+                    <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Single-column body for create flow */
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
 
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Nombre *</label>
@@ -557,6 +765,7 @@ export default function AppointmentTypesPage() {
                 <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</p>
               )}
             </div>
+            )}
 
             {/* Footer */}
             <div className="shrink-0 border-t border-slate-100 px-6 py-4">
