@@ -60,6 +60,7 @@ interface AppointmentTypeOption {
   doctor_ids?: string[]
   languages?: string[]
   assignment_mode?: 'one_on_one' | 'round_robin_proportional' | 'round_robin_availability' | 'hybrid'
+  min_notice_hours?: number
 }
 
 const LANGUAGE_OPTIONS = [
@@ -253,6 +254,7 @@ interface CalendarPickerProps {
   onSelect: (date: string, time: string) => void
   doctorId: string
   durationOverride?: number
+  minNoticeHours?: number
   texts: {
     org: string; doctor: string; autoAssign: string
     selected: string; loading: string; noSlots: string; docFallback: string
@@ -268,9 +270,11 @@ function CalendarPicker({
   onSelect,
   doctorId,
   durationOverride,
+  minNoticeHours = 0,
   texts,
 }: CalendarPickerProps) {
   const today = todayBogota()
+  const minAllowedTime = new Date(Date.now() + minNoticeHours * 3600 * 1000)
   const todayYear = Number(today.slice(0, 4))
   const todayMonth = Number(today.slice(5, 7)) - 1
 
@@ -321,7 +325,10 @@ function CalendarPicker({
   function isDayAvailable(dateStr: string): boolean {
     const d = new Date(dateStr + 'T12:00:00')
     const supabaseDay = toSupabaseDay(d.getDay())
-    return availableSupabaseDays.has(supabaseDay)
+    if (!availableSupabaseDays.has(supabaseDay)) return false
+    // Block days where even the end of the day (23:59) is before minAllowedTime
+    const endOfDay = new Date(dateStr + 'T23:59:00')
+    return endOfDay >= minAllowedTime
   }
 
   const slotsForDate = useMemo(() => {
@@ -333,8 +340,10 @@ function CalendarPicker({
     matching.forEach((s) =>
       generateSlots(s.start_time, s.end_time, duration).forEach((slot) => all.add(slot))
     )
-    return Array.from(all).sort()
-  }, [selectedDate, effectiveSchedules, duration])
+    return Array.from(all)
+      .filter(slot => new Date(selectedDate + 'T' + slot + ':00') >= minAllowedTime)
+      .sort()
+  }, [selectedDate, effectiveSchedules, duration, minAllowedTime])
 
   function isSlotBooked(time: string): boolean {
     if (!selectedDate || !doctorId) return false
@@ -757,6 +766,7 @@ export default function BookingWizard({
           selectedTime={formData.time}
           onSelect={(date, time) => setFormData(p => ({ ...p, date, time }))}
           doctorId={formData.doctor_id}
+          minNoticeHours={appointmentType?.min_notice_hours ?? 0}
           texts={{ org: t.calOrg, doctor: t.calDoctor, autoAssign: t.calAutoAssign, selected: t.calSelected, loading: t.calLoading, noSlots: t.calNoSlots, docFallback: t.docFallback }}
         />
       </div>
