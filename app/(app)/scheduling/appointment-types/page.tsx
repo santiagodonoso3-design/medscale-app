@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, Copy, Check, Loader2, Pencil, Link2, X, Save } from 'lucide-react'
 
+type AssignmentMode = 'one_on_one' | 'round_robin_proportional' | 'round_robin_availability' | 'hybrid'
+
 interface AppointmentType {
   id: string
   name: string
@@ -13,6 +15,14 @@ interface AppointmentType {
   modality: 'presencial' | 'virtual'
   price: number | null
   active: boolean
+  assignment_mode: AssignmentMode
+  doctor_ids: string[]
+  min_notice_hours: number
+}
+
+interface DoctorOption {
+  id: string
+  name: string
 }
 
 interface OrgInfo {
@@ -25,6 +35,13 @@ const PRESET_COLORS = [
   '#EF4444', '#14B8A6', '#F97316', '#6366F1',
 ]
 
+const ASSIGNMENT_MODES: { value: AssignmentMode; label: string }[] = [
+  { value: 'hybrid',                    label: 'Híbrido (paciente puede escoger médico)' },
+  { value: 'one_on_one',                label: 'One-on-One (paciente escoge médico)' },
+  { value: 'round_robin_proportional',  label: 'Round Robin — Proporcional (menos citas)' },
+  { value: 'round_robin_availability',  label: 'Round Robin — Disponibilidad (primer disponible)' },
+]
+
 const EMPTY_FORM = {
   name: '',
   slug: '',
@@ -32,6 +49,9 @@ const EMPTY_FORM = {
   color: '#3B82F6',
   modality: 'presencial' as 'presencial' | 'virtual',
   price: '',
+  assignment_mode: 'hybrid' as AssignmentMode,
+  doctor_ids: [] as string[],
+  min_notice_hours: 24,
 }
 
 function toSlug(text: string): string {
@@ -48,6 +68,7 @@ function toSlug(text: string): string {
 export default function AppointmentTypesPage() {
   const [types,         setTypes]         = useState<AppointmentType[]>([])
   const [org,           setOrg]           = useState<OrgInfo | null>(null)
+  const [doctors,       setDoctors]       = useState<DoctorOption[]>([])
   const [isLoading,     setIsLoading]     = useState(true)
   const [modalOpen,     setModalOpen]     = useState(false)
   const [editing,       setEditing]       = useState<AppointmentType | null>(null)
@@ -77,6 +98,18 @@ export default function AppointmentTypesPage() {
         .eq('id', profile.organization_id)
         .single()
       if (orgData) setOrg({ id: orgData.id, slug: orgData.slug })
+
+      const { data: doctorData } = await supabase
+        .from('doctors')
+        .select('id, metadata')
+        .eq('organization_id', profile.organization_id)
+        .eq('is_active', true)
+      setDoctors(
+        (doctorData ?? []).map((d: any) => ({
+          id: d.id,
+          name: String(d.metadata?.name ?? 'Médico sin nombre'),
+        }))
+      )
     }
 
     const { data } = await supabase
@@ -107,6 +140,9 @@ export default function AppointmentTypesPage() {
       color:            t.color,
       modality:         t.modality,
       price:            t.price != null ? String(t.price) : '',
+      assignment_mode:  t.assignment_mode,
+      doctor_ids:       t.doctor_ids ?? [],
+      min_notice_hours: t.min_notice_hours ?? 24,
     })
     setSlugManual(true)
     setFormError(null)
@@ -141,6 +177,9 @@ export default function AppointmentTypesPage() {
       color:            form.color,
       modality:         form.modality,
       price:            form.price ? Number(form.price) : null,
+      assignment_mode:  form.assignment_mode,
+      doctor_ids:       form.doctor_ids,
+      min_notice_hours: Number(form.min_notice_hours),
     }
 
     if (editing) {
@@ -412,6 +451,61 @@ export default function AppointmentTypesPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Assignment mode */}
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Modo de asignación *</label>
+                <select
+                  value={form.assignment_mode}
+                  onChange={e => setForm(p => ({ ...p, assignment_mode: e.target.value as AssignmentMode }))}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {ASSIGNMENT_MODES.map(m => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Min notice hours */}
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Aviso mínimo (horas) *</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={168}
+                  value={form.min_notice_hours}
+                  onChange={e => setForm(p => ({ ...p, min_notice_hours: Number(e.target.value) }))}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Doctor selection */}
+              {doctors.length > 0 && (
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Médicos asignados</label>
+                  <div className="mt-2 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    {doctors.map(d => (
+                      <label key={d.id} className="flex cursor-pointer items-center gap-2.5 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          className="rounded border-slate-300 accent-blue-600"
+                          checked={form.doctor_ids.includes(d.id)}
+                          onChange={e => setForm(p => ({
+                            ...p,
+                            doctor_ids: e.target.checked
+                              ? [...p.doctor_ids, d.id]
+                              : p.doctor_ids.filter(id => id !== d.id),
+                          }))}
+                        />
+                        {d.name}
+                      </label>
+                    ))}
+                  </div>
+                  {form.doctor_ids.length === 0 && (
+                    <p className="mt-1.5 text-xs text-slate-400">Sin médicos asignados — se usarán todos los activos.</p>
+                  )}
+                </div>
+              )}
 
               {formError && (
                 <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</p>
