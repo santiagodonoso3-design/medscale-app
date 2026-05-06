@@ -44,6 +44,8 @@ export async function POST(request: Request) {
       custom_fields?: Record<string, string>
     }
 
+    console.log('[/api/book] body:', { org_slug, appointment_type_id, doctor_id, date, time, patient_first_name })
+
     if (!org_slug || !date || !time || !patient_first_name || !phone) {
       return jsonResponse({ success: false, error: 'Faltan campos requeridos' }, 400)
     }
@@ -57,6 +59,7 @@ export async function POST(request: Request) {
       .single()
 
     if (orgError || !org) {
+      console.error('[/api/book] org lookup error:', orgError)
       return jsonResponse({ success: false, error: 'Organización no encontrada' }, 404)
     }
 
@@ -64,102 +67,133 @@ export async function POST(request: Request) {
     let selectedDoctorId: string | null = doctor_id ?? null
 
     if (!selectedDoctorId) {
-      // 1. Fetch appointment type config (assignment_mode + doctor_ids)
-      let assignmentMode = 'round_robin_proportional'
-      let typeDoctorIds: string[] = []
+      try {
+        // 1. Fetch appointment type config (assignment_mode + doctor_ids)
+        let assignmentMode = 'round_robin_proportional'
+        let typeDoctorIds: string[] = []
 
-      if (appointment_type_id) {
-        const { data: apptType } = await supabase
-          .from('appointment_types')
-          .select('assignment_mode, doctor_ids')
-          .eq('id', appointment_type_id)
-          .single()
-        if (apptType) {
-          assignmentMode = (apptType.assignment_mode as string) ?? 'round_robin_proportional'
-          typeDoctorIds  = (apptType.doctor_ids as string[]) ?? []
+        if (appointment_type_id) {
+          const { data: apptType, error: typeError } = await supabase
+            .from('appointment_types')
+            .select('assignment_mode, doctor_ids')
+            .eq('id', appointment_type_id)
+            .single()
+          if (typeError) {
+            console.error('[/api/book] appointment_types fetch error:', typeError)
+          } else if (apptType) {
+            assignmentMode = (apptType.assignment_mode as string) ?? 'round_robin_proportional'
+            typeDoctorIds  = (apptType.doctor_ids as string[]) ?? []
+            console.log('[/api/book] type config:', { assignmentMode, typeDoctorIds })
+          }
         }
-      }
 
-      // 2. Candidate doctor IDs: use type's list or fall back to all active org doctors
-      let candidateIds: string[] = typeDoctorIds.length > 0 ? typeDoctorIds : []
-      if (candidateIds.length === 0) {
-        const { data: allDoctors } = await supabase
-          .from('doctors').select('id').eq('organization_id', org.id).eq('is_active', true)
-        candidateIds = (allDoctors ?? []).map((d: any) => d.id as string)
-      }
-      if (candidateIds.length === 0) {
-        return jsonResponse({ success: false, error: 'No hay médicos disponibles' }, 400)
-      }
+        // 2. Candidate doctor IDs
+        let candidateIds: string[] = typeDoctorIds.length > 0 ? typeDoctorIds : []
+        if (candidateIds.length === 0) {
+          const { data: allDoctors, error: docError } = await supabase
+            .from('doctors').select('id').eq('organization_id', org.id).eq('is_active', true)
+          if (docError) console.error('[/api/book] doctors fetch error:', docError)
+          candidateIds = (allDoctors ?? []).map((d: any) => d.id as string)
+        }
 
-      // 3a. Filter to doctors whose recurring schedule covers the requested slot
-      // day_of_week in DB: 0=Sun..6=Sat — same as JS getDay() (per CLAUDE.md)
-      const dayOfWeek = new Date(date + 'T12:00:00').getDay()
-      const { data: schedules } = await supabase
-        .from('schedules')
-        .select('doctor_id, start_time, end_time')
-        .in('doctor_id', candidateIds)
-        .eq('day_of_week', dayOfWeek)
-        .eq('is_recurring', true)
+        console.log('[/api/book] candidateIds:', candidateIds)
 
-      const availableIds: string[] = [...new Set(
-        (schedules ?? [])
-          .filter((s: any) => s.start_time <= time && time < s.end_time)
-          .map((s: any) => s.doctor_id as string)
-      )]
+        if (candidateIds.length === 0) {
+          return jsonResponse({ success: false, error: 'No hay médicos disponibles' }, 400)
+        }
 
-      if (availableIds.length === 0) {
-        return jsonResponse({ success: false, error: 'No hay médicos disponibles para este horario' }, 400)
-      }
+        // 3a. Filter to doctors whose schedule covers the requested slot
+        // day_of_week in DB: 0=Sun..6=Sat — same as JS getDay() (per CLAUDE.md)
+        const dayOfWeek = new Date(date + 'T12:00:00').getDay()
+        console.log('[/api/book] dayOfWeek:', dayOfWeek, 'time:', time)
 
-      if (assignmentMode === 'round_robin_availability') {
-        // Pick first doctor that has the slot
-        selectedDoctorId = availableIds[0]
-      } else {
-        // round_robin_proportional: fewest scheduled appointments this month
-        const now        = new Date()
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-        const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
+        const { data: schedules, error: schedError } = await supabase
+          .from('schedules')
+          .select('doctor_id, start_time, end_time')
+          .in('doctor_id', candidateIds)
+          .eq('day_of_week', dayOfWeek)
 
-        const { data: monthApts } = await supabase
-          .from('appointments')
-          .select('doctor_id')
-          .in('doctor_id', availableIds)
-          .gte('scheduled_at', monthStart)
-          .lte('scheduled_at', monthEnd)
-          .eq('status', 'scheduled')
+        if (schedError) console.error('[/api/book] schedules fetch error:', schedError)
+        console.log('[/api/book] schedules found:', (schedules ?? []).length)
 
-        const counts: Record<string, number> = Object.fromEntries(availableIds.map(id => [id, 0]))
-        ;(monthApts ?? []).forEach((a: any) => { if (counts[a.doctor_id] !== undefined) counts[a.doctor_id]++ })
+        const availableIds: string[] = [...new Set(
+          (schedules ?? [])
+            .filter((s: any) => s.start_time <= time && time < s.end_time)
+            .map((s: any) => s.doctor_id as string)
+        )]
 
-        const minCount = Math.min(...Object.values(counts))
-        const tied     = availableIds.filter(id => counts[id] === minCount)
+        console.log('[/api/book] availableIds after schedule filter:', availableIds)
 
-        if (tied.length === 1) {
-          selectedDoctorId = tied[0]
+        if (availableIds.length === 0) {
+          // Fallback: use any candidate instead of refusing the booking
+          console.warn('[/api/book] no schedule match — falling back to first candidate')
+          selectedDoctorId = candidateIds[0]
+        } else if (assignmentMode === 'round_robin_availability') {
+          selectedDoctorId = availableIds[0]
         } else {
-          // Tiebreak: fewest appointments in the last 7 days
-          const weekAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()
-          const { data: recentApts } = await supabase
+          // round_robin_proportional: fewest scheduled appointments this month
+          const now        = new Date()
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+          const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
+
+          const { data: monthApts, error: monthErr } = await supabase
             .from('appointments')
             .select('doctor_id')
-            .in('doctor_id', tied)
-            .gte('scheduled_at', weekAgo)
+            .in('doctor_id', availableIds)
+            .gte('scheduled_at', monthStart)
+            .lte('scheduled_at', monthEnd)
             .eq('status', 'scheduled')
 
-          const recent: Record<string, number> = Object.fromEntries(tied.map(id => [id, 0]))
-          ;(recentApts ?? []).forEach((a: any) => { if (recent[a.doctor_id] !== undefined) recent[a.doctor_id]++ })
+          if (monthErr) console.error('[/api/book] monthly appointments fetch error:', monthErr)
 
-          const minRecent = Math.min(...Object.values(recent))
-          selectedDoctorId = tied.find(id => recent[id] === minRecent) ?? tied[0]
+          const counts: Record<string, number> = Object.fromEntries(availableIds.map(id => [id, 0]))
+          ;(monthApts ?? []).forEach((a: any) => { if (counts[a.doctor_id] !== undefined) counts[a.doctor_id]++ })
+
+          const minCount = Math.min(...Object.values(counts))
+          const tied     = availableIds.filter(id => counts[id] === minCount)
+
+          if (tied.length === 1) {
+            selectedDoctorId = tied[0]
+          } else {
+            const weekAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()
+            const { data: recentApts, error: recentErr } = await supabase
+              .from('appointments')
+              .select('doctor_id')
+              .in('doctor_id', tied)
+              .gte('scheduled_at', weekAgo)
+              .eq('status', 'scheduled')
+
+            if (recentErr) console.error('[/api/book] recent appointments fetch error:', recentErr)
+
+            const recent: Record<string, number> = Object.fromEntries(tied.map(id => [id, 0]))
+            ;(recentApts ?? []).forEach((a: any) => { if (recent[a.doctor_id] !== undefined) recent[a.doctor_id]++ })
+
+            const minRecent = Math.min(...Object.values(recent))
+            selectedDoctorId = tied.find(id => recent[id] === minRecent) ?? tied[0]
+          }
+        }
+      } catch (rrError) {
+        // Round-robin logic failed — fall back to first active doctor
+        console.error('[/api/book] round-robin error, falling back:', rrError)
+        const { data: fallbackDoctors } = await supabase
+          .from('doctors').select('id').eq('organization_id', org.id).eq('is_active', true).limit(1)
+        selectedDoctorId = fallbackDoctors?.[0]?.id ?? null
+        if (!selectedDoctorId) {
+          return jsonResponse({ success: false, error: 'No hay médicos disponibles' }, 400)
         }
       }
     }
 
+    console.log('[/api/book] selectedDoctorId:', selectedDoctorId)
+
     // Get location + doctor metadata in parallel
-    const [{ data: locations }, { data: doctorData }] = await Promise.all([
+    const [{ data: locations, error: locError }, { data: doctorData, error: docMetaError }] = await Promise.all([
       supabase.from('locations').select('id').eq('organization_id', org.id).limit(1),
       supabase.from('doctors').select('metadata').eq('id', selectedDoctorId!).single(),
     ])
+
+    if (locError) console.error('[/api/book] locations fetch error:', locError)
+    if (docMetaError) console.error('[/api/book] doctor metadata fetch error:', docMetaError)
 
     if (!locations || locations.length === 0) {
       return jsonResponse({ success: false, error: 'No hay sedes disponibles' }, 400)
@@ -170,7 +204,9 @@ export async function POST(request: Request) {
     const duration = Number(doctorMeta?.duration || doctorMeta?.default_duration || 30)
 
     // Create lead
-    const leadNotes = custom_fields ? `Cédula: ${cedula}\n${Object.entries(custom_fields).map(([k, v]) => `${k}: ${v}`).join('\n')}` : `Cédula: ${cedula}`
+    const leadNotes = custom_fields
+      ? `Cédula: ${cedula}\n${Object.entries(custom_fields).map(([k, v]) => `${k}: ${v}`).join('\n')}`
+      : `Cédula: ${cedula}`
 
     const { data: lead, error: leadError } = await supabase
       .from('leads')
@@ -192,9 +228,9 @@ export async function POST(request: Request) {
       return jsonResponse({ success: false, error: leadError?.message || 'Error creando lead' }, 500)
     }
 
-    // Create appointment — scheduled_at uses UTC; local slot times are treated as UTC
+    // Create appointment
     const scheduledAt = new Date(`${date}T${time}:00.000Z`)
-    const endDate = new Date(scheduledAt.getTime() + duration * 60000)
+    const endDate     = new Date(scheduledAt.getTime() + duration * 60000)
 
     const { data: appointment, error: appointmentError } = await supabase
       .from('appointments')
@@ -217,9 +253,10 @@ export async function POST(request: Request) {
       return jsonResponse({ success: false, error: appointmentError?.message || 'Error creando cita' }, 500)
     }
 
+    console.log('[/api/book] success — lead:', lead.id, 'appointment:', appointment.id)
     return jsonResponse({ success: true, lead_id: lead.id, appointment_id: appointment.id }, 201)
   } catch (error) {
-    console.error('Booking error', error)
+    console.error('[/api/book] unhandled error:', error)
     return jsonResponse({ success: false, error: 'Error interno del servidor' }, 500)
   }
 }
