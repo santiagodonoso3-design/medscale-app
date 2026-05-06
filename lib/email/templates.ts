@@ -173,7 +173,46 @@ export function rescheduleEmail(p: RescheduleEmailParams): string {
   return brandShell(lang, p.orgName, bodyHtml, C.primary)
 }
 
-// ── Internal clinic notification ──────────────────────────────────────────────
+// ── Clinic booking notification ───────────────────────────────────────────────
+
+export function bookingNotificationClinic(p: {
+  patientName: string
+  patientPhone: string
+  patientEmail?: string | null
+  doctorName: string | null
+  date: string
+  time: string
+  modality: string
+  orgName: string
+  appointmentTypeName: string | null
+}): string {
+  const modalityDisplay = p.modality === 'virtual' ? 'Virtual (videollamada)' : 'Presencial'
+  const doctorDisplay   = p.doctorName ?? 'Por asignar'
+  const typeDisplay     = p.appointmentTypeName ?? 'Consulta'
+
+  return `<!DOCTYPE html><html><body style="${BASE}">
+    <div style="${CARD}">
+      <div style="${HEADER}">
+        <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#94a3b8">Nueva cita agendada</p>
+        <p style="margin:6px 0 0;font-size:20px;font-weight:700;color:#ffffff">${p.orgName}</p>
+      </div>
+      <div style="${BODY}">
+        ${row('Paciente', p.patientName)}
+        ${row('Teléfono', p.patientPhone)}
+        ${p.patientEmail ? row('Email', p.patientEmail) : ''}
+        <hr style="${DIVIDER}" />
+        ${row('Tipo de cita', typeDisplay)}
+        ${row('Médico asignado', doctorDisplay)}
+        ${row('Fecha', p.date)}
+        ${row('Hora', p.time)}
+        ${row('Modalidad', modalityDisplay)}
+      </div>
+      <div style="${FOOTER}">MedScale AI · Notificación interna</div>
+    </div>
+  </body></html>`
+}
+
+// ── Internal clinic notification (legacy) ─────────────────────────────────────
 
 export function bookingNotificationDoctor(p: BookingEmailParams): string {
   const doctorDisplay   = p.doctorName ?? 'Por asignar'

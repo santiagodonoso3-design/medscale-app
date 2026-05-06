@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { resend } from '@/lib/email/resend'
-import { bookingConfirmationPatient, bookingNotificationDoctor } from '@/lib/email/templates'
+import { bookingConfirmationPatient, bookingNotificationDoctor, bookingNotificationClinic } from '@/lib/email/templates'
 
 const supabasePublic = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
 
     const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .select('id, name')
+      .select('id, name, contact_email')
       .eq('slug', org_slug)
       .single()
 
@@ -292,8 +292,6 @@ export async function POST(request: Request) {
         manageUrl,
       }
 
-      // Only send patient email — clinic notification requires contact_email
-      // in organizations table (not yet available)
       if (email) {
         console.log('[email] attempting to send to:', email)
         const results = await Promise.allSettled([
@@ -306,6 +304,30 @@ export async function POST(request: Request) {
         ])
         console.log('[email] results:', JSON.stringify(results))
         results.forEach(r => { if (r.status === 'rejected') console.error('[email] failed:', r.reason) })
+      }
+
+      const clinicEmail = (org as any).contact_email as string | null
+      if (clinicEmail) {
+        Promise.allSettled([
+          resend.emails.send({
+            from:    'citas@medscale.app',
+            to:      clinicEmail,
+            subject: `Nueva cita — ${patient_first_name}${patient_last_name ? ' ' + patient_last_name : ''} · ${formattedDate}`,
+            html:    bookingNotificationClinic({
+              patientName:         `${patient_first_name}${patient_last_name ? ' ' + patient_last_name : ''}`,
+              patientPhone:        phone ?? '',
+              patientEmail:        email ?? null,
+              doctorName:          doctorName || null,
+              date:                formattedDate,
+              time,
+              modality:            modality ?? 'presencial',
+              orgName:             orgNameDisplay,
+              appointmentTypeName,
+            }),
+          }),
+        ]).then(results => {
+          results.forEach(r => { if (r.status === 'rejected') console.error('[email:clinic] failed:', r.reason) })
+        })
       }
     }
 
