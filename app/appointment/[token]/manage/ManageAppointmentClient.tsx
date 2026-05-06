@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { CalendarPicker } from '@/components/shared/CalendarPicker'
 import type { ScheduleOption, DoctorOption } from '@/components/shared/CalendarPicker'
-import { ArrowLeft, CalendarDays, X } from 'lucide-react'
+import { ArrowLeft, CalendarDays } from 'lucide-react'
 
 const B = {
   primary: '#215F73',
@@ -29,35 +29,48 @@ interface Apt {
   location: { name: string; address: string | null } | null
 }
 
-interface Props { appointment: Apt; token: string }
+interface Props {
+  appointment: Apt
+  token: string
+  schedules: ScheduleOption[]
+}
 
 function fmtDateTime(iso: string) {
-  const date = new Intl.DateTimeFormat('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Bogota' }).format(new Date(iso))
-  const time = new Intl.DateTimeFormat('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' }).format(new Date(iso))
+  const date = new Intl.DateTimeFormat('es-CO', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Bogota',
+  }).format(new Date(iso))
+  const time = new Intl.DateTimeFormat('es-CO', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota',
+  }).format(new Date(iso))
   return { date, time }
 }
 
-export function ManageAppointmentClient({ appointment: apt, token }: Props) {
+export function ManageAppointmentClient({ appointment: apt, token, schedules }: Props) {
   const { date, time } = fmtDateTime(apt.scheduled_at)
+  const doctor = apt.doctor
   const orgName    = apt.organization?.name ?? ''
-  const doctorName = apt.doctor?.metadata ? String((apt.doctor.metadata as any).name ?? 'Médico') : 'Médico'
+  const doctorName = doctor?.metadata ? String((doctor.metadata as any).name ?? 'Médico') : 'Médico'
   const modality   = apt.notes?.toLowerCase().includes('virtual') ? 'Virtual' : 'Presencial'
 
-  const [view, setView]         = useState<'main' | 'reschedule' | 'cancel' | 'done'>('main')
-  const [doneMsg, setDoneMsg]   = useState('')
-  const [newDate, setNewDate]   = useState('')
-  const [newTime, setNewTime]   = useState('')
-  const [reason, setReason]     = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState<string | null>(null)
+  const [view, setView]       = useState<'main' | 'reschedule' | 'cancel' | 'done'>('main')
+  const [doneMsg, setDoneMsg] = useState('')
+  const [newDate, setNewDate] = useState('')
+  const [newTime, setNewTime] = useState('')
+  const [reason,  setReason]  = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState<string | null>(null)
+
+  const selectedDoctor: DoctorOption | null = doctor
+    ? { id: doctor.id, specialty: null, is_active: true, metadata: doctor.metadata as any }
+    : null
 
   const doReschedule = async () => {
     if (!newDate || !newTime) { setError('Selecciona fecha y hora'); return }
     setLoading(true); setError(null)
-    const res = await fetch('/api/appointment/manage', {
-      method: 'PATCH',
+    const res  = await fetch('/api/appointment/manage', {
+      method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, action: 'reschedule', new_date: newDate, new_time: newTime }),
+      body:    JSON.stringify({ token, action: 'reschedule', new_date: newDate, new_time: newTime }),
     })
     const data = await res.json()
     setLoading(false)
@@ -69,10 +82,10 @@ export function ManageAppointmentClient({ appointment: apt, token }: Props) {
   const doCancel = async () => {
     if (reason.trim().length < 10) { setError('Por favor escribe al menos 10 caracteres'); return }
     setLoading(true); setError(null)
-    const res = await fetch('/api/appointment/manage', {
-      method: 'PATCH',
+    const res  = await fetch('/api/appointment/manage', {
+      method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, action: 'cancel', cancel_reason: reason }),
+      body:    JSON.stringify({ token, action: 'cancel', cancel_reason: reason }),
     })
     const data = await res.json()
     setLoading(false)
@@ -92,7 +105,7 @@ export function ManageAppointmentClient({ appointment: apt, token }: Props) {
           <p style={{ fontSize: 14, color: B.muted, marginTop: 4 }}>Gestión de cita</p>
         </div>
 
-        {/* Done screen */}
+        {/* Done */}
         {view === 'done' && (
           <div style={{ background: B.card, borderRadius: 20, border: `1px solid ${B.border}`, padding: '40px 32px', textAlign: 'center' }}>
             <p style={{ fontSize: 40, marginBottom: 16 }}>✅</p>
@@ -101,7 +114,7 @@ export function ManageAppointmentClient({ appointment: apt, token }: Props) {
           </div>
         )}
 
-        {/* Appointment card */}
+        {/* Appointment details card */}
         {view !== 'done' && (
           <div style={{ background: B.card, borderRadius: 20, border: `1px solid ${B.border}`, padding: '24px 28px' }}>
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: B.muted, margin: '0 0 16px' }}>Detalles de tu cita</p>
@@ -110,9 +123,16 @@ export function ManageAppointmentClient({ appointment: apt, token }: Props) {
               { label: 'Fecha',     value: date },
               { label: 'Hora',      value: time },
               { label: 'Modalidad', value: modality },
-              ...(apt.location?.name ? [{ label: 'Sede', value: apt.location.address ? `${apt.location.name} — ${apt.location.address}` : apt.location.name }] : []),
-            ].map(({ label, value }) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, marginBottom: 10, borderBottom: `1px solid ${B.border}` }}>
+              ...(apt.location?.name ? [{
+                label: 'Sede',
+                value: apt.location.address ? `${apt.location.name} — ${apt.location.address}` : apt.location.name,
+              }] : []),
+            ].map(({ label, value }, i, arr) => (
+              <div key={label} style={{
+                display: 'flex', justifyContent: 'space-between',
+                paddingBottom: 10, marginBottom: i < arr.length - 1 ? 10 : 0,
+                borderBottom: i < arr.length - 1 ? `1px solid ${B.border}` : 'none',
+              }}>
                 <span style={{ color: B.muted, fontSize: 14 }}>{label}</span>
                 <span style={{ color: B.fg, fontSize: 14, fontWeight: 600 }}>{value}</span>
               </div>
@@ -123,7 +143,7 @@ export function ManageAppointmentClient({ appointment: apt, token }: Props) {
         {/* Main actions */}
         {view === 'main' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <button onClick={() => { setView('reschedule'); setError(null) }}
+            <button onClick={() => { setView('reschedule'); setError(null); setNewDate(''); setNewTime('') }}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '14px', borderRadius: 14, background: B.primary, color: '#fff', fontWeight: 600, fontSize: 15, border: 'none', cursor: 'pointer' }}>
               <CalendarDays style={{ width: 18, height: 18 }} />
               Reagendar cita
@@ -144,22 +164,29 @@ export function ManageAppointmentClient({ appointment: apt, token }: Props) {
               </button>
               <p style={{ fontWeight: 700, color: B.fg, fontSize: 15, margin: 0 }}>Elige nueva fecha y hora</p>
             </div>
-            <div style={{ fontSize: '0.9em' }}>
+
+            <div style={{ fontSize: '0.88em' }}>
               <CalendarPicker
                 orgName={orgName}
-                selectedDoctor={apt.doctor ? { id: apt.doctor.id, specialty: null, is_active: true, metadata: apt.doctor.metadata as any } as DoctorOption : null}
-                effectiveSchedules={[] as ScheduleOption[]}
+                selectedDoctor={selectedDoctor}
+                effectiveSchedules={schedules}
                 selectedDate={newDate}
                 selectedTime={newTime}
                 onSelect={(d, t) => { setNewDate(d); setNewTime(t) }}
-                doctorId={apt.doctor?.id ?? ''}
+                doctorId={doctor?.id ?? ''}
                 minNoticeHours={0}
-                texts={{ org: 'Org', doctor: 'Médico', autoAssign: 'Sin asignar', selected: 'Seleccionado', loading: 'Cargando...', noSlots: 'Sin horarios. Escribe fecha y hora manualmente abajo.', docFallback: 'Médico' }}
+                texts={{
+                  org: 'Organización', doctor: 'Médico', autoAssign: 'Sin asignar',
+                  selected: 'Seleccionado', loading: 'Cargando horarios...',
+                  noSlots: 'Sin horarios disponibles para este día.', docFallback: 'Médico',
+                }}
               />
             </div>
-            {error && <p style={{ color: B.danger, fontSize: 13 }}>{error}</p>}
+
+            {error && <p style={{ color: B.danger, fontSize: 13, margin: 0 }}>{error}</p>}
+
             <button onClick={doReschedule} disabled={loading || !newDate || !newTime}
-              style={{ padding: '13px', borderRadius: 12, background: newDate && newTime ? B.primary : '#ccc', color: '#fff', fontWeight: 600, fontSize: 14, border: 'none', cursor: newDate && newTime ? 'pointer' : 'not-allowed' }}>
+              style={{ padding: '13px', borderRadius: 12, background: newDate && newTime && !loading ? B.primary : '#aaa', color: '#fff', fontWeight: 600, fontSize: 14, border: 'none', cursor: newDate && newTime && !loading ? 'pointer' : 'not-allowed' }}>
               {loading ? 'Guardando...' : 'Confirmar reagendamiento'}
             </button>
           </div>
@@ -174,13 +201,13 @@ export function ManageAppointmentClient({ appointment: apt, token }: Props) {
               </button>
               <p style={{ fontWeight: 700, color: B.fg, fontSize: 15, margin: 0 }}>Cancelar cita</p>
             </div>
-            <p style={{ color: B.muted, fontSize: 14, margin: 0 }}>¿Por qué deseas cancelar tu cita? (requerido)</p>
+            <p style={{ color: B.muted, fontSize: 14, margin: 0 }}>¿Por qué deseas cancelar? (requerido)</p>
             <textarea value={reason} onChange={e => setReason(e.target.value)} rows={4}
               placeholder="Ej: Debo viajar ese día, no puedo asistir..."
               style={{ width: '100%', borderRadius: 12, border: `1px solid ${B.border}`, padding: '10px 12px', fontSize: 14, color: B.fg, resize: 'vertical', boxSizing: 'border-box', background: B.sec }} />
             {error && <p style={{ color: B.danger, fontSize: 13, margin: 0 }}>{error}</p>}
             <button onClick={doCancel} disabled={loading || reason.trim().length < 10}
-              style={{ padding: '13px', borderRadius: 12, background: reason.trim().length >= 10 ? B.danger : '#ccc', color: '#fff', fontWeight: 600, fontSize: 14, border: 'none', cursor: reason.trim().length >= 10 ? 'pointer' : 'not-allowed' }}>
+              style={{ padding: '13px', borderRadius: 12, background: !loading && reason.trim().length >= 10 ? B.danger : '#aaa', color: '#fff', fontWeight: 600, fontSize: 14, border: 'none', cursor: !loading && reason.trim().length >= 10 ? 'pointer' : 'not-allowed' }}>
               {loading ? 'Cancelando...' : 'Confirmar cancelación'}
             </button>
           </div>

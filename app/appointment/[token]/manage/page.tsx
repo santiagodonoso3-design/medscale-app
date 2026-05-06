@@ -53,5 +53,12 @@ export default async function ManagePage({ params }: PageProps) {
     )
   }
 
-  return <ManageAppointmentClient appointment={apt as any} token={token} />
+  // Fetch schedules for the doctor so CalendarPicker can show available days/slots
+  const doctor = Array.isArray(apt.doctor) ? apt.doctor[0] : apt.doctor
+  const doctorId = (doctor as any)?.id ?? null
+  const schedules = doctorId
+    ? (await supabaseAdmin.from('schedules').select('id, doctor_id, location_id, day_of_week, start_time, end_time').eq('doctor_id', doctorId)).data ?? []
+    : []
+
+  return <ManageAppointmentClient appointment={apt as any} token={token} schedules={schedules} />
 }
