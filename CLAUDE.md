@@ -198,6 +198,7 @@
 - [ ] Conectar webhook n8n de ManyChat → tabla conversations
 - [ ] Login: agregar link "Olvidé mi contraseña" con forgot password flow de Supabase Auth
 - [ ] Login: agregar link "Crear cuenta" o flujo de onboarding para nuevos usuarios
+- [ ] Settings > Notificaciones: campo para configurar emails de notificación internos de la clínica (a quién llega el email cuando entra una cita nueva, se reagenda o cancela). Default: contact_email de organizations. Puede ser múltiple (ej: admin + recepción + médico). Tabla sugerida: organization_notification_emails o campo JSON en organizations.
 
 ## 🟢 PRIORIDAD 3 — Superadmin
 - [ ] CRUD completo de organizaciones desde /admin
