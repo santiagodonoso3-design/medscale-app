@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { getOrgSettings } from '@/app/actions/settings'
+import { getOrgSettings, uploadOrgLogo } from '@/app/actions/settings'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -58,17 +58,12 @@ export default function GeneralPage() {
     const file = e.target.files?.[0]
     if (!file || !orgId) return
     setUploading(true)
-    const ext = file.name.split('.').pop()
-    const path = `logos/${orgId}.${ext}`
-    const { error: upErr } = await supabase.storage
-      .from('organizations')
-      .upload(path, file, { upsert: true })
-    if (upErr) { showToast('Error subiendo logo'); setUploading(false); return }
-    const { data: urlData } = supabase.storage
-      .from('organizations')
-      .getPublicUrl(path)
-    setLogoUrl(urlData.publicUrl)
+    const formData = new FormData()
+    formData.append('file', file)
+    const url = await uploadOrgLogo(orgId, formData)
     setUploading(false)
+    if (!url) { showToast('Error subiendo logo'); return }
+    setLogoUrl(url)
     showToast('Logo subido correctamente')
   }
 
