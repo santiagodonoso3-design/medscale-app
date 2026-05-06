@@ -88,16 +88,28 @@
 - ✅ Campos base (Nombre, Teléfono, Email, Cédula) visibles como no editables
 - ✅ Tabla appointment_form_fields creada y conectada al booking wizard
 
-### Notificaciones por email
-- ✅ Resend integrado: dominio medscale.app verificado, emails salen de citas@medscale.app
-- ✅ Email de confirmación al paciente al agendar (bilingüe es/en según idioma seleccionado)
-- ✅ Template HTML: header oscuro, tarjeta con detalles de cita, footer con info legal
+### Email y notificaciones
+- ✅ Resend integrado: dominio medscale.app verificado, emails desde citas@medscale.app
+- ✅ Email confirmación al paciente: bilingüe es/en, brand kit MedScale aplicado
+- ✅ Email cancelación al paciente: se dispara desde cancelAppointment() en actions.ts
+- ✅ Email reagendamiento al paciente: se dispara desde rescheduleAppointment() en actions.ts
+- ✅ Notificaciones configurables por tipo de cita: tabla appointment_type_notifications, tab Notificaciones en modal
+- ✅ Precio informativo en booking form y email de confirmación
+- ✅ lib/email/resend.ts, lib/email/templates.ts (bookingConfirmationPatient, cancellationEmail, rescheduleEmail)
 - ✅ RESEND_API_KEY en Vercel Environment Variables (Production)
 - ✅ Envío no-bloqueante con Promise.allSettled
 
-### CRM y Calendario
+### Calendario
+- ✅ Reagendamiento con CalendarPicker real (respeta schedules del médico)
+- ✅ Modal se expande a max-w-2xl cuando reagendamiento está abierto
+- ✅ Modal se cierra automáticamente después de reagendar
+- ✅ Tabs Calendario/Tipos de cita rediseñados como pills prominentes
+
+### CRM y datos
 - ✅ Nombre completo en tabla CRM: contact_name + contact_last_name en una línea
 - ✅ Modal de cita mejorado: reagendar colapsado por defecto, botones de acción más limpios
+- ✅ Precio visible en tabla de tipos de cita
+- ✅ Campos base visibles en tab Formulario como no editables
 
 ### Cliente beta
 - ✅ Ferttes cargado (5 médicos, disponibilidades, sede)
@@ -112,6 +124,15 @@
 - ✅ CRM: fuentes legacy manychat/manychat_n8n → whatsapp (migración 005 + normalización en carga)
 
 ## 🔴 PRIORIDAD 1 — Probar y corregir en producción
+- [ ] Página pública de gestión de cita /appointment/[token]/manage — reagendar y cancelar desde email
+  - Requiere: ALTER TABLE appointments ADD COLUMN manage_token uuid DEFAULT gen_random_uuid()
+  - Requiere: CREATE UNIQUE INDEX appointments_manage_token_idx ON appointments(manage_token)
+  - Agregar manage_token al select en /api/book/route.ts y pasarlo al email
+  - Botones "Reagendar mi cita" y "Cancelar mi cita" en email de confirmación
+- [ ] Cron job de recordatorios automáticos (Vercel Cron Jobs) — usa appointment_type_notifications con event_type='reminder'
+- [ ] Rediseño completo con brand kit MedScale — sesión dedicada
+  - Tokens en tailwind.config.js primero
+  - Orden: sidebar → booking → dashboard → CRM → calendario
 - [ ] Email de notificación a la clínica (requiere contact_email en organizations)
 - [ ] Logo y color personalizable por cliente (logo_url, primary_color en organizations)
 - [ ] Aplicar max_notice_days y buffer_before/after_min en el booking wizard
@@ -171,6 +192,11 @@
 - From: citas@medscale.app
 - Templates: lib/email/templates.ts
 - Cliente singleton: lib/email/resend.ts
+
+### Notificaciones
+- manage_token: UUID único por cita para URLs públicas seguras sin login
+- Email templates: brandShell() función helper para consistencia visual entre templates
+- appointment_type_notifications: upsert on conflict `appointment_type_id,event_type`
 
 ### Stack
 - TypeScript, React, Tailwind CSS, shadcn/ui
