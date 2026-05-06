@@ -204,8 +204,8 @@ export function ManageAppointmentClient({ appointment: apt, token, schedules }: 
   const modality    = apt.notes?.toLowerCase().includes('virtual') ? 'Virtual' : 'Presencial'
   const duration    = doctor?.metadata ? Number((doctor.metadata as any).default_duration || (doctor.metadata as any).duration || 30) : 30
 
-  const [view,    setView]    = useState<'main' | 'reschedule' | 'cancel' | 'done'>('main')
-  const [doneMsg, setDoneMsg] = useState('')
+  const [view,       setView]       = useState<'main' | 'reschedule' | 'cancel' | 'done'>('main')
+  const [doneAction, setDoneAction] = useState<'reschedule' | 'cancel'>('reschedule')
   const [newDate, setNewDate] = useState('')
   const [newTime, setNewTime] = useState('')
   const [reason,  setReason]  = useState('')
@@ -222,7 +222,7 @@ export function ManageAppointmentClient({ appointment: apt, token, schedules }: 
     const data = await res.json()
     setLoading(false)
     if (!data.success) { setError(data.error); return }
-    setDoneMsg('¡Tu cita ha sido reagendada correctamente!')
+    setDoneAction('reschedule')
     setView('done')
   }
 
@@ -236,7 +236,7 @@ export function ManageAppointmentClient({ appointment: apt, token, schedules }: 
     const data = await res.json()
     setLoading(false)
     if (!data.success) { setError(data.error); return }
-    setDoneMsg('Tu cita ha sido cancelada. Recibirás un email de confirmación.')
+    setDoneAction('cancel')
     setView('done')
   }
 
@@ -254,9 +254,17 @@ export function ManageAppointmentClient({ appointment: apt, token, schedules }: 
         {/* Done */}
         {view === 'done' && (
           <div style={{ background: B.card, borderRadius: 20, border: `1px solid ${B.border}`, padding: '40px 32px', textAlign: 'center' }}>
-            <p style={{ fontSize: 40, marginBottom: 16 }}>✅</p>
-            <h2 style={{ fontSize: 18, fontWeight: 700, color: B.fg, margin: '0 0 8px' }}>¡Listo!</h2>
-            <p style={{ color: B.muted, fontSize: 15 }}>{doneMsg}</p>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: B.bg, border: `2px solid ${B.primary}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={B.primary} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            <h2 style={{ fontSize: 20, fontWeight: 600, color: B.fg, margin: '0 0 8px', textAlign: 'center' }}>
+              {doneAction === 'cancel' ? 'Cita cancelada' : 'Cita reagendada'}
+            </h2>
+            <p style={{ fontSize: 14, color: B.muted, margin: 0, textAlign: 'center' }}>
+              Te hemos enviado un email de confirmación.
+            </p>
           </div>
         )}
 
