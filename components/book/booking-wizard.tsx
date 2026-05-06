@@ -64,6 +64,7 @@ interface AppointmentTypeOption {
   languages?: string[]
   assignment_mode?: 'one_on_one' | 'round_robin_proportional' | 'round_robin_availability' | 'hybrid'
   min_notice_hours?: number
+  price?: number | null
 }
 
 const LANGUAGE_OPTIONS = [
@@ -99,6 +100,8 @@ const TRANSLATIONS = {
     sumTime:          'Hora',
     sumModality:      'Modalidad',
     sumLanguage:      'Idioma',
+    sumFee:           'Valor',
+    sumFeeNote:       'Se paga en el consultorio',
     sumPresencial:    'Presencial',
     sumVirtual:       'Virtual',
     fieldName:        'Nombre *',
@@ -157,6 +160,8 @@ const TRANSLATIONS = {
     sumTime:          'Time',
     sumModality:      'Modality',
     sumLanguage:      'Language',
+    sumFee:           'Fee',
+    sumFeeNote:       'Payable at the clinic',
     sumPresencial:    'In person',
     sumVirtual:       'Virtual',
     fieldName:        'First name *',
@@ -832,6 +837,17 @@ export default function BookingWizard({
             <div className="flex justify-between">
               <span className="text-gray-500">{t.sumLanguage}</span>
               <span className="font-medium text-gray-900">{langLabel}</span>
+            </div>
+          )}
+          {appointmentType?.price && appointmentType.price > 0 && (
+            <div className="flex justify-between items-start">
+              <span className="text-gray-500">{t.sumFee}</span>
+              <div className="text-right">
+                <span className="font-medium text-gray-900">
+                  {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(appointmentType.price)}
+                </span>
+                <p className="text-xs text-slate-400 mt-0.5">{t.sumFeeNote}</p>
+              </div>
             </div>
           )}
         </div>
