@@ -38,6 +38,11 @@ export async function PATCH(request: Request) {
     const lead     = Array.isArray(apt.lead)   ? apt.lead[0]   : apt.lead
     const org      = Array.isArray(apt.org)    ? apt.org[0]    : apt.org
     const doctor   = Array.isArray(apt.doctor) ? apt.doctor[0] : apt.doctor
+    console.log('[manage] apt raw:', JSON.stringify(apt))
+    console.log('[manage] lead:', JSON.stringify(lead))
+    console.log('[manage] org:', JSON.stringify(org))
+    console.log('[manage] patientEmail:', lead?.contact_email)
+    console.log('[manage] clinicEmail:', (org as any)?.contact_email)
     const orgName     = (org as any)?.name ?? ''
     const clinicEmail = (org as any)?.contact_email as string | null
     const patientEmail = lead?.contact_email
