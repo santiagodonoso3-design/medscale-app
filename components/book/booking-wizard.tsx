@@ -537,17 +537,35 @@ export default function BookingWizard({
               )}
             </div>
           ) : (
-            <select
-              value={formData.location_id ?? ''}
-              onChange={e => setFormData(p => ({ ...p, location_id: e.target.value }))}
-              className="w-full px-3 py-2 rounded-xl text-sm focus:outline-none"
-              style={{ border: `1px solid ${B.border}`, background: '#fff', color: B.fg }}
-            >
-              <option value="">Selecciona una sede</option>
-              {locations.map(loc => (
-                <option key={loc.id} value={loc.id}>{loc.name}{loc.address ? ` — ${loc.address}` : ''}</option>
-              ))}
-            </select>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide flex items-center gap-1" style={{ color: B.muted }}>
+                📍 Sede
+              </p>
+              <div className="space-y-2">
+                {locations.map(loc => {
+                  const isActive = formData.location_id === loc.id
+                  return (
+                    <button key={loc.id}
+                      onClick={() => setFormData(p => ({ ...p, location_id: loc.id }))}
+                      className="w-full flex items-center gap-3 rounded-2xl p-4 text-left transition"
+                      style={{
+                        border: `${isActive ? 2 : 0.5}px solid ${isActive ? B.primary : B.border}`,
+                        background: isActive ? B.bg : B.secondary,
+                      }}>
+                      <div className="shrink-0 rounded-xl p-2" style={{ background: isActive ? B.primary : B.border }}>
+                        <Building className="h-4 w-4" style={{ color: isActive ? '#fff' : B.muted }} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm" style={{ color: B.fg }}>{loc.name}</p>
+                        {loc.address && (
+                          <p className="text-xs mt-0.5" style={{ color: B.muted }}>{loc.address}</p>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           )}
         </div>
       )}
