@@ -130,7 +130,8 @@ function MiniCal({ doctorId, schedules, duration, selectedDate, selectedTime, on
             if (!d) return <div key={i} />
             const isToday    = d === today
             const isSelected = d === selectedDate
-            const isPast     = d < today
+            const todayBogota = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
+            const isPast      = d <= todayBogota
             const dbDay      = toDBDay(new Date(d + 'T12:00:00').getDay())
             const avail      = availDays.has(dbDay)
             const disabled   = isPast || !avail
@@ -315,8 +316,23 @@ export function ManageAppointmentClient({ appointment: apt, token, schedules }: 
 
             {error && <p style={{ color: B.danger, fontSize: 13, margin: 0 }}>{error}</p>}
 
+            {newDate && newTime && (
+              <div style={{ background: B.bg, border: `1px solid ${B.border}`, borderRadius: 10, padding: '12px 16px', marginBottom: 0 }}>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: B.fg }}>
+                  Reagendando para el{' '}
+                  {new Intl.DateTimeFormat('es-CO', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Bogota' }).format(new Date(newDate + 'T12:00:00'))}
+                  {' '}a las {newTime}
+                </p>
+              </div>
+            )}
+
             <button onClick={doReschedule} disabled={loading || !newDate || !newTime}
-              style={{ padding: '13px', borderRadius: 12, background: !loading && newDate && newTime ? B.primary : '#aaa', color: '#fff', fontWeight: 600, fontSize: 14, border: 'none', cursor: !loading && newDate && newTime ? 'pointer' : 'not-allowed' }}>
+              style={{ padding: '13px', borderRadius: 12, border: 'none', fontWeight: 600, fontSize: 14,
+                background: !loading && newDate && newTime ? B.primary : '#d1d5db',
+                color:      !loading && newDate && newTime ? '#fff' : '#6b7280',
+                cursor:     !loading && newDate && newTime ? 'pointer' : 'not-allowed',
+                opacity:    !loading && newDate && newTime ? 1 : 0.6,
+              }}>
               {loading ? 'Guardando...' : 'Confirmar reagendamiento'}
             </button>
           </div>
