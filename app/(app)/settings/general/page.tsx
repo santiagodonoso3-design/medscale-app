@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { getOrgSettings } from '@/app/actions/settings'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,25 +26,12 @@ export default function GeneralPage() {
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data: member } = await supabase
-        .from('users')
-        .select('organization_id')
-        .eq('id', user.id)
-        .single()
-      if (!member?.organization_id) return
-      setOrgId(member.organization_id)
-      const { data: org } = await supabase
-        .from('organizations')
-        .select('name, primary_color, logo_url')
-        .eq('id', member.organization_id)
-        .single()
-      if (org) {
-        setName(org.name ?? '')
-        setPrimaryColor(org.primary_color ?? '#215F73')
-        setLogoUrl(org.logo_url ?? null)
-      }
+      const data = await getOrgSettings()
+      if (!data) return
+      setOrgId(data.id)
+      setName(data.name ?? '')
+      setPrimaryColor(data.primary_color ?? '#215F73')
+      setLogoUrl(data.logo_url ?? null)
       setLoading(false)
     }
     load()
