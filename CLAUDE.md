@@ -270,6 +270,33 @@ superadmins, webhook_logs
 - [ ] Validar que filtro global afecte correctamente funnel + gráfica + tabla médicos
 - [ ] "Citas de hoy" debe ignorar filtros siempre
 
+## Arquitectura /settings
+
+### Rutas
+- `/settings/general`            → nombre clínica, logo, colores primarios
+- `/settings/locations`          → CRUD sedes (nombre + dirección)
+- `/settings/appointment-types`  → tipos de cita (movido desde /scheduling)
+- `/settings/notifications`      → recordatorios por tipo de cita (appointment_type_notifications)
+
+### Reglas de navegación
+- **Doctores** = módulo independiente en sidebar (complejidad operativa diaria)
+- **Configuración** = se toca una vez: General, Sedes, Tipos de cita, Notificaciones
+- **Tipos de cita NO van en /scheduling** — van en /settings/appointment-types
+
+### Sedes
+- Migración pendiente: `ALTER TABLE locations ADD COLUMN IF NOT EXISTS address TEXT`
+- 1 sede en booking → muestra dirección directamente
+- 2+ sedes en booking → dropdown para elegir sede
+- Sede se muestra solo cuando modalidad = presencial
+
+### Step 1 booking wizard — reglas de display
+| Condición | Qué se muestra |
+|---|---|
+| Modalidad fija + 1 médico | Salta step 1 completo |
+| Modalidad fija + 2+ médicos | Solo grid de médicos |
+| patient_choice + 1 médico | Solo toggle presencial/virtual |
+| patient_choice + 2+ médicos | Toggle presencial/virtual + grid de médicos |
+
 ## Módulo: Tipos de Cita + Booking Form
 
 ### Arquitectura definida
