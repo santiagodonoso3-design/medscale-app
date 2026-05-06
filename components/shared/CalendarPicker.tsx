@@ -179,8 +179,7 @@ export function CalendarPicker({
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:gap-0">
       <div className={[
-        'flex flex-row flex-wrap items-center gap-x-3 gap-y-1 pb-3 border-b border-gray-100',
-        'sm:flex-col sm:flex-nowrap sm:items-start sm:w-44 sm:flex-shrink-0 sm:pb-0 sm:border-b-0 sm:border-r sm:border-gray-100 sm:pr-5 sm:gap-4',
+        'hidden sm:flex flex-col flex-nowrap items-start w-44 flex-shrink-0 border-r border-gray-100 pr-5 gap-4',
       ].join(' ')}>
         <div className="flex items-center gap-1.5 sm:block">
           <p className="text-xs font-semibold text-gray-900 sm:hidden">{orgName}</p>
@@ -270,7 +269,7 @@ export function CalendarPicker({
             ) : slotsForDate.length === 0 ? (
               <p className="text-sm text-gray-400">{texts.noSlots}</p>
             ) : (
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-2 gap-2">
                 {slotsForDate.map(time => {
                   const booked   = isSlotBooked(time)
                   const selected = time === selectedTime

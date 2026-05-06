@@ -464,10 +464,10 @@ export default function BookingWizard({
                 style={{ background: active ? B.primary : '#e5e7eb', color: active ? '#fff' : B.muted }}>
                 {pos}
               </div>
-              <span className="text-[11px] font-medium" style={{ color: active ? B.primary : B.muted }}>{label}</span>
+              <span className="hidden sm:block text-[11px] font-medium" style={{ color: active ? B.primary : B.muted }}>{label}</span>
             </div>
             {idx < 2 && (
-              <div className="w-10 h-0.5 mx-2 mb-4 transition-colors"
+              <div className="w-6 sm:w-10 h-0.5 mx-1 sm:mx-2 mb-4 transition-colors"
                 style={{ background: pos < currentStep ? B.accent : '#e5e7eb' }} />
             )}
           </div>
@@ -487,7 +487,7 @@ export default function BookingWizard({
 
       {/* Modalidad */}
       {showModalityChoice && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[
             { value: 'presencial', Icon: Building, label: 'Presencial', sub: 'En el consultorio' },
             { value: 'virtual',    Icon: Video,    label: 'Virtual',    sub: 'Videollamada' },
@@ -545,7 +545,7 @@ export default function BookingWizard({
           {availableDoctors.length > 0 && (
             <div>
               <p style={{ fontSize: 12, color: B.muted, marginBottom: 12 }}>O elige un médico específico</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {availableDoctors.map(doc => {
                   const name     = String(doc.metadata?.name ?? 'Médico')
                   const photoUrl = doc.metadata?.photo_url as string | null | undefined
@@ -784,20 +784,20 @@ export default function BookingWizard({
 
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="rounded-3xl shadow-sm p-8" style={{ background: '#fff', border: `1px solid ${B.border}` }}>
+      <div className="rounded-2xl sm:rounded-3xl shadow-sm p-5 sm:p-8" style={{ background: '#fff', border: `1px solid ${B.border}` }}>
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 sm:mb-8">
+          <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={{ color: B.accent }}>RESERVAR CITA</p>
-            <h1 className="text-3xl font-bold mt-0.5" style={{ color: B.fg }}>{orgName}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold mt-0.5 truncate" style={{ color: B.fg }}>{orgName}</h1>
             {appointmentType && (
-              <p className="text-sm mt-1" style={{ color: B.muted }}>
+              <p className="text-sm mt-1 truncate" style={{ color: B.muted }}>
                 {appointmentType.name} · {appointmentType.duration_minutes} min
               </p>
             )}
           </div>
-          <div className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold"
+          <div className="inline-flex self-start items-center gap-2 rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold shrink-0"
             style={{ background: B.secondary, border: `1px solid ${B.border}`, color: B.muted }}>
             <CalendarDays className="h-4 w-4" style={{ color: B.accent }} />
             Reservas públicas
