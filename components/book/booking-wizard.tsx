@@ -496,7 +496,7 @@ export default function BookingWizard({
       {showModalityChoice && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[
-            { value: 'presencial', Icon: Building, label: 'Presencial', sub: locations.length === 1 ? locations[0].name : 'En el consultorio' },
+            { value: 'presencial', Icon: Building, label: 'Presencial', sub: locations.length === 1 && formData.modality === 'presencial' ? locations[0].name : 'En el consultorio' },
             { value: 'virtual',    Icon: Video,    label: 'Virtual',    sub: 'Videollamada' },
           ].map(({ value, Icon, label, sub }) => {
             const active = formData.modality === value
@@ -523,48 +523,44 @@ export default function BookingWizard({
 
       {/* Sede */}
       {formData.modality === 'presencial' && locations.length > 0 && (
-        <div className="px-1">
-          <p className="text-xs mb-1.5" style={{ color: B.muted }}>📍 Sede</p>
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5" style={{ color: B.muted }}>
+            📍 Sede
+          </p>
           {locations.length === 1 ? (
-            <div>
-              <p className="text-sm font-semibold" style={{ color: B.fg }}>{locations[0].name}</p>
-              {locations[0].address && (
-                <div className="mt-0.5">
-                  {locations[0].address.split(/,|—/).map(s => s.trim()).filter(Boolean).map((part, i) => (
-                    <p key={i} className="text-xs" style={{ color: B.muted }}>{part}</p>
-                  ))}
-                </div>
-              )}
+            <div className="flex items-center gap-3 px-1">
+              <Building className="h-4 w-4 shrink-0" style={{ color: B.primary }} />
+              <div>
+                <p className="font-semibold text-sm" style={{ color: B.fg }}>{locations[0].name}</p>
+                {locations[0].address && (
+                  <p className="text-xs mt-0.5" style={{ color: B.muted }}>{locations[0].address}</p>
+                )}
+              </div>
             </div>
           ) : (
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide flex items-center gap-1" style={{ color: B.muted }}>
-                📍 Sede
-              </p>
-              <div className="space-y-2">
-                {locations.map(loc => {
-                  const isActive = formData.location_id === loc.id
-                  return (
-                    <button key={loc.id}
-                      onClick={() => setFormData(p => ({ ...p, location_id: loc.id }))}
-                      className="w-full flex items-center gap-3 rounded-2xl p-4 text-left transition"
-                      style={{
-                        border: `${isActive ? 2 : 0.5}px solid ${isActive ? B.primary : B.border}`,
-                        background: isActive ? B.bg : B.secondary,
-                      }}>
-                      <div className="shrink-0 rounded-xl p-2" style={{ background: isActive ? B.primary : B.border }}>
-                        <Building className="h-4 w-4" style={{ color: isActive ? '#fff' : B.muted }} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-sm" style={{ color: B.fg }}>{loc.name}</p>
-                        {loc.address && (
-                          <p className="text-xs mt-0.5" style={{ color: B.muted }}>{loc.address}</p>
-                        )}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
+              {locations.map(loc => {
+                const isActive = formData.location_id === loc.id
+                return (
+                  <button key={loc.id}
+                    onClick={() => setFormData(p => ({ ...p, location_id: loc.id }))}
+                    className="w-full flex items-center gap-3 rounded-2xl p-4 text-left transition"
+                    style={{
+                      border: `${isActive ? 2 : 0.5}px solid ${isActive ? B.primary : B.border}`,
+                      background: isActive ? B.bg : B.secondary,
+                    }}>
+                    <div className="shrink-0 rounded-xl p-2" style={{ background: isActive ? B.primary : B.border }}>
+                      <Building className="h-4 w-4" style={{ color: isActive ? '#fff' : B.muted }} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm" style={{ color: B.fg }}>{loc.name}</p>
+                      {loc.address && (
+                        <p className="text-xs mt-0.5" style={{ color: B.muted }}>{loc.address}</p>
+                      )}
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>
