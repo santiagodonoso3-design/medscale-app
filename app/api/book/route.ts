@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
+import { resend } from '@/lib/email/resend'
+import { bookingConfirmationPatient, bookingNotificationDoctor } from '@/lib/email/templates'
 
 const supabasePublic = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -54,7 +56,7 @@ export async function POST(request: Request) {
 
     const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .select('id')
+      .select('id, name, contact_email')
       .eq('slug', org_slug)
       .single()
 
@@ -254,6 +256,61 @@ export async function POST(request: Request) {
     }
 
     console.log('[/api/book] success — lead:', lead.id, 'appointment:', appointment.id)
+
+    // ── Send confirmation emails (fire-and-forget) ────────────────────────────
+    if (process.env.RESEND_API_KEY) {
+      const formattedDate = new Intl.DateTimeFormat('es-CO', {
+        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+        timeZone: 'America/Bogota',
+      }).format(new Date(`${date}T${time}:00`))
+
+      const orgNameDisplay = (org as any).name ?? org_slug
+      const orgEmail       = (org as any).contact_email as string | null
+      const doctorName     = doctorData?.metadata
+        ? String((doctorData.metadata as any).name ?? '')
+        : null
+      const language = (body as any).language ?? 'es'
+      const appointmentTypeName = appointment_type_id ? null : null // enriched below
+
+      const emailParams = {
+        patientName:         `${patient_first_name}${patient_last_name ? ' ' + patient_last_name : ''}`,
+        doctorName:          doctorName || null,
+        date:                formattedDate,
+        time,
+        modality:            modality ?? 'presencial',
+        orgName:             orgNameDisplay,
+        appointmentTypeName: null as string | null,
+        language,
+      }
+
+      const tasks: Promise<unknown>[] = []
+
+      if (email) {
+        tasks.push(
+          resend.emails.send({
+            from:    'citas@medscale.app',
+            to:      email,
+            subject: `Cita confirmada — ${orgNameDisplay}`,
+            html:    bookingConfirmationPatient(emailParams),
+          }).catch(err => console.error('[/api/book] patient email error:', err))
+        )
+      }
+
+      if (orgEmail) {
+        tasks.push(
+          resend.emails.send({
+            from:    'citas@medscale.app',
+            to:      orgEmail,
+            subject: `Nueva cita — ${emailParams.patientName}`,
+            html:    bookingNotificationDoctor(emailParams),
+          }).catch(err => console.error('[/api/book] clinic email error:', err))
+        )
+      }
+
+      // Non-blocking — response goes out before emails finish
+      Promise.allSettled(tasks)
+    }
+
     return jsonResponse({ success: true, lead_id: lead.id, appointment_id: appointment.id }, 201)
   } catch (error) {
     console.error('[/api/book] unhandled error:', error)
