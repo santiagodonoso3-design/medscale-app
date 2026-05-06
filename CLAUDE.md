@@ -149,6 +149,14 @@
 - ✅ Email confirmación incluye botones "Reagendar cita" y "Cancelar cita" con manageUrl
 - ✅ Middleware: /appointment y /api/appointment y /api/cron en PUBLIC_ROUTES
 
+### Dominio y emails
+- ✅ Dominio app.medscale.app configurado en Vercel + GoDaddy (CNAME)
+- ✅ manageUrl apunta a https://app.medscale.app/appointment/[token]/manage
+- ✅ Email notificación clínica al crear cita: bookingNotificationClinic() en /api/book
+- ✅ Email paciente y clínica al reagendar desde /appointment/[token]/manage
+- ✅ Email paciente y clínica al cancelar desde /appointment/[token]/manage
+- ✅ Query separado para contact_email de organizations en manage route
+
 ### Cron de recordatorios
 - ✅ /api/cron/reminders — cron job funcionando ({"sent":0} confirmado)
 - ✅ vercel.json: schedule "0 9 * * *" (9am UTC = 4am Bogotá, plan Hobby)
@@ -174,6 +182,9 @@
 - ✅ Verificar cancelar cita con motivo guarda correctamente en appointment_logs
 - ✅ Verificar reagendar cita — fecha/hora correcta en DB
 - ✅ Email de notificación a la clínica (requiere contact_email en organizations)
+- ✅ Configurar app.medscale.app en Vercel + GoDaddy
+- ✅ Actualizar manageUrl a https://app.medscale.app
+- ✅ Verificar botones "Reagendar" y "Cancelar" del email al paciente
 - [ ] Arreglar autodeploy GitHub→Vercel (webhook roto, usar npx vercel --prod mientras)
 - [ ] Tipos de cita: test_type 'valoracion-express' y 'consulta-flexible' creados
 - [ ] Logo y color personalizable por cliente (logo_url, primary_color en organizations)
@@ -228,6 +239,8 @@
 - Templates: lib/email/templates.ts
 - Cliente singleton: lib/email/resend.ts
 - Email notificación clínica: bookingNotificationClinic() en templates.ts, se dispara desde /api/book al crear cita
+- manage route: usa query separado a organizations para contact_email (join de Supabase no devuelve columnas agregadas post-creación de tabla)
+- Emails en manage route usan await para evitar que Vercel cierre la función antes de que Resend complete
 
 ### Notificaciones
 - manage_token: UUID único por cita para URLs públicas seguras sin login
@@ -285,6 +298,18 @@ El availability-editor usa esta escala directamente. No hacer conversión.
 .select('id, name, contact_email')
 ```
 Necesario para disparar el email de notificación a la clínica desde /api/book.
+
+**manage route — siempre await en resend.emails.send():**
+Sin `await`, Vercel cierra la función antes de que el email salga. Aplicar en todos los envíos de manage route.
+
+**contact_email de organizations NO viene del join:**
+```typescript
+const { data: orgData } = await admin
+  .from('organizations')
+  .select('contact_email')
+  .eq('id', apt.organization_id)
+  .single()
+```
 
 **Excepciones en schedules:**
 - `is_recurring=true`  → horario semanal recurrente (day_of_week set, specific_date null)
