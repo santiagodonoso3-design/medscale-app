@@ -358,13 +358,14 @@ export default function BookingWizard({
 
   const showModalityChoice = appointmentType?.modality === 'patient_choice' || !appointmentType?.modality
 
-  const showDoctorSection =
-    appointmentType?.assignment_mode === 'hybrid' ||
-    appointmentType?.assignment_mode === 'one_on_one' ||
-    !appointmentType?.assignment_mode
+  const assignedIds      = appointmentType?.doctor_ids?.length ? appointmentType.doctor_ids : null
+  const availableDoctors = doctors.filter(d => d.is_active && (assignedIds === null || assignedIds.includes(d.id)))
 
-  const assignedIds       = appointmentType?.doctor_ids?.length ? appointmentType.doctor_ids : null
-  const availableDoctors  = doctors.filter(d => d.is_active && (assignedIds === null || assignedIds.includes(d.id)))
+  const showDoctorSection =
+    (appointmentType?.assignment_mode === 'hybrid' ||
+     appointmentType?.assignment_mode === 'one_on_one' ||
+     !appointmentType?.assignment_mode) &&
+    availableDoctors.length >= 2
 
   const skipStep1 = !showModalityChoice && !showDoctorSection
   const stepOrder: number[] = skipStep1 ? [2, 3, 4] : [1, 2, 3, 4]
@@ -396,6 +397,13 @@ export default function BookingWizard({
     () => formData.doctor_id ? schedules.filter(s => s.doctor_id === formData.doctor_id) : schedules,
     [schedules, formData.doctor_id]
   )
+
+  // Pre-select the only doctor when exactly one is assigned
+  useEffect(() => {
+    if (availableDoctors.length === 1 && !formData.doctor_id) {
+      setFormData(p => ({ ...p, doctor_id: availableDoctors[0].id }))
+    }
+  }, [availableDoctors])
 
   const goNext = () => {
     const i = stepOrder.indexOf(currentStep)
