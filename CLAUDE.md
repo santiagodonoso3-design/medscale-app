@@ -1,4 +1,4 @@
-# MedScale App — Estado del proyecto (3 Mayo 2026)
+# MedScale App — Estado del proyecto (6 Mayo 2026)
 
 ## ✅ Completado
 
@@ -115,6 +115,46 @@
 - ✅ Ferttes cargado (5 médicos, disponibilidades, sede)
 - ✅ Usuario admin@ferttes.com creado y funcionando
 
+### Brand Kit y Visual
+- ✅ Brand kit aplicado en sidebar (bg-foreground, tokens CSS)
+- ✅ Booking wizard rediseñado: nueva jerarquía step 1, cards de modalidad, "Primer médico disponible" como opción principal, médicos siempre visibles
+- ✅ Idioma eliminado del booking wizard (hardcodeado es-CO)
+- ✅ Responsive booking wizard móvil (flex-col en móvil, grid-cols-1 médicos, panel lateral oculto)
+
+### Settings
+- ✅ /settings con tabs: General, Sedes, Tipos de cita, Notificaciones
+- ✅ /settings/locations: CRUD completo de sedes (nombre + dirección + activa/inactiva)
+- ✅ Tipos de cita movido de /scheduling a /settings/appointment-types (redirect en /scheduling)
+- ✅ Migración: ALTER TABLE locations ADD COLUMN address TEXT
+
+### Booking y Leads
+- ✅ Leads desde /book llegan con status 'cita_valoracion_agendada' (fix en /api/book/route.ts)
+- ✅ Reglas de display step 1 según configuración:
+  - Modalidad fija + 1 médico → salta step 1 completo
+  - Modalidad fija + 2+ médicos → solo grid de médicos
+  - patient_choice + 1 médico → solo toggle modalidad
+  - patient_choice + 2+ médicos → modalidad + médicos
+- ✅ Step indicator muestra 2 pasos cuando skipStep1=true
+- ✅ Auto-asignar médico cuando solo hay 1 asignado al tipo
+
+### Gestión de citas desde email
+- ✅ manage_token en tabla appointments (UUID único por cita)
+- ✅ /appointment/[token]/manage — página pública sin login
+  - Muestra detalles: médico, fecha, hora, modalidad, sede con dirección
+  - Reagendar: CalendarPicker con schedules del médico
+  - Cancelar: textarea con motivo requerido
+  - Pantalla de éxito con check SVG limpio
+- ✅ /api/appointment/manage PATCH handler (reschedule + cancel + logs + emails)
+- ✅ Email confirmación incluye botones "Reagendar cita" y "Cancelar cita" con manageUrl
+- ✅ Middleware: /appointment y /api/appointment y /api/cron en PUBLIC_ROUTES
+
+### Cron de recordatorios
+- ✅ /api/cron/reminders — cron job funcionando ({"sent":0} confirmado)
+- ✅ vercel.json: schedule "0 9 * * *" (9am UTC = 4am Bogotá, plan Hobby)
+- ✅ Migración: ALTER TABLE appointments ADD COLUMN reminder_sent_at TIMESTAMPTZ
+- ✅ CRON_SECRET=medscale-cron-2026 en Vercel Environment Variables
+- ✅ Lógica: lee appointment_type_notifications donde event_type='reminder' y enabled=true, envía email y marca reminder_sent_at
+
 ---
 
 ## 🐛 Bugs conocidos (corregir próxima sesión)
@@ -124,29 +164,21 @@
 - ✅ CRM: fuentes legacy manychat/manychat_n8n → whatsapp (migración 005 + normalización en carga)
 
 ## 🔴 PRIORIDAD 1 — Probar y corregir en producción
-- [ ] Página pública de gestión de cita /appointment/[token]/manage — reagendar y cancelar desde email
-  - Requiere: ALTER TABLE appointments ADD COLUMN manage_token uuid DEFAULT gen_random_uuid()
-  - Requiere: CREATE UNIQUE INDEX appointments_manage_token_idx ON appointments(manage_token)
-  - Agregar manage_token al select en /api/book/route.ts y pasarlo al email
-  - Botones "Reagendar mi cita" y "Cancelar mi cita" en email de confirmación
-- [ ] Cron job de recordatorios automáticos (Vercel Cron Jobs) — usa appointment_type_notifications con event_type='reminder'
-- [ ] Rediseño completo con brand kit MedScale — sesión dedicada
-  - Tokens en tailwind.config.js primero
-  - Orden: sidebar → booking → dashboard → CRM → calendario
+- ✅ /appointment/[token]/manage
+- ✅ Cron job recordatorios
+- ✅ Rediseño brand kit booking wizard
+- ✅ Status leads desde /book → cita_valoracion_agendada
+- [ ] Arreglar autodeploy GitHub→Vercel (webhook roto, usar npx vercel --prod mientras)
+- [ ] Conectar dirección de sede al booking wizard paso 1 (cuando modalidad=presencial, mostrar dirección)
+- [ ] Booking wizard responsive: verificar en 375px, 390px, 414px
+- [ ] Tipos de cita: test_type 'valoracion-express' y 'consulta-flexible' creados
 - [ ] Email de notificación a la clínica (requiere contact_email en organizations)
 - [ ] Logo y color personalizable por cliente (logo_url, primary_color en organizations)
 - [ ] Aplicar max_notice_days y buffer_before/after_min en el booking wizard
 - [ ] Verificar cancelar cita con motivo guarda correctamente en appointment_logs
 - [ ] Verificar reagendar cita — fecha/hora correcta en DB
 - [ ] Verificar nueva cita manual desde panel admin
-- [ ] Probar flujo completo de agendamiento público (/book) en móvil
 - [ ] Dashboard: revisar métricas y mejorar UX de tarjetas
-- [ ] Sección "Tipos de cita" en /settings o /scheduling:
-  - Crear tipos de reunión (ej: Consulta inicial, Seguimiento, Procedimiento, Virtual)
-  - Cada tipo tiene: nombre, duración, color, modalidad (presencial/virtual), precio opcional
-  - Generar link público por tipo: /book/[org-slug]/[tipo-slug]
-  - Vista de todos los links generados para compartir
-  - El wizard /book usa el tipo para preconfigurar duración y modalidad
 
 ## 🟡 PRIORIDAD 2 — UX y ajustes
 - [ ] Sidebar: diferenciación visual por rol (admin vs staff vs superadmin)
@@ -239,6 +271,10 @@ El availability-editor usa esta escala directamente. No hacer conversión.
 - `contact_name` = primer nombre
 - `contact_last_name` = apellido (columna nueva, nullable)
 - Mostrar: `${contact_name}${contact_last_name ? ' ' + contact_last_name : ''}`
+
+**Deploy:** autodeploy GitHub→Vercel puede romperse. Usar `npx vercel --prod` desde la carpeta del proyecto como alternativa confiable.
+
+**Cron Vercel plan Hobby:** máximo 1 vez al día. Schedule actual: "0 9 * * *". Para crons más frecuentes usar cron-job.org o upgrade a Pro.
 
 **Excepciones en schedules:**
 - `is_recurring=true`  → horario semanal recurrente (day_of_week set, specific_date null)
