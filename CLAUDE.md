@@ -129,6 +129,7 @@
 
 ### Booking y Leads
 - ✅ Leads desde /book llegan con status 'cita_valoracion_agendada' (fix en /api/book/route.ts)
+- ✅ Email de notificación interna a la clínica: se dispara al crear cita desde /api/book, usa contact_email de organizations
 - ✅ Reglas de display step 1 según configuración:
   - Modalidad fija + 1 médico → salta step 1 completo
   - Modalidad fija + 2+ médicos → solo grid de médicos
@@ -168,15 +169,15 @@
 - ✅ Cron job recordatorios
 - ✅ Rediseño brand kit booking wizard
 - ✅ Status leads desde /book → cita_valoracion_agendada
+- ✅ Conectar dirección de sede al booking wizard paso 1 (cuando modalidad=presencial, mostrar dirección)
+- ✅ Booking wizard responsive: verificar en 375px, 390px, 414px
+- ✅ Verificar cancelar cita con motivo guarda correctamente en appointment_logs
+- ✅ Verificar reagendar cita — fecha/hora correcta en DB
+- ✅ Email de notificación a la clínica (requiere contact_email en organizations)
 - [ ] Arreglar autodeploy GitHub→Vercel (webhook roto, usar npx vercel --prod mientras)
-- [ ] Conectar dirección de sede al booking wizard paso 1 (cuando modalidad=presencial, mostrar dirección)
-- [ ] Booking wizard responsive: verificar en 375px, 390px, 414px
 - [ ] Tipos de cita: test_type 'valoracion-express' y 'consulta-flexible' creados
-- [ ] Email de notificación a la clínica (requiere contact_email en organizations)
 - [ ] Logo y color personalizable por cliente (logo_url, primary_color en organizations)
 - [ ] Aplicar max_notice_days y buffer_before/after_min en el booking wizard
-- [ ] Verificar cancelar cita con motivo guarda correctamente en appointment_logs
-- [ ] Verificar reagendar cita — fecha/hora correcta en DB
 - [ ] Verificar nueva cita manual desde panel admin
 - [ ] Dashboard: revisar métricas y mejorar UX de tarjetas
 
@@ -224,6 +225,7 @@
 - From: citas@medscale.app
 - Templates: lib/email/templates.ts
 - Cliente singleton: lib/email/resend.ts
+- Email notificación clínica: bookingNotificationClinic() en templates.ts, se dispara desde /api/book al crear cita
 
 ### Notificaciones
 - manage_token: UUID único por cita para URLs públicas seguras sin login
@@ -276,6 +278,12 @@ El availability-editor usa esta escala directamente. No hacer conversión.
 
 **Cron Vercel plan Hobby:** máximo 1 vez al día. Schedule actual: "0 9 * * *". Para crons más frecuentes usar cron-job.org o upgrade a Pro.
 
+**organizations — select siempre incluir contact_email:**
+```typescript
+.select('id, name, contact_email')
+```
+Necesario para disparar el email de notificación a la clínica desde /api/book.
+
 **Excepciones en schedules:**
 - `is_recurring=true`  → horario semanal recurrente (day_of_week set, specific_date null)
 - `is_recurring=false` → excepción de fecha específica (specific_date set, day_of_week null)
@@ -288,6 +296,7 @@ El availability-editor usa esta escala directamente. No hacer conversión.
 - Google Calendar: Fase 2
 
 ## 🗂️ Base de Datos (16 tablas + columna específica)
+organizations → id, name, slug, metadata, contact_email, created_at, updated_at
 organizations → users, locations, leads, conversations,
 appointments, doctors, schedules (+ specific_date DATE), appointment_logs,
 conversation_messages, lead_fields, lead_values,
