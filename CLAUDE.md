@@ -120,6 +120,11 @@
 - ✅ Booking wizard rediseñado: nueva jerarquía step 1, cards de modalidad, "Primer médico disponible" como opción principal, médicos siempre visibles
 - ✅ Idioma eliminado del booking wizard (hardcodeado es-CO)
 - ✅ Responsive booking wizard móvil (flex-col en móvil, grid-cols-1 médicos, panel lateral oculto)
+- ✅ /settings/general: CRUD de nombre, color primario y logo por organización
+- ✅ Logo subido a Supabase Storage (bucket: organizations, público)
+- ✅ Upload via server action con base64 + service role
+- ✅ Color primario aplicado en booking wizard (24 referencias a B.primary reemplazadas)
+- ✅ Logo renderizado en header del booking wizard cuando logo_url existe
 
 ### Settings
 - ✅ /settings con tabs: General, Sedes, Tipos de cita, Notificaciones
@@ -187,7 +192,8 @@
 - ✅ Verificar botones "Reagendar" y "Cancelar" del email al paciente
 - [ ] Arreglar autodeploy GitHub→Vercel (webhook roto, usar npx vercel --prod mientras)
 - [ ] Tipos de cita: test_type 'valoracion-express' y 'consulta-flexible' creados
-- [ ] Logo y color personalizable por cliente (logo_url, primary_color en organizations)
+- ✅ Logo y color personalizable por cliente (logo_url, primary_color en organizations)
+- [ ] Logo Ferttes: conseguir PNG con fondo transparente y subir desde /settings/general
 - [ ] Aplicar max_notice_days y buffer_before/after_min en el booking wizard
 - [ ] Verificar nueva cita manual desde panel admin
 - [ ] Dashboard: revisar métricas y mejorar UX de tarjetas
@@ -317,6 +323,12 @@ const { data: orgData } = await admin
 - `is_recurring=false` → excepción de fecha específica (specific_date set, day_of_week null)
   - `active=true`  → día adicional con horario
   - `active=false` → día bloqueado sin atención
+
+### Storage
+- Bucket: organizations (público) en Supabase Storage
+- Upload: server action uploadOrgLogo() en app/actions/settings.ts
+- Ruta: logos/{orgId}.{ext} con upsert: true
+- File objects no se serializan en server actions — usar base64 + FileReader en cliente
 
 ### Integraciones activas
 - n8n: envía leads via POST /api/webhooks/lead
