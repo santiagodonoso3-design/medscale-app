@@ -261,7 +261,7 @@ export async function POST(request: Request) {
 
     console.log('[/api/book] success — lead:', lead.id, 'appointment:', appointment.id)
     const manageUrl = (appointment as any).manage_token
-      ? `https://medscale.app/appointment/${(appointment as any).manage_token}/manage`
+      ? `https://app.medscale.app/appointment/${(appointment as any).manage_token}/manage`
       : undefined
 
     // ── Send confirmation emails (fire-and-forget) ────────────────────────────
