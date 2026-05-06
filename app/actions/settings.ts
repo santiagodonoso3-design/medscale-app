@@ -46,23 +46,25 @@ export async function getOrgSettings() {
   return org
 }
 
-export async function uploadOrgLogo(orgId: string, formData: FormData): Promise<string | null> {
-  const file = formData.get('file') as File
-  if (!file) return null
-
+export async function uploadOrgLogo(
+  orgId: string,
+  base64: string,
+  fileName: string,
+  contentType: string
+): Promise<string | null> {
   const admin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
 
-  const ext = file.name.split('.').pop()
+  const ext = fileName.split('.').pop()
   const path = `logos/${orgId}.${ext}`
-  const buffer = Buffer.from(await file.arrayBuffer())
+  const buffer = Buffer.from(base64, 'base64')
 
   const { error } = await admin.storage
     .from('organizations')
-    .upload(path, buffer, { upsert: true, contentType: file.type })
+    .upload(path, buffer, { upsert: true, contentType })
 
   if (error) { console.error('[uploadOrgLogo]', error); return null }
 

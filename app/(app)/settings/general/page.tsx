@@ -58,13 +58,17 @@ export default function GeneralPage() {
     const file = e.target.files?.[0]
     if (!file || !orgId) return
     setUploading(true)
-    const formData = new FormData()
-    formData.append('file', file)
-    const url = await uploadOrgLogo(orgId, formData)
-    setUploading(false)
-    if (!url) { showToast('Error subiendo logo'); return }
-    setLogoUrl(url)
-    showToast('Logo subido correctamente')
+
+    const reader = new FileReader()
+    reader.onload = async () => {
+      const base64 = (reader.result as string).split(',')[1]
+      const url = await uploadOrgLogo(orgId, base64, file.name, file.type)
+      setUploading(false)
+      if (!url) { showToast('Error subiendo logo'); return }
+      setLogoUrl(url)
+      showToast('Logo subido correctamente')
+    }
+    reader.readAsDataURL(file)
   }
 
   const inputCls = 'w-full px-3 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2'
