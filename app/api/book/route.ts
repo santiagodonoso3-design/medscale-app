@@ -56,7 +56,7 @@ export async function POST(request: Request) {
 
     const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .select('id, name, contact_email')
+      .select('id, name')
       .eq('slug', org_slug)
       .single()
 
@@ -265,12 +265,10 @@ export async function POST(request: Request) {
       }).format(new Date(`${date}T${time}:00`))
 
       const orgNameDisplay = (org as any).name ?? org_slug
-      const orgEmail       = (org as any).contact_email as string | null
       const doctorName     = doctorData?.metadata
         ? String((doctorData.metadata as any).name ?? '')
         : null
       const language = (body as any).language ?? 'es'
-      const appointmentTypeName = appointment_type_id ? null : null // enriched below
 
       const emailParams = {
         patientName:         `${patient_first_name}${patient_last_name ? ' ' + patient_last_name : ''}`,
@@ -283,32 +281,16 @@ export async function POST(request: Request) {
         language,
       }
 
-      const tasks: Promise<unknown>[] = []
-
+      // Only send patient email — clinic notification requires contact_email
+      // in organizations table (not yet available)
       if (email) {
-        tasks.push(
-          resend.emails.send({
-            from:    'citas@medscale.app',
-            to:      email,
-            subject: `Cita confirmada — ${orgNameDisplay}`,
-            html:    bookingConfirmationPatient(emailParams),
-          }).catch(err => console.error('[/api/book] patient email error:', err))
-        )
+        resend.emails.send({
+          from:    'citas@medscale.app',
+          to:      email,
+          subject: `Cita confirmada — ${orgNameDisplay}`,
+          html:    bookingConfirmationPatient(emailParams),
+        }).catch(err => console.error('[/api/book] patient email error:', err))
       }
-
-      if (orgEmail) {
-        tasks.push(
-          resend.emails.send({
-            from:    'citas@medscale.app',
-            to:      orgEmail,
-            subject: `Nueva cita — ${emailParams.patientName}`,
-            html:    bookingNotificationDoctor(emailParams),
-          }).catch(err => console.error('[/api/book] clinic email error:', err))
-        )
-      }
-
-      // Non-blocking — response goes out before emails finish
-      Promise.allSettled(tasks)
     }
 
     return jsonResponse({ success: true, lead_id: lead.id, appointment_id: appointment.id }, 201)
