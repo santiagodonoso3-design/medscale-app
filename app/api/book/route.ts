@@ -224,7 +224,7 @@ export async function POST(request: Request) {
         contact_email: email || null,
         source: 'book',
         notes: leadNotes,
-        status: 'new',
+        status: 'cita_valoracion_agendada',
       })
       .select('id')
       .single()
