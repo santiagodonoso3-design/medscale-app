@@ -67,6 +67,7 @@ export async function POST(request: Request) {
 
     // ── Assign doctor ─────────────────────────────────────────────────────────
     let selectedDoctorId: string | null = doctor_id ?? null
+    let appointmentTypeName: string | null = null
 
     if (!selectedDoctorId) {
       try {
@@ -77,12 +78,13 @@ export async function POST(request: Request) {
         if (appointment_type_id) {
           const { data: apptType, error: typeError } = await supabase
             .from('appointment_types')
-            .select('assignment_mode, doctor_ids')
+            .select('name, assignment_mode, doctor_ids')
             .eq('id', appointment_type_id)
             .single()
           if (typeError) {
             console.error('[/api/book] appointment_types fetch error:', typeError)
           } else if (apptType) {
+            appointmentTypeName = (apptType.name as string) ?? null
             assignmentMode = (apptType.assignment_mode as string) ?? 'round_robin_proportional'
             typeDoctorIds  = (apptType.doctor_ids as string[]) ?? []
             console.log('[/api/book] type config:', { assignmentMode, typeDoctorIds })
@@ -277,7 +279,7 @@ export async function POST(request: Request) {
         time,
         modality:            modality ?? 'presencial',
         orgName:             orgNameDisplay,
-        appointmentTypeName: null as string | null,
+        appointmentTypeName,
         locationAddress:     ((locations[0] as any)?.address as string | null) ?? null,
         locationCity:        ((locations[0] as any)?.city    as string | null) ?? null,
         language,
