@@ -88,7 +88,6 @@ export default async function BookTypePage({ params }: PageProps) {
           modality:         appointmentType.modality as 'presencial' | 'virtual' | 'patient_choice',
           color:            appointmentType.color,
           doctor_ids:       appointmentType.doctor_ids ?? [],
-          languages:        appointmentType.languages ?? ['es'],
           assignment_mode:  appointmentType.assignment_mode as 'one_on_one' | 'round_robin_proportional' | 'round_robin_availability' | 'hybrid' | undefined,
           price:            appointmentType.price ?? null,
         }}
