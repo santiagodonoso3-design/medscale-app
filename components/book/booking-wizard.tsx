@@ -496,7 +496,7 @@ export default function BookingWizard({
       {showModalityChoice && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[
-            { value: 'presencial', Icon: Building, label: 'Presencial', sub: 'En el consultorio' },
+            { value: 'presencial', Icon: Building, label: 'Presencial', sub: locations.length === 1 ? locations[0].name : 'En el consultorio' },
             { value: 'virtual',    Icon: Video,    label: 'Virtual',    sub: 'Videollamada' },
           ].map(({ value, Icon, label, sub }) => {
             const active = formData.modality === value
@@ -523,32 +523,31 @@ export default function BookingWizard({
 
       {/* Sede */}
       {formData.modality === 'presencial' && locations.length > 0 && (
-        <div className="rounded-2xl px-4 py-3 text-sm" style={{ background: B.secondary, border: `1px solid ${B.border}` }}>
+        <div className="px-1">
+          <p className="text-xs mb-1.5" style={{ color: B.muted }}>📍 Sede</p>
           {locations.length === 1 ? (
-            <div className="flex items-start gap-3">
-              <Building className="h-4 w-4 mt-0.5 shrink-0" style={{ color: B.primary }} />
-              <div>
-                <p className="font-semibold" style={{ color: B.fg }}>{locations[0].name}</p>
-                {locations[0].address && (
-                  <p className="text-xs mt-0.5" style={{ color: B.muted }}>{locations[0].address}</p>
-                )}
-              </div>
+            <div>
+              <p className="text-sm font-semibold" style={{ color: B.fg }}>{locations[0].name}</p>
+              {locations[0].address && (
+                <div className="mt-0.5">
+                  {locations[0].address.split(/,|—/).map(s => s.trim()).filter(Boolean).map((part, i) => (
+                    <p key={i} className="text-xs" style={{ color: B.muted }}>{part}</p>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: B.muted }}>Sede</p>
-              <select
-                value={formData.location_id ?? ''}
-                onChange={e => setFormData(p => ({ ...p, location_id: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl text-sm focus:outline-none"
-                style={{ border: `1px solid ${B.border}`, background: '#fff', color: B.fg }}
-              >
-                <option value="">Selecciona una sede</option>
-                {locations.map(loc => (
-                  <option key={loc.id} value={loc.id}>{loc.name}{loc.address ? ` — ${loc.address}` : ''}</option>
-                ))}
-              </select>
-            </div>
+            <select
+              value={formData.location_id ?? ''}
+              onChange={e => setFormData(p => ({ ...p, location_id: e.target.value }))}
+              className="w-full px-3 py-2 rounded-xl text-sm focus:outline-none"
+              style={{ border: `1px solid ${B.border}`, background: '#fff', color: B.fg }}
+            >
+              <option value="">Selecciona una sede</option>
+              {locations.map(loc => (
+                <option key={loc.id} value={loc.id}>{loc.name}{loc.address ? ` — ${loc.address}` : ''}</option>
+              ))}
+            </select>
           )}
         </div>
       )}
