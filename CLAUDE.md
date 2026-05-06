@@ -74,6 +74,24 @@
 - ✅ /team placeholder "Próximamente — gestión de equipo y roles"
 - ✅ /scheduling redirige a /scheduling/calendar
 
+### Booking Form (/book/[org-slug]/[tipo-slug])
+- ✅ i18n completo: wizard en español e inglés (TRANSLATIONS object, t.* keys reactivos al idioma)
+- ✅ min_notice_hours aplicado en CalendarPicker (bloquea días y slots dentro del aviso mínimo)
+- ✅ Round robin proporcional funcionando: asigna médico con menos citas del mes que tenga el slot disponible
+- ✅ Bug middleware corregido: /api/book ya no redirige a /dashboard en sesiones autenticadas
+- ✅ Nombre y apellido separados: contact_last_name agregado a leads, booking form usa patient_first_name + patient_last_name
+
+### Tipos de cita (/scheduling/appointment-types)
+- ✅ Modal expandido con 3 tabs verticales: General, Reglas, Formulario
+- ✅ Tab Reglas: min_notice_hours, max_notice_days, buffer_before_min, buffer_after_min
+- ✅ Tab Formulario: campos configurables por tipo de cita con drag & drop para reordenar
+- ✅ Campos base (Nombre, Teléfono, Email, Cédula) visibles como no editables
+- ✅ Tabla appointment_form_fields creada y conectada al booking wizard
+
+### CRM y Calendario
+- ✅ Nombre completo en tabla CRM: contact_name + contact_last_name en una línea
+- ✅ Modal de cita mejorado: reagendar colapsado por defecto, botones de acción más limpios
+
 ### Cliente beta
 - ✅ Ferttes cargado (5 médicos, disponibilidades, sede)
 - ✅ Usuario admin@ferttes.com creado y funcionando
@@ -87,6 +105,8 @@
 - ✅ CRM: fuentes legacy manychat/manychat_n8n → whatsapp (migración 005 + normalización en carga)
 
 ## 🔴 PRIORIDAD 1 — Probar y corregir en producción
+- [ ] Notificaciones por email con Resend: dominio medscale.app pendiente de verificar, cuenta creada en resend.com
+- [ ] Aplicar max_notice_days y buffer_before/after_min en el booking wizard
 - [ ] Verificar cancelar cita con motivo guarda correctamente en appointment_logs
 - [ ] Verificar reagendar cita — fecha/hora correcta en DB
 - [ ] Verificar nueva cita manual desde panel admin
@@ -163,6 +183,21 @@ supabase.from('schedules').select(...).in('doctor_id', doctorIds)
 4 = Jueves,  5 = Viernes, 6 = Sábado
 ```
 El availability-editor usa esta escala directamente. No hacer conversión.
+
+**/api/book es ruta pública:**
+- Ya está en `PUBLIC_ROUTES` en middleware.ts
+- Excluida del redirect de usuarios autenticados (`!pathname.startsWith('/api/')`)
+- No agregar auth checks aquí — es la ruta de agendamiento externo
+
+**appointment_form_fields — siempre filtrar:**
+```typescript
+.eq('appointment_type_id', id).eq('active', true).order('sort_order')
+```
+
+**Nombres de leads:**
+- `contact_name` = primer nombre
+- `contact_last_name` = apellido (columna nueva, nullable)
+- Mostrar: `${contact_name}${contact_last_name ? ' ' + contact_last_name : ''}`
 
 **Excepciones en schedules:**
 - `is_recurring=true`  → horario semanal recurrente (day_of_week set, specific_date null)
