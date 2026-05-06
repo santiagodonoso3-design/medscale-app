@@ -78,7 +78,7 @@ export async function PATCH(request: Request) {
       })
 
       if (patientEmail && process.env.RESEND_API_KEY) {
-        resend.emails.send({
+        await resend.emails.send({
           from: 'citas@medscale.app',
           to:   patientEmail,
           subject: `Cita reagendada — ${orgName}`,
@@ -91,7 +91,7 @@ export async function PATCH(request: Request) {
       }
 
       if (clinicEmail && process.env.RESEND_API_KEY) {
-        resend.emails.send({
+        await resend.emails.send({
           from: 'citas@medscale.app',
           to: clinicEmail,
           subject: `Cita reagendada — ${patientName} · ${fmtDate(newScheduledAt.toISOString())}`,
@@ -124,7 +124,7 @@ export async function PATCH(request: Request) {
       })
 
       if (patientEmail && process.env.RESEND_API_KEY) {
-        resend.emails.send({
+        await resend.emails.send({
           from: 'citas@medscale.app',
           to:   patientEmail,
           subject: `Cita cancelada — ${orgName}`,
@@ -137,7 +137,7 @@ export async function PATCH(request: Request) {
       }
 
       if (clinicEmail && process.env.RESEND_API_KEY) {
-        resend.emails.send({
+        await resend.emails.send({
           from: 'citas@medscale.app',
           to: clinicEmail,
           subject: `Cita cancelada — ${patientName}`,
