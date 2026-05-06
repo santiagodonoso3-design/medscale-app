@@ -50,12 +50,24 @@ function row(label: string, value: string): string {
   return `<p style="${LABEL}">${label}</p><p style="${VALUE}">${value}</p>`
 }
 
+// ── Brand tokens ──────────────────────────────────────────────────────────────
+// MedScale AI brand kit
+const C = {
+  bg:      '#EBF0F6',
+  card:    '#FFFFFF',
+  primary: '#215F73',
+  accent:  '#5A9DB5',
+  fg:      '#0D2B3E',
+  muted:   '#4A6B7A',
+  border:  '#C8D8E4',
+}
+
 // ── Patient confirmation ──────────────────────────────────────────────────────
 
 export function bookingConfirmationPatient(p: BookingEmailParams): string {
   const lang   = p.language ?? 'es'
   const isEs   = lang !== 'en'
-  const accent = p.typeColor ?? '#3B82F6'
+  const accent = p.typeColor ?? C.primary
 
   const doctorDisplay   = p.doctorName ?? (isEs ? 'Por asignar' : 'To be assigned')
   const modalityDisplay = p.modality === 'virtual'
@@ -67,89 +79,96 @@ export function bookingConfirmationPatient(p: BookingEmailParams): string {
   const timeDate = new Date(2000, 0, 1, hh, mm)
   const time12   = timeDate.toLocaleTimeString(isEs ? 'es-CO' : 'en-US', { hour: '2-digit', minute: '2-digit' })
 
-  const heading     = isEs ? '¡Cita confirmada!' : 'Appointment confirmed!'
-  const subheading  = isEs
-    ? `Hola <strong>${p.patientName}</strong>, tu cita ha sido agendada con éxito.`
-    : `Hi <strong>${p.patientName}</strong>, your appointment has been successfully scheduled.`
-  const ctaText     = isEs ? 'Ver mi cita' : 'View my appointment'
-  const lType       = isEs ? 'Tipo de cita' : 'Appointment type'
-  const lDoctor     = isEs ? 'Médico'        : 'Doctor'
-  const lDate       = isEs ? 'Fecha'         : 'Date'
-  const lTime       = isEs ? 'Hora'          : 'Time'
-  const lModality   = isEs ? 'Modalidad'     : 'Modality'
-  const lAddress    = isEs ? 'Dirección'     : 'Address'
+  const ctaText    = isEs ? 'Ver detalles de mi cita' : 'View appointment details'
+  const lType      = isEs ? 'Tipo de cita' : 'Appointment type'
+  const lDoctor    = isEs ? 'Médico'        : 'Doctor'
+  const lDate      = isEs ? 'Fecha'         : 'Date'
+  const lTime      = isEs ? 'Hora'          : 'Time'
+  const lModality  = isEs ? 'Modalidad'     : 'Modality'
+  const lAddress   = isEs ? 'Dirección'     : 'Address'
+  const footerNote = isEs
+    ? 'Si no agendaste esta cita, ignora este mensaje.'
+    : "If you didn't schedule this appointment, please ignore this email."
 
   const addressDisplay = p.locationAddress
     ? [p.locationAddress, p.locationCity].filter(Boolean).join(', ')
     : null
-  const footerMain  = isEs
-    ? `Si no agendaste esta cita, ignora este mensaje.`
-    : `If you didn't schedule this appointment, please ignore this email.`
-  const footerSub   = isEs ? p.orgName : p.orgName
 
-  // 2-column grid cell
+  // 2-column appointment card cell (brand-kit labels + values)
   const cell = (label: string, value: string) => `
-    <td style="padding:12px 16px;vertical-align:top;width:50%">
-      <p style="margin:0 0 3px;font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#94a3b8">${label}</p>
-      <p style="margin:0;font-size:14px;font-weight:600;color:#0f172a">${value}</p>
+    <td style="padding:14px 18px;vertical-align:top;width:50%;font-family:'Inter',Helvetica,Arial,sans-serif">
+      <p style="margin:0 0 4px;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${C.accent}">${label}</p>
+      <p style="margin:0;font-size:14px;font-weight:600;color:${C.fg};font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif">${value}</p>
     </td>`
 
   return `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
-<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#f1f5f9;margin:0;padding:0">
-<div style="max-width:520px;margin:40px auto;padding:0 16px">
+<html lang="${lang}">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+</head>
+<body style="margin:0;padding:0;background:${C.bg};font-family:'Inter',Helvetica,Arial,sans-serif">
+<div style="max-width:600px;margin:0 auto;padding:32px 16px">
 
-  <!-- Card -->
-  <div style="background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 2px 12px rgba(0,0,0,0.07)">
+  <!-- Header card -->
+  <div style="background:${C.card};border-radius:16px 16px 0 0;border:1px solid ${C.border};border-bottom:none;padding:32px 36px 0;text-align:center">
+
+    <!-- MedScale AI wordmark -->
+    <div style="margin-bottom:16px">
+      <span style="font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif;font-size:22px;font-weight:700;letter-spacing:-0.01em">
+        <span style="color:${C.muted}">MED</span><span style="color:${C.fg}">SCALE AI</span>
+      </span>
+      <p style="margin:4px 0 0;font-size:9px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:${C.accent}">FOR HEALTHCARE GROWTH</p>
+    </div>
+
+    <!-- Clinic name -->
+    <p style="margin:0 0 0;font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif;font-size:20px;font-weight:600;color:${C.fg}">${p.orgName}</p>
 
     <!-- Accent bar -->
-    <div style="height:4px;background:${accent}"></div>
-
-    <!-- Header -->
-    <div style="background:#0f172a;padding:28px 32px;text-align:center">
-      <p style="margin:0;font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#475569">MEDSCALE</p>
-      <p style="margin:6px 0 0;font-size:16px;font-weight:600;color:#ffffff">${p.orgName}</p>
-      <h1 style="margin:10px 0 0;font-size:24px;font-weight:700;color:#ffffff">${heading}</h1>
-    </div>
-
-    <!-- Body -->
-    <div style="padding:32px">
-      <p style="font-size:15px;color:#475569;margin:0 0 28px;line-height:1.6">${subheading}</p>
-
-      <!-- Appointment card -->
-      <div style="background:#f8fafc;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0">
-        <table style="width:100%;border-collapse:collapse">
-          <tr style="border-bottom:1px solid #e2e8f0">
-            ${p.appointmentTypeName ? cell(lType, p.appointmentTypeName) : cell(lType, '—')}
-            ${cell(lDoctor, doctorDisplay)}
-          </tr>
-          <tr style="border-bottom:1px solid #e2e8f0">
-            ${cell(lDate, p.date)}
-            ${cell(lTime, time12)}
-          </tr>
-          <tr${addressDisplay ? ' style="border-bottom:1px solid #e2e8f0"' : ''}>
-            ${cell(lModality, modalityDisplay)}
-            <td></td>
-          </tr>
-          ${addressDisplay && p.modality !== 'virtual' ? `<tr>${cell(lAddress, addressDisplay)}<td></td></tr>` : ''}
-        </table>
-      </div>
-
-      <!-- CTA -->
-      <div style="text-align:center;margin:28px 0 0">
-        <a href="#" style="display:inline-block;background:${accent};color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 32px;border-radius:10px">${ctaText}</a>
-      </div>
-    </div>
-
-    <!-- Footer -->
-    <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 32px;text-align:center">
-      <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:#475569">${footerSub}</p>
-      <p style="margin:0;font-size:12px;color:#94a3b8">${footerMain}</p>
-    </div>
-
+    <div style="height:4px;background:${accent};margin:20px -36px 0;border-radius:0"></div>
   </div>
 
-  <p style="text-align:center;font-size:11px;color:#94a3b8;margin:16px 0">Powered by <strong>MedScale</strong> · medscale.app</p>
+  <!-- Body card -->
+  <div style="background:${C.card};border:1px solid ${C.border};border-top:none;border-bottom:none;padding:32px 36px">
+
+    <!-- Greeting -->
+    <h1 style="font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif;font-size:22px;font-weight:700;color:${C.fg};margin:0 0 8px">${isEs ? `Hola ${p.patientName},` : `Hi ${p.patientName},`}</h1>
+    <p style="font-size:15px;color:${C.muted};margin:0 0 28px;line-height:1.6">${isEs ? `Tu cita en <strong style="color:${C.fg}">${p.orgName}</strong> ha sido confirmada.` : `Your appointment at <strong style="color:${C.fg}">${p.orgName}</strong> has been confirmed.`}</p>
+
+    <!-- Appointment card -->
+    <div style="border:1px solid ${C.border};border-radius:12px;overflow:hidden;margin-bottom:28px">
+      <table style="width:100%;border-collapse:collapse">
+        <tr style="border-bottom:1px solid ${C.border}">
+          ${p.appointmentTypeName ? cell(lType, p.appointmentTypeName) : cell(lType, '—')}
+          ${cell(lDoctor, doctorDisplay)}
+        </tr>
+        <tr style="border-bottom:1px solid ${C.border}">
+          ${cell(lDate, p.date)}
+          ${cell(lTime, time12)}
+        </tr>
+        <tr${addressDisplay && p.modality !== 'virtual' ? ` style="border-bottom:1px solid ${C.border}"` : ''}>
+          ${cell(lModality, modalityDisplay)}
+          <td></td>
+        </tr>
+        ${addressDisplay && p.modality !== 'virtual' ? `<tr>${cell(lAddress, addressDisplay)}<td></td></tr>` : ''}
+      </table>
+    </div>
+
+    <!-- CTA -->
+    <div style="text-align:center">
+      <a href="#" style="display:inline-block;background:${C.primary};color:#ffffff;text-decoration:none;font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;padding:14px 32px;border-radius:8px">${ctaText}</a>
+    </div>
+  </div>
+
+  <!-- Footer card -->
+  <div style="background:${C.bg};border:1px solid ${C.border};border-top:none;border-radius:0 0 16px 16px;padding:20px 36px;text-align:center">
+    <p style="margin:0 0 4px;font-size:11px;color:${C.muted};font-family:'Inter',Helvetica,Arial,sans-serif">
+      Powered by <strong style="color:${C.fg}">MedScale AI</strong> · medscale.app
+    </p>
+    <p style="margin:0;font-size:11px;color:${C.muted};font-family:'Inter',Helvetica,Arial,sans-serif">${footerNote}</p>
+  </div>
+
 </div>
 </body></html>`
 }
