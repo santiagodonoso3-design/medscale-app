@@ -284,12 +284,17 @@ export async function POST(request: Request) {
       // Only send patient email — clinic notification requires contact_email
       // in organizations table (not yet available)
       if (email) {
-        resend.emails.send({
-          from:    'citas@medscale.app',
-          to:      email,
-          subject: `Cita confirmada — ${orgNameDisplay}`,
-          html:    bookingConfirmationPatient(emailParams),
-        }).catch(err => console.error('[/api/book] patient email error:', err))
+        console.log('[email] attempting to send to:', email)
+        const results = await Promise.allSettled([
+          resend.emails.send({
+            from:    'citas@medscale.app',
+            to:      email,
+            subject: `Cita confirmada — ${orgNameDisplay}`,
+            html:    bookingConfirmationPatient(emailParams),
+          }),
+        ])
+        console.log('[email] results:', JSON.stringify(results))
+        results.forEach(r => { if (r.status === 'rejected') console.error('[email] failed:', r.reason) })
       }
     }
 
