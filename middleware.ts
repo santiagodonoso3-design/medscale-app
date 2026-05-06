@@ -46,7 +46,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Authenticated on public route — determine redirect target
-  if (user && isPublicRoute && !pathname.startsWith('/book') && !pathname.startsWith('/api/')) {
+  if (user && isPublicRoute && !pathname.startsWith('/book') && !pathname.startsWith('/appointment') && !pathname.startsWith('/api/')) {
     const { data: userData } = await supabase
       .from('users')
       .select('role')
