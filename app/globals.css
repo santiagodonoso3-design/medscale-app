@@ -4,33 +4,35 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* MedScale AI brand kit */
+  --background: #EBF0F6;
+  --foreground: #0D2B3E;
+  --card: #FFFFFF;
+  --card-foreground: #0D2B3E;
+  --popover: #FFFFFF;
+  --popover-foreground: #0D2B3E;
+  --primary: #215F73;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F3F7FA;
+  --secondary-foreground: #0D2B3E;
+  --muted: #E2EAF0;
+  --muted-foreground: #4A6B7A;
+  --accent: #5A9DB5;
+  --accent-foreground: #FFFFFF;
+  --destructive: #DC3545;
+  --destructive-foreground: #FFFFFF;
+  --border: #C8D8E4;
+  --input: #C8D8E4;
+  --ring: #5A9DB5;
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #0D2B3E;
+  --sidebar-primary: #215F73;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #EBF0F6;
+  --sidebar-accent-foreground: #0D2B3E;
+  --sidebar-border: #C8D8E4;
+  --sidebar-ring: #5A9DB5;
 }
 
 .dark {
