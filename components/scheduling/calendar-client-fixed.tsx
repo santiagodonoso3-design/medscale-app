@@ -349,7 +349,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
     const result = await rescheduleAppointment(selected.id, scheduledAt, endsAt)
     if (result.error) { setModalError(result.error) } else {
       await fetchData()
-      setSelected(prev => prev ? { ...prev, scheduled_at: scheduledAt, ends_at: endsAt } : null)
+      closeModal()
     }
     setModalSaving(false)
   }
@@ -997,7 +997,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                       </div>
                       <button onClick={handleReschedule} disabled={modalSaving || !modalRescheduleDate || !modalRescheduleTime}
                         className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition disabled:opacity-50">
-                        {modalSaving ? 'Guardando...' : 'Confirmar reagendamiento'}
+                        {modalSaving ? 'Guardando...' : 'Guardar reagendamiento'}
                       </button>
                     </div>
                   )}
