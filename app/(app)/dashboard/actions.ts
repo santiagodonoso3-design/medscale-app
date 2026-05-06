@@ -100,7 +100,7 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
         .select('id, metadata')
         .eq('is_active', true),
       admin.from('appointments')
-        .select('id, scheduled_at, status, lead:lead_id(contact_name), doctor:doctor_id(metadata)')
+        .select('id, scheduled_at, status, lead:lead_id(contact_name,contact_last_name), doctor:doctor_id(metadata)')
         .gte('scheduled_at', today + 'T00:00:00')
         .lte('scheduled_at', today + 'T23:59:59')
         .order('scheduled_at', { ascending: true }),
@@ -126,7 +126,10 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
 
     const todayAppointments: TodayAppointment[] = (todayRaw ?? []).map((a: any) => ({
       id: a.id, scheduled_at: a.scheduled_at, status: a.status,
-      patientName: (Array.isArray(a.lead) ? a.lead[0]?.contact_name : a.lead?.contact_name) ?? null,
+      patientName: (() => {
+        const l = Array.isArray(a.lead) ? a.lead[0] : a.lead
+        return [l?.contact_name, l?.contact_last_name].filter(Boolean).join(' ') || null
+      })(),
       doctorName:  (Array.isArray(a.doctor) ? a.doctor[0]?.metadata?.name : a.doctor?.metadata?.name) ?? null,
     }))
 

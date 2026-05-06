@@ -18,6 +18,7 @@ import { bulkUpdateLeadStatus, bulkUpdateLeadSource } from '@/app/(app)/crm/acti
 interface Lead {
   id: string
   contact_name: string | null
+  contact_last_name: string | null
   contact_phone: string | null
   contact_email: string | null
   contact_cedula: string | null
@@ -240,7 +241,7 @@ function KanbanView({
                     onClick={() => onOpenLead(lead)}
                     className="cursor-pointer rounded-xl border border-slate-200 bg-white p-3 shadow-sm hover:shadow-md hover:border-slate-300 transition select-none"
                   >
-                    <p className="truncate text-sm font-semibold text-slate-900">{lead.contact_name || 'Sin nombre'}</p>
+                    <p className="truncate text-sm font-semibold text-slate-900">{[lead.contact_name, lead.contact_last_name].filter(Boolean).join(' ') || 'Sin nombre'}</p>
                     {lead.contact_phone && <p className="mt-0.5 text-xs text-slate-500">{lead.contact_phone}</p>}
                     <div className="mt-2 flex items-center justify-between gap-1">
                       <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 truncate max-w-[90px]">
@@ -291,7 +292,7 @@ export default function CrmPage() {
   const [leadAppointments, setLeadAppointments] = useState<LeadAppointment[]>([])
   const [loadingApts,      setLoadingApts]      = useState(false)
   const [editForm,         setEditForm]         = useState({
-    contact_name: '', contact_phone: '', contact_email: '',
+    contact_name: '', contact_last_name: '', contact_phone: '', contact_email: '',
     contact_cedula: '', notes: '', status: '', source: '',
   })
   const [savingLead,    setSavingLead]    = useState(false)
@@ -337,7 +338,7 @@ export default function CrmPage() {
     try {
       const { data, error: err } = await supabase
         .from('leads')
-        .select('id, contact_name, contact_phone, contact_email, contact_cedula, source, status, notes, created_at, updated_at')
+        .select('id, contact_name, contact_last_name, contact_phone, contact_email, contact_cedula, source, status, notes, created_at, updated_at')
         .order('created_at', { ascending: false })
       if (err) { setError('Error cargando leads'); return }
       const normalized = (data ?? []).map(l => ({ ...l, status: STATUS_NORMALIZE[l.status] ?? l.status }))
@@ -434,13 +435,14 @@ export default function CrmPage() {
   const openLeadDetail = async (lead: Lead) => {
     setSelectedLead(lead)
     setEditForm({
-      contact_name:   lead.contact_name   ?? '',
-      contact_phone:  lead.contact_phone  ?? '',
-      contact_email:  lead.contact_email  ?? '',
-      contact_cedula: lead.contact_cedula ?? '',
-      notes:          lead.notes          ?? '',
-      status:         lead.status,
-      source:         lead.source         ?? '',
+      contact_name:      lead.contact_name      ?? '',
+      contact_last_name: lead.contact_last_name ?? '',
+      contact_phone:     lead.contact_phone     ?? '',
+      contact_email:     lead.contact_email     ?? '',
+      contact_cedula:    lead.contact_cedula    ?? '',
+      notes:             lead.notes             ?? '',
+      status:            lead.status,
+      source:            lead.source            ?? '',
     })
     setSaveLeadError(null); setNewComment('')
     setLeadAppointments([]); setLoadingApts(true)
@@ -460,14 +462,15 @@ export default function CrmPage() {
     setSavingLead(true); setSaveLeadError(null)
     const now = new Date().toISOString()
     const { error } = await supabase.from('leads').update({
-      contact_name:   editForm.contact_name.trim()   || null,
-      contact_phone:  editForm.contact_phone.trim()  || null,
-      contact_email:  editForm.contact_email.trim()  || null,
-      contact_cedula: editForm.contact_cedula.trim() || null,
-      notes:          editForm.notes.trim()          || null,
-      status:         editForm.status,
-      source:         editForm.source                || null,
-      updated_at:     now,
+      contact_name:      editForm.contact_name.trim()      || null,
+      contact_last_name: editForm.contact_last_name.trim() || null,
+      contact_phone:     editForm.contact_phone.trim()     || null,
+      contact_email:     editForm.contact_email.trim()     || null,
+      contact_cedula:    editForm.contact_cedula.trim()    || null,
+      notes:             editForm.notes.trim()             || null,
+      status:            editForm.status,
+      source:            editForm.source                   || null,
+      updated_at:        now,
     }).eq('id', selectedLead.id)
     if (error) { setSaveLeadError(error.message); setSavingLead(false); return }
     await loadLeads()
@@ -498,6 +501,7 @@ export default function CrmPage() {
       const q = search.toLowerCase()
       const matchSearch = !search ||
         lead.contact_name?.toLowerCase().includes(q) ||
+        lead.contact_last_name?.toLowerCase().includes(q) ||
         lead.contact_phone?.includes(search) ||
         lead.contact_email?.toLowerCase().includes(q) ||
         lead.contact_cedula?.includes(search)
@@ -529,14 +533,14 @@ export default function CrmPage() {
   }, [selectedIds, filteredLeads])
 
   const createLead = async (payload: {
-    full_name: string; phone: string; email: string; source: string; notes: string
+    first_name: string; last_name: string; phone: string; email: string; source: string; notes: string
   }) => {
     if (!organizationId) return { success: false, error: 'Organización no encontrada' }
     const { error } = await supabase.from('leads').insert({
       organization_id: organizationId,
-      contact_name: payload.full_name, contact_phone: payload.phone,
-      contact_email: payload.email, source: payload.source,
-      notes: payload.notes, status: 'contactado',
+      contact_name: payload.first_name, contact_last_name: payload.last_name || null,
+      contact_phone: payload.phone, contact_email: payload.email,
+      source: payload.source, notes: payload.notes, status: 'contactado',
     })
     if (error) return { success: false, error: error.message }
     await loadLeads(); return { success: true }
@@ -726,7 +730,7 @@ export default function CrmPage() {
                           })}
                         />
                       </td>
-                      <td className="px-5 py-3.5 font-medium text-slate-900">{lead.contact_name || 'Sin nombre'}</td>
+                      <td className="px-5 py-3.5 font-medium text-slate-900">{[lead.contact_name, lead.contact_last_name].filter(Boolean).join(' ') || 'Sin nombre'}</td>
                       <td className="px-5 py-3.5 text-xs text-slate-500">{lead.contact_cedula || '—'}</td>
                       <td className="px-5 py-3.5 text-slate-600">{lead.contact_phone || '—'}</td>
                       <td className="px-5 py-3.5 text-slate-600">{lead.contact_email || '—'}</td>
@@ -824,7 +828,7 @@ export default function CrmPage() {
             {/* Modal header */}
             <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
               <div>
-                <h2 className="text-base font-semibold text-slate-900">{selectedLead.contact_name || 'Sin nombre'}</h2>
+                <h2 className="text-base font-semibold text-slate-900">{[selectedLead.contact_name, selectedLead.contact_last_name].filter(Boolean).join(' ') || 'Sin nombre'}</h2>
                 <div className="mt-1 flex items-center gap-2">
                   <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_COLORS[selectedLead.status] ?? 'bg-slate-100 text-slate-600'}`}>
                     {statusLabel(selectedLead.status)}
@@ -846,6 +850,11 @@ export default function CrmPage() {
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Nombre</label>
                   <input value={editForm.contact_name} onChange={e => setEditForm(p => ({ ...p, contact_name: e.target.value }))}
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Apellido</label>
+                  <input value={editForm.contact_last_name} onChange={e => setEditForm(p => ({ ...p, contact_last_name: e.target.value }))}
+                    placeholder="—" className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Cédula</label>

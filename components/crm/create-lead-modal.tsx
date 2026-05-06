@@ -8,7 +8,8 @@ interface CreateLeadModalProps {
   onClose: () => void
   onSuccess: () => void
   onCreateLead: (payload: {
-    full_name: string
+    first_name: string
+    last_name: string
     phone: string
     email: string
     source: string
@@ -27,7 +28,8 @@ const sourceOptions = [
 ]
 
 export function CreateLeadModal({ isOpen, onClose, onSuccess, onCreateLead }: CreateLeadModalProps) {
-  const [fullName, setFullName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName,  setLastName]  = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [source, setSource] = useState('manual')
@@ -38,14 +40,15 @@ export function CreateLeadModal({ isOpen, onClose, onSuccess, onCreateLead }: Cr
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     setError(null)
-    if (!fullName.trim() || !phone.trim()) {
+    if (!firstName.trim() || !phone.trim()) {
       setError('Nombre y teléfono son requeridos')
       return
     }
 
     setIsLoading(true)
     const result = await onCreateLead({
-      full_name: fullName.trim(),
+      first_name: firstName.trim(),
+      last_name:  lastName.trim(),
       phone: phone.trim(),
       email: email.trim(),
       source,
@@ -58,7 +61,8 @@ export function CreateLeadModal({ isOpen, onClose, onSuccess, onCreateLead }: Cr
       return
     }
 
-    setFullName('')
+    setFirstName('')
+    setLastName('')
     setPhone('')
     setEmail('')
     setSource('manual')
@@ -94,16 +98,29 @@ export function CreateLeadModal({ isOpen, onClose, onSuccess, onCreateLead }: Cr
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Nombre completo</label>
-            <input
-              type="text"
-              value={fullName}
-              onChange={(event) => setFullName(event.target.value)}
-              disabled={isLoading}
-              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Ej. Juan Pérez"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
+              <input
+                type="text"
+                value={firstName}
+                onChange={(event) => setFirstName(event.target.value)}
+                disabled={isLoading}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Ej. Juan"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Apellido</label>
+              <input
+                type="text"
+                value={lastName}
+                onChange={(event) => setLastName(event.target.value)}
+                disabled={isLoading}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Ej. Pérez"
+              />
+            </div>
           </div>
 
           <div>

@@ -101,7 +101,8 @@ const TRANSLATIONS = {
     sumLanguage:      'Idioma',
     sumPresencial:    'Presencial',
     sumVirtual:       'Virtual',
-    fieldName:        'Nombre completo *',
+    fieldName:        'Nombre *',
+    fieldLastName:    'Apellido *',
     fieldPhone:       'Teléfono *',
     fieldEmail:       'Email *',
     fieldId:          'Cédula *',
@@ -158,7 +159,8 @@ const TRANSLATIONS = {
     sumLanguage:      'Language',
     sumPresencial:    'In person',
     sumVirtual:       'Virtual',
-    fieldName:        'Full name *',
+    fieldName:        'First name *',
+    fieldLastName:    'Last name *',
     fieldPhone:       'Phone *',
     fieldEmail:       'Email *',
     fieldId:          'ID number *',
@@ -547,7 +549,8 @@ export default function BookingWizard({
     doctor_id: '',
     date: '',
     time: '',
-    patient_name: '',
+    patient_first_name: '',
+    patient_last_name:  '',
     phone: '',
     email: '',
     cedula: '',
@@ -603,7 +606,8 @@ export default function BookingWizard({
           doctor_id:    formData.doctor_id || null,
           date:         formData.date,
           time:         formData.time,
-          patient_name: formData.patient_name,
+          patient_first_name: formData.patient_first_name,
+          patient_last_name:  formData.patient_last_name,
           phone:        formData.phone,
           email:        formData.email,
           cedula:       formData.cedula,
@@ -783,7 +787,7 @@ export default function BookingWizard({
     const docName  = selectedDoctor ? String(selectedDoctor.metadata?.name ?? t.docFallback) : t.autoAssign
     const photoUrl = selectedDoctor?.metadata?.photo_url as string | null | undefined
     const langLabel = LANGUAGE_OPTIONS.find(l => l.value === formData.language)?.label ?? 'Español'
-    const canSubmit = !loading && !!formData.patient_name && !!formData.phone && !!formData.email && !!formData.cedula
+    const canSubmit = !loading && !!formData.patient_first_name && !!formData.patient_last_name && !!formData.phone && !!formData.email && !!formData.cedula
 
     return (
       <div className="space-y-6">
@@ -834,10 +838,16 @@ export default function BookingWizard({
 
         {/* Patient form */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">{t.fieldName}</label>
-            <input type="text" value={formData.patient_name}
-              onChange={e => setFormData(p => ({ ...p, patient_name: e.target.value }))}
+            <input type="text" value={formData.patient_first_name}
+              onChange={e => setFormData(p => ({ ...p, patient_first_name: e.target.value }))}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition" required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">{t.fieldLastName}</label>
+            <input type="text" value={formData.patient_last_name}
+              onChange={e => setFormData(p => ({ ...p, patient_last_name: e.target.value }))}
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition" required />
           </div>
           <div>
@@ -940,7 +950,7 @@ export default function BookingWizard({
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">{t.sumPatient}</span>
-              <span className="font-medium text-gray-900">{formData.patient_name}</span>
+              <span className="font-medium text-gray-900">{[formData.patient_first_name, formData.patient_last_name].filter(Boolean).join(' ')}</span>
             </div>
           </div>
         </div>

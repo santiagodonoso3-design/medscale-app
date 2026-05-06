@@ -23,7 +23,8 @@ export async function POST(request: Request) {
       appointment_type_id,
       date,
       time,
-      patient_name,
+      patient_first_name,
+      patient_last_name,
       phone,
       email,
       cedula,
@@ -35,14 +36,15 @@ export async function POST(request: Request) {
       appointment_type_id?: string | null
       date?: string
       time?: string
-      patient_name?: string
+      patient_first_name?: string
+      patient_last_name?: string
       phone?: string
       email?: string
       cedula?: string
       custom_fields?: Record<string, string>
     }
 
-    if (!org_slug || !date || !time || !patient_name || !phone) {
+    if (!org_slug || !date || !time || !patient_first_name || !phone) {
       return jsonResponse({ success: false, error: 'Faltan campos requeridos' }, 400)
     }
 
@@ -174,7 +176,8 @@ export async function POST(request: Request) {
       .from('leads')
       .insert({
         organization_id: org.id,
-        contact_name: patient_name,
+        contact_name: patient_first_name,
+        contact_last_name: patient_last_name || null,
         contact_phone: phone,
         contact_email: email || null,
         source: 'book',

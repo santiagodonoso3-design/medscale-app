@@ -23,7 +23,7 @@ type AppointmentRecord = {
   lead_id: string | null
   location_id: string | null
   metadata: Record<string, unknown> | null
-  lead?: { contact_name: string | null; contact_phone: string | null; contact_email: string | null } | null
+  lead?: { contact_name: string | null; contact_last_name: string | null; contact_phone: string | null; contact_email: string | null } | null
   doctor?: { metadata: Record<string, unknown> | null } | null
   location?: { name: string } | null
 }
@@ -220,7 +220,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
       supabase.from('locations').select('id, name').order('name', { ascending: true }),
       supabase
         .from('appointments')
-        .select('id, scheduled_at, ends_at, status, doctor_id, lead_id, location_id, notes, doctor:doctor_id(metadata), lead:lead_id(contact_name,contact_phone,contact_email), location:location_id(name)')
+        .select('id, scheduled_at, ends_at, status, doctor_id, lead_id, location_id, notes, doctor:doctor_id(metadata), lead:lead_id(contact_name,contact_last_name,contact_phone,contact_email), location:location_id(name)')
         .order('scheduled_at', { ascending: true }),
     ])
     if (doctorError || locationError || aptError) {
@@ -245,6 +245,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
       const matchesDoctor = !filterDoctor || apt.doctor_id === filterDoctor
       const matchesSearch = !search ||
         apt.lead?.contact_name?.toLowerCase().includes(search.toLowerCase()) ||
+        apt.lead?.contact_last_name?.toLowerCase().includes(search.toLowerCase()) ||
         apt.lead?.contact_phone?.includes(search)
       return matchesDoctor && matchesSearch
     }),
@@ -450,7 +451,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className={`text-sm font-medium truncate ${isCancelled ? 'line-through text-slate-400' : 'text-slate-900'}`}>
-              {apt.lead?.contact_name || 'Sin nombre'}
+              {[apt.lead?.contact_name, apt.lead?.contact_last_name].filter(Boolean).join(' ') || 'Sin nombre'}
             </p>
             {!compact && (
               <p className="text-xs text-slate-500 mt-0.5">
@@ -565,7 +566,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                         key={apt.id}
                         className={`block truncate rounded px-1 py-0.5 text-[10px] leading-tight font-medium ${statusChipClass(apt.status)}`}
                       >
-                        {isoToLocalTime(apt.scheduled_at)} {apt.lead?.contact_name?.split(' ')[0] ?? '—'}
+                        {isoToLocalTime(apt.scheduled_at)} {apt.lead?.contact_name ?? '—'}
                       </span>
                     ))}
                     {nonCancelledApts.length > 2 && (
@@ -673,11 +674,11 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                         <td className={`py-2.5 font-medium ${cancelled ? 'pl-0 border-l-4 border-red-400' : 'px-3'}`}>
                           {cancelled && (
                             <span className={`${cancelled ? 'pl-3' : ''} ${apt.lead?.contact_name ? 'text-slate-400 line-through' : 'italic text-slate-400'}`}>
-                              {apt.lead?.contact_name || 'Paciente no disponible'}
+                              {[apt.lead?.contact_name, apt.lead?.contact_last_name].filter(Boolean).join(' ') || 'Paciente no disponible'}
                             </span>
                           )}
                           {!cancelled && (
-                            <span className="text-slate-900">{apt.lead?.contact_name || 'Sin nombre'}</span>
+                            <span className="text-slate-900">{[apt.lead?.contact_name, apt.lead?.contact_last_name].filter(Boolean).join(' ') || 'Sin nombre'}</span>
                           )}
                         </td>
                         <td className={`px-3 py-2.5 ${cancelled ? 'text-slate-400' : 'text-slate-600'}`}>
@@ -922,7 +923,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div className="col-span-2 sm:col-span-1">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Paciente</p>
-                  <p className="font-medium text-slate-900">{selected.lead?.contact_name || 'Sin nombre'}</p>
+                  <p className="font-medium text-slate-900">{[selected.lead?.contact_name, selected.lead?.contact_last_name].filter(Boolean).join(' ') || 'Sin nombre'}</p>
                   {selected.lead?.contact_phone && <p className="text-slate-500 mt-0.5">{selected.lead.contact_phone}</p>}
                   {selected.lead?.contact_email && <p className="text-slate-500 text-xs mt-0.5">{selected.lead.contact_email}</p>}
                 </div>
