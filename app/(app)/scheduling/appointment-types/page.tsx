@@ -253,7 +253,6 @@ export default function AppointmentTypesPage() {
   const [activeTab,     setActiveTab]     = useState<'general' | 'rules' | 'form' | 'notifications'>('general')
   const [notifications, setNotifications] = useState<NotificationRow[]>(NOTIF_DEFAULTS)
   const [notifLoading,  setNotifLoading]  = useState(false)
-  const [savingNotif,   setSavingNotif]   = useState(false)
   const [formFields,    setFormFields]    = useState<FormFieldRow[]>([])
   const [fieldsLoading, setFieldsLoading] = useState(false)
   const [addingField,   setAddingField]   = useState(false)
@@ -432,6 +431,22 @@ export default function AppointmentTypesPage() {
         .update(payload)
         .eq('id', editing.id)
       if (error) { setFormError(error.message); setSaving(false); return }
+      // Upsert notifications for this type
+      if (org && notifications.length > 0) {
+        const notifRows = notifications.map(({ id, ...n }) => ({
+          ...(id ? { id } : {}),
+          organization_id:     org.id,
+          appointment_type_id: editing.id,
+          event_type:          n.event_type,
+          enabled:             n.enabled,
+          to_patient:          n.to_patient,
+          to_clinic:           n.to_clinic,
+          hours_before:        n.hours_before,
+        }))
+        await supabase
+          .from('appointment_type_notifications')
+          .upsert(notifRows, { onConflict: 'appointment_type_id,event_type' })
+      }
     } else {
       const { data: { user } } = await supabase.auth.getUser()
       const { data: profile } = await supabase
@@ -1053,31 +1068,6 @@ export default function AppointmentTypesPage() {
                             })}
                           </div>
 
-                          <button
-                            disabled={savingNotif}
-                            onClick={async () => {
-                              if (!editing || !org) return
-                              setSavingNotif(true)
-                              const rows = notifications.map(n => ({
-                                ...(n.id ? { id: n.id } : {}),
-                                organization_id:      org.id,
-                                appointment_type_id:  editing.id,
-                                event_type:           n.event_type,
-                                enabled:              n.enabled,
-                                to_patient:           n.to_patient,
-                                to_clinic:            n.to_clinic,
-                                hours_before:         n.hours_before,
-                              }))
-                              await supabase
-                                .from('appointment_type_notifications')
-                                .upsert(rows, { onConflict: 'appointment_type_id,event_type' })
-                              setSavingNotif(false)
-                            }}
-                            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition disabled:opacity-50"
-                          >
-                            {savingNotif ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                            Guardar notificaciones
-                          </button>
                         </>
                       )}
                     </div>
