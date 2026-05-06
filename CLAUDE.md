@@ -185,6 +185,8 @@
 - [ ] Sidebar: diferenciación visual por rol (admin vs staff vs superadmin)
 - [ ] Conversaciones /conversations: ver chats por lead
 - [ ] Conectar webhook n8n de ManyChat → tabla conversations
+- [ ] Login: agregar link "Olvidé mi contraseña" con forgot password flow de Supabase Auth
+- [ ] Login: agregar link "Crear cuenta" o flujo de onboarding para nuevos usuarios
 
 ## 🟢 PRIORIDAD 3 — Superadmin
 - [ ] CRUD completo de organizaciones desde /admin
