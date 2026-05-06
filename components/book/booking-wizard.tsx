@@ -450,14 +450,17 @@ export default function BookingWizard({
 
   // ── Step indicator ────────────────────────────────────────────────────────
 
-  const INDICATOR_LABELS = ['Preferencias', 'Fecha', 'Confirmación']
+  const INDICATOR_LABELS = skipStep1
+    ? ['Fecha', 'Confirmación']
+    : ['Preferencias', 'Fecha', 'Confirmación']
+  const totalSteps = INDICATOR_LABELS.length
+  const visualPos  = skipStep1 ? currentStep - 1 : currentStep
 
   const renderStepIndicator = () => (
     <div className="flex items-center justify-center mb-8">
       {INDICATOR_LABELS.map((label, idx) => {
-        const pos        = idx + 1
-        const visualStep = skipStep1 ? currentStep - 1 : currentStep
-        const active     = pos <= Math.min(visualStep, 3)
+        const pos    = idx + 1
+        const active = pos <= Math.min(visualPos, totalSteps)
         return (
           <div key={label} className="flex items-center">
             <div className="flex flex-col items-center gap-1.5">
@@ -467,9 +470,9 @@ export default function BookingWizard({
               </div>
               <span className="hidden sm:block text-[11px] font-medium" style={{ color: active ? B.primary : B.muted }}>{label}</span>
             </div>
-            {idx < 2 && (
+            {idx < INDICATOR_LABELS.length - 1 && (
               <div className="w-6 sm:w-10 h-0.5 mx-1 sm:mx-2 mb-4 transition-colors"
-                style={{ background: pos < currentStep ? B.accent : '#e5e7eb' }} />
+                style={{ background: pos < visualPos ? B.accent : '#e5e7eb' }} />
             )}
           </div>
         )
