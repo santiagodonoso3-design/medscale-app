@@ -455,8 +455,9 @@ export default function BookingWizard({
   const renderStepIndicator = () => (
     <div className="flex items-center justify-center mb-8">
       {INDICATOR_LABELS.map((label, idx) => {
-        const pos    = idx + 1
-        const active = pos <= Math.min(currentStep, 3)
+        const pos        = idx + 1
+        const visualStep = skipStep1 ? currentStep - 1 : currentStep
+        const active     = pos <= Math.min(visualStep, 3)
         return (
           <div key={label} className="flex items-center">
             <div className="flex flex-col items-center gap-1.5">
