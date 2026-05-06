@@ -24,10 +24,10 @@ export async function PATCH(request: Request) {
     const { data: apt, error: fetchErr } = await admin
       .from('appointments')
       .select(`
-        id, scheduled_at, ends_at, status, notes, manage_token,
+        id, scheduled_at, ends_at, status, notes, manage_token, organization_id,
         doctor:doctor_id(metadata),
         lead:lead_id(contact_name, contact_last_name, contact_email),
-        org:organization_id(name, contact_email)
+        org:organization_id(name)
       `)
       .eq('manage_token', token)
       .single()
@@ -35,16 +35,17 @@ export async function PATCH(request: Request) {
     if (fetchErr || !apt) return json({ success: false, error: 'Cita no encontrada' }, 404)
     if (apt.status === 'cancelled') return json({ success: false, error: 'La cita ya fue cancelada' }, 400)
 
+    const { data: orgData } = await admin
+      .from('organizations')
+      .select('contact_email')
+      .eq('id', apt.organization_id)
+      .single()
+
     const lead     = Array.isArray(apt.lead)   ? apt.lead[0]   : apt.lead
     const org      = Array.isArray(apt.org)    ? apt.org[0]    : apt.org
     const doctor   = Array.isArray(apt.doctor) ? apt.doctor[0] : apt.doctor
-    console.log('[manage] apt raw:', JSON.stringify(apt))
-    console.log('[manage] lead:', JSON.stringify(lead))
-    console.log('[manage] org:', JSON.stringify(org))
-    console.log('[manage] patientEmail:', lead?.contact_email)
-    console.log('[manage] clinicEmail:', (org as any)?.contact_email)
     const orgName     = (org as any)?.name ?? ''
-    const clinicEmail = (org as any)?.contact_email as string | null
+    const clinicEmail = orgData?.contact_email as string | null
     const patientEmail = lead?.contact_email
     const patientName  = [lead?.contact_name, lead?.contact_last_name].filter(Boolean).join(' ') || 'Paciente'
     const doctorName   = doctor?.metadata ? String((doctor.metadata as any).name ?? '') : null
