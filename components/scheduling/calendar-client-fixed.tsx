@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, Search, X, Loader2, CalendarDays, List, ChevronLeft, ChevronRight, ChevronDown, CheckCircle, XCircle, Calendar } from 'lucide-react'
+import { CalendarPicker, type ScheduleOption } from '@/components/shared/CalendarPicker'
 import {
   cancelAppointment,
   updateAppointmentNotes,
@@ -158,6 +159,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
   // ── Data state
   const [doctors, setDoctors] = useState<any[]>([])
   const [locations, setLocations] = useState<any[]>([])
+  const [schedules, setSchedules] = useState<ScheduleOption[]>([])
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -232,6 +234,13 @@ export function CalendarClient({ userId }: CalendarClientProps) {
     setDoctors(doctorData || [])
     setLocations(locationData || [])
     setAppointments((aptData as unknown as AppointmentRecord[]) || [])
+    if (doctorData && doctorData.length > 0) {
+      const { data: schedData } = await supabase
+        .from('schedules')
+        .select('id, doctor_id, location_id, day_of_week, start_time, end_time')
+        .in('doctor_id', doctorData.map((d: any) => d.id))
+      setSchedules((schedData ?? []) as ScheduleOption[])
+    }
     if (!form.doctor_id && doctorData?.length) setForm(prev => ({ ...prev, doctor_id: doctorData[0].id }))
     if (!form.location_id && locationData?.length) setForm(prev => ({ ...prev, location_id: locationData[0].id }))
     setLoading(false)
@@ -972,15 +981,20 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                     <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showReschedule ? 'rotate-180' : ''}`} />
                   </button>
                   {showReschedule && (
-                    <div className="mt-3">
-                      <div className="grid grid-cols-2 gap-2">
-                        <input type="date" value={modalRescheduleDate} onChange={e => setModalRescheduleDate(e.target.value)}
-                          className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                        <input type="time" value={modalRescheduleTime} onChange={e => setModalRescheduleTime(e.target.value)}
-                          className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                      </div>
+                    <div className="mt-3 space-y-3">
+                      <CalendarPicker
+                        orgName=""
+                        selectedDoctor={selected.doctor as any ?? null}
+                        effectiveSchedules={schedules.filter(s => s.doctor_id === selected.doctor_id)}
+                        selectedDate={modalRescheduleDate}
+                        selectedTime={modalRescheduleTime}
+                        onSelect={(date, time) => { setModalRescheduleDate(date); setModalRescheduleTime(time) }}
+                        doctorId={selected.doctor_id}
+                        minNoticeHours={0}
+                        texts={{ org: 'Org', doctor: 'Médico', autoAssign: 'Sin asignar', selected: 'Seleccionado', loading: 'Cargando...', noSlots: 'Sin horarios disponibles.', docFallback: 'Médico' }}
+                      />
                       <button onClick={handleReschedule} disabled={modalSaving || !modalRescheduleDate || !modalRescheduleTime}
-                        className="mt-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition disabled:opacity-50">
+                        className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition disabled:opacity-50">
                         {modalSaving ? 'Guardando...' : 'Confirmar reagendamiento'}
                       </button>
                     </div>
