@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Search, X, Loader2, CalendarDays, List, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
+import { Plus, Search, X, Loader2, CalendarDays, List, ChevronLeft, ChevronRight, ChevronDown, CheckCircle, XCircle, Calendar } from 'lucide-react'
 import {
   cancelAppointment,
   updateAppointmentNotes,
@@ -198,7 +198,8 @@ export function CalendarClient({ userId }: CalendarClientProps) {
   const [modalSaving, setModalSaving] = useState(false)
   const [modalError, setModalError] = useState<string | null>(null)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
-  const [cancelReason, setCancelReason] = useState('')
+  const [cancelReason,      setCancelReason]      = useState('')
+  const [showReschedule,    setShowReschedule]    = useState(false)
 
   // ── Inline status popover
   const [statusPopover, setStatusPopover] = useState<{ aptId: string; top: number; left: number } | null>(null)
@@ -312,6 +313,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
     setModalError(null)
     setShowCancelConfirm(false)
     setCancelReason('')
+    setShowReschedule(false)
   }
 
   async function handleSaveNotes() {
@@ -937,10 +939,14 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                     {new Date(selected.scheduled_at).toLocaleString('es-CO', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Sede · Modalidad</p>
-                  <p className="text-slate-700">{selected.location?.name || '—'} · {modalityFromNotes(selected.notes)}</p>
-                </div>
+                {(selected.location?.name || modalityFromNotes(selected.notes) !== '—') && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Sede · Modalidad</p>
+                    <p className="text-slate-700">
+                      {[selected.location?.name, modalityFromNotes(selected.notes) !== '—' ? modalityFromNotes(selected.notes) : null].filter(Boolean).join(' · ')}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Notes */}
@@ -957,17 +963,28 @@ export function CalendarClient({ userId }: CalendarClientProps) {
               {/* Reschedule */}
               {!['cancelled', 'completed'].includes(selected.status) && (
                 <div>
-                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Reagendar</label>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <input type="date" value={modalRescheduleDate} onChange={e => setModalRescheduleDate(e.target.value)}
-                      className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    <input type="time" value={modalRescheduleTime} onChange={e => setModalRescheduleTime(e.target.value)}
-                      className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                  <button onClick={handleReschedule} disabled={modalSaving || !modalRescheduleDate || !modalRescheduleTime}
-                    className="mt-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition disabled:opacity-50">
-                    {modalSaving ? 'Guardando...' : 'Confirmar reagendamiento'}
+                  <button
+                    onClick={() => setShowReschedule(v => !v)}
+                    className="inline-flex items-center gap-2 text-xs font-semibold text-blue-600 hover:text-blue-700 transition"
+                  >
+                    <Calendar className="h-3.5 w-3.5" />
+                    Reagendar cita
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showReschedule ? 'rotate-180' : ''}`} />
                   </button>
+                  {showReschedule && (
+                    <div className="mt-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="date" value={modalRescheduleDate} onChange={e => setModalRescheduleDate(e.target.value)}
+                          className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        <input type="time" value={modalRescheduleTime} onChange={e => setModalRescheduleTime(e.target.value)}
+                          className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <button onClick={handleReschedule} disabled={modalSaving || !modalRescheduleDate || !modalRescheduleTime}
+                        className="mt-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition disabled:opacity-50">
+                        {modalSaving ? 'Guardando...' : 'Confirmar reagendamiento'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -975,32 +992,29 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                 <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{modalError}</p>
               )}
 
-              {/* Quick status: Completada / No asistió */}
-              {!['cancelled', 'completed', 'no_show'].includes(selected.status) && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleUpdateStatus('completed')}
-                    disabled={modalSaving}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition disabled:opacity-50"
-                  >
-                    ✓ Completada
-                  </button>
-                  <button
-                    onClick={() => handleUpdateStatus('no_show')}
-                    disabled={modalSaving}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-orange-500 px-4 py-2 text-xs font-semibold text-white hover:bg-orange-600 transition disabled:opacity-50"
-                  >
-                    ✗ No asistió
-                  </button>
-                </div>
-              )}
+              {/* Actions — only for scheduled appointments */}
+              {selected.status === 'scheduled' && (
+                <div className="border-t border-slate-100 pt-4 space-y-3">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleUpdateStatus('completed')}
+                      disabled={modalSaving}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 transition disabled:opacity-50"
+                    >
+                      <CheckCircle className="h-3.5 w-3.5" /> Completada
+                    </button>
+                    <button
+                      onClick={() => handleUpdateStatus('no_show')}
+                      disabled={modalSaving}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-orange-200 px-3 py-1.5 text-xs font-semibold text-orange-600 hover:bg-orange-50 transition disabled:opacity-50"
+                    >
+                      <XCircle className="h-3.5 w-3.5" /> No asistió
+                    </button>
+                  </div>
 
-              {/* Cancel — with required reason */}
-              {!['cancelled', 'completed'].includes(selected.status) && (
-                <div className="border-t border-slate-100 pt-4">
                   {!showCancelConfirm ? (
                     <button onClick={() => setShowCancelConfirm(true)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-rose-100 bg-rose-50 px-4 py-2.5 text-sm font-medium text-rose-600 hover:bg-rose-100 transition">
+                      className="text-xs text-rose-500 hover:text-rose-700 transition underline-offset-2 hover:underline">
                       Cancelar esta cita
                     </button>
                   ) : (
