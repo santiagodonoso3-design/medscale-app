@@ -251,7 +251,7 @@ export async function POST(request: Request) {
         notes: modality === 'virtual' ? 'Consulta virtual' : 'Consulta presencial',
         external_calendar_id: null,
       })
-      .select('id')
+      .select('id, manage_token')
       .single()
 
     if (appointmentError || !appointment) {
@@ -260,6 +260,9 @@ export async function POST(request: Request) {
     }
 
     console.log('[/api/book] success — lead:', lead.id, 'appointment:', appointment.id)
+    const manageUrl = (appointment as any).manage_token
+      ? `https://medscale.app/appointment/${(appointment as any).manage_token}/manage`
+      : undefined
 
     // ── Send confirmation emails (fire-and-forget) ────────────────────────────
     if (process.env.RESEND_API_KEY) {
@@ -286,6 +289,7 @@ export async function POST(request: Request) {
         locationAddress:     ((locations[0] as any)?.address as string | null) ?? null,
         locationCity:        ((locations[0] as any)?.city    as string | null) ?? null,
         language,
+        manageUrl,
       }
 
       // Only send patient email — clinic notification requires contact_email
