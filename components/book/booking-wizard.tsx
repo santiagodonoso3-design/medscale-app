@@ -54,6 +54,7 @@ interface FormField {
 }
 
 interface AppointmentTypeOption {
+  id?: string
   name: string
   slug: string
   duration_minutes: number
@@ -595,7 +596,8 @@ export default function BookingWizard({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          org_slug:     orgSlug,
+          org_slug:            orgSlug,
+          appointment_type_id: appointmentType?.id ?? null,
           modality:     formData.modality,
           language:     formData.language,
           doctor_id:    formData.doctor_id || null,

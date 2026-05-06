@@ -81,6 +81,7 @@ export default async function BookTypePage({ params }: PageProps) {
         schedules={schedules || []}
         formFields={formFields || []}
         appointmentType={{
+          id:               appointmentType.id,
           name:             appointmentType.name,
           slug:             appointmentType.slug,
           duration_minutes: appointmentType.duration_minutes,
