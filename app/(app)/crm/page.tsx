@@ -730,7 +730,7 @@ export default function CrmPage() {
                           })}
                         />
                       </td>
-                      <td className="px-5 py-3.5 font-medium text-slate-900">{`${lead.contact_name}${lead.contact_last_name ? ' ' + lead.contact_last_name : ''}` || 'Sin nombre'}</td>
+                      <td className="px-5 py-3.5 font-medium text-slate-900">{lead.contact_name}{lead.contact_last_name ? ' ' + lead.contact_last_name : ''}{!lead.contact_name && !lead.contact_last_name && 'Sin nombre'}</td>
                       <td className="px-5 py-3.5 text-xs text-slate-500">{lead.contact_cedula || '—'}</td>
                       <td className="px-5 py-3.5 text-slate-600">{lead.contact_phone || '—'}</td>
                       <td className="px-5 py-3.5 text-slate-600">{lead.contact_email || '—'}</td>
