@@ -40,6 +40,8 @@ export async function PATCH(request: Request) {
     const doctor   = Array.isArray(apt.doctor) ? apt.doctor[0] : apt.doctor
     const orgName  = (org as any)?.name ?? ''
     const patientEmail = lead?.contact_email
+    console.log('[manage] lead:', JSON.stringify(lead))
+    console.log('[manage] patientEmail:', patientEmail)
     const patientName  = [lead?.contact_name, lead?.contact_last_name].filter(Boolean).join(' ') || 'Paciente'
     const doctorName   = doctor?.metadata ? String((doctor.metadata as any).name ?? '') : null
 
