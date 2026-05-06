@@ -27,7 +27,7 @@ export async function PATCH(request: Request) {
         id, scheduled_at, ends_at, status, notes, manage_token,
         doctor:doctor_id(metadata),
         lead:lead_id(contact_name, contact_last_name, contact_email),
-        org:organization_id(name)
+        org:organization_id(name, contact_email)
       `)
       .eq('manage_token', token)
       .single()
@@ -38,10 +38,9 @@ export async function PATCH(request: Request) {
     const lead     = Array.isArray(apt.lead)   ? apt.lead[0]   : apt.lead
     const org      = Array.isArray(apt.org)    ? apt.org[0]    : apt.org
     const doctor   = Array.isArray(apt.doctor) ? apt.doctor[0] : apt.doctor
-    const orgName  = (org as any)?.name ?? ''
+    const orgName     = (org as any)?.name ?? ''
+    const clinicEmail = (org as any)?.contact_email as string | null
     const patientEmail = lead?.contact_email
-    console.log('[manage] lead:', JSON.stringify(lead))
-    console.log('[manage] patientEmail:', patientEmail)
     const patientName  = [lead?.contact_name, lead?.contact_last_name].filter(Boolean).join(' ') || 'Paciente'
     const doctorName   = doctor?.metadata ? String((doctor.metadata as any).name ?? '') : null
 
@@ -85,6 +84,19 @@ export async function PATCH(request: Request) {
         }).catch(err => console.error('[manage] reschedule email error:', err))
       }
 
+      if (clinicEmail && process.env.RESEND_API_KEY) {
+        resend.emails.send({
+          from: 'citas@medscale.app',
+          to: clinicEmail,
+          subject: `Cita reagendada — ${patientName} · ${fmtDate(newScheduledAt.toISOString())}`,
+          html: rescheduleEmail({
+            patientName, orgName, appointmentTypeName: null,
+            newDate: fmtDate(newScheduledAt.toISOString()),
+            newTime: fmtTime(newScheduledAt.toISOString()),
+          }),
+        }).catch(err => console.error('[manage] reschedule clinic email error:', err))
+      }
+
       return json({ success: true, scheduled_at: newScheduledAt.toISOString() })
     }
 
@@ -116,6 +128,19 @@ export async function PATCH(request: Request) {
             time: fmtTime(apt.scheduled_at),
           }),
         }).catch(err => console.error('[manage] cancel email error:', err))
+      }
+
+      if (clinicEmail && process.env.RESEND_API_KEY) {
+        resend.emails.send({
+          from: 'citas@medscale.app',
+          to: clinicEmail,
+          subject: `Cita cancelada — ${patientName}`,
+          html: cancellationEmail({
+            patientName, orgName, appointmentTypeName: null,
+            date: fmtDate(apt.scheduled_at),
+            time: fmtTime(apt.scheduled_at),
+          }),
+        }).catch(err => console.error('[manage] cancel clinic email error:', err))
       }
 
       return json({ success: true })
