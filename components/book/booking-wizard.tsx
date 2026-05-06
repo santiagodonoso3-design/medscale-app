@@ -7,7 +7,6 @@ import {
   Building,
   CalendarDays,
   CheckCircle,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -370,8 +369,7 @@ export default function BookingWizard({
   const skipStep1 = !showModalityChoice && !showDoctorSection
   const stepOrder: number[] = skipStep1 ? [2, 3, 4] : [1, 2, 3, 4]
 
-  const [currentStep, setCurrentStep]   = useState(stepOrder[0])
-  const [showDoctorPicker, setShowDoctorPicker] = useState(false)
+  const [currentStep, setCurrentStep] = useState(stepOrder[0])
 
   const [formData, setFormData] = useState({
     modality: (fixedModality ?? 'presencial') as 'presencial' | 'virtual',
@@ -520,7 +518,7 @@ export default function BookingWizard({
 
           {/* Auto-assign card */}
           <button
-            onClick={() => { setFormData(p => ({ ...p, doctor_id: '', date: '', time: '' })); setShowDoctorPicker(false) }}
+            onClick={() => setFormData(p => ({ ...p, doctor_id: '', date: '', time: '' }))}
             className="w-full flex items-center gap-4 rounded-2xl p-4 text-left transition"
             style={{
               border:     `${formData.doctor_id === '' ? 2 : 0.5}px solid ${formData.doctor_id === '' ? B.primary : B.border}`,
@@ -535,41 +533,32 @@ export default function BookingWizard({
             </div>
           </button>
 
-          {/* Choose specific doctor */}
+          {/* Doctor grid — always visible */}
           {availableDoctors.length > 0 && (
             <div>
-              <button
-                onClick={() => setShowDoctorPicker(v => !v)}
-                className="flex items-center gap-2 text-sm font-medium transition"
-                style={{ color: B.primary }}>
-                Quiero elegir un médico específico
-                <ChevronDown className={`h-4 w-4 transition-transform ${showDoctorPicker ? 'rotate-180' : ''}`} />
-              </button>
-
-              {showDoctorPicker && (
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  {availableDoctors.map(doc => {
-                    const name     = String(doc.metadata?.name ?? 'Médico')
-                    const photoUrl = doc.metadata?.photo_url as string | null | undefined
-                    const isActive = formData.doctor_id === doc.id
-                    return (
-                      <button key={doc.id}
-                        onClick={() => setFormData(p => ({ ...p, doctor_id: doc.id, date: '', time: '' }))}
-                        className="flex items-center gap-3 rounded-2xl p-3 text-left transition"
-                        style={{
-                          border:     `${isActive ? 2 : 0.5}px solid ${isActive ? B.primary : B.border}`,
-                          background: isActive ? B.bg : B.secondary,
-                        }}>
-                        <DoctorAvatar name={name} photoUrl={photoUrl} color={typeColor} size="md" />
-                        <div className="min-w-0">
-                          <p className="font-semibold text-sm truncate" style={{ color: B.fg }}>{name}</p>
-                          {doc.specialty && <p className="text-xs mt-0.5 truncate" style={{ color: B.muted }}>{doc.specialty}</p>}
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
+              <p style={{ fontSize: 12, color: B.muted, marginBottom: 12 }}>O elige un médico específico</p>
+              <div className="grid grid-cols-2 gap-3">
+                {availableDoctors.map(doc => {
+                  const name     = String(doc.metadata?.name ?? 'Médico')
+                  const photoUrl = doc.metadata?.photo_url as string | null | undefined
+                  const isActive = formData.doctor_id === doc.id
+                  return (
+                    <button key={doc.id}
+                      onClick={() => setFormData(p => ({ ...p, doctor_id: doc.id, date: '', time: '' }))}
+                      className="flex items-center gap-3 rounded-2xl p-3 text-left transition"
+                      style={{
+                        border:     `${isActive ? 2 : 0.5}px solid ${isActive ? B.primary : B.border}`,
+                        background: isActive ? B.bg : B.secondary,
+                      }}>
+                      <DoctorAvatar name={name} photoUrl={photoUrl} color={typeColor} size="md" />
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm truncate" style={{ color: B.fg }}>{name}</p>
+                        {doc.specialty && <p className="text-xs mt-0.5 truncate" style={{ color: B.muted }}>{doc.specialty}</p>}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
