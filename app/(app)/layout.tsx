@@ -24,7 +24,7 @@ export default async function AppShell({ children }: { children: ReactNode }) {
   const userFullName = [userRecord?.first_name, userRecord?.last_name].filter(Boolean).join(' ') || 'Usuario del equipo'
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-background">
       <div className="flex min-h-screen">
         <OrgSidebar
           orgName={organization?.name || 'Medscale AI'}

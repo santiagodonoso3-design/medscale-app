@@ -1,5 +1,4 @@
 'use client'
-
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { LayoutDashboard, MessageSquare, CalendarDays, Settings, LogOut, Stethoscope, Users, MessageCircle } from 'lucide-react'
@@ -40,14 +39,14 @@ export function OrgSidebar({ orgName, userName, userEmail }: OrgSidebarProps) {
   }
 
   return (
-    <aside className="flex h-full min-h-screen w-72 flex-col bg-slate-950 text-white">
-      <div className="border-b border-slate-800 px-6 py-6">
+    <aside className="flex h-full min-h-screen w-72 flex-col bg-foreground text-primary-foreground">
+      <div className="border-b border-primary/30 px-6 py-6">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-500 text-white">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-accent text-white">
             <LayoutDashboard className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-400">Medscale AI</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Medscale AI</p>
             <h1 className="text-lg font-bold tracking-tight text-white truncate">{orgName || 'Mi clínica'}</h1>
           </div>
         </div>
@@ -65,7 +64,9 @@ export function OrgSidebar({ orgName, userName, userEmail }: OrgSidebarProps) {
               key={item.href}
               href={item.href}
               className={`group flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-colors ${
-                isActive ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+                isActive
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-white/60 hover:bg-primary/20 hover:text-white'
               }`}
             >
               <Icon className="h-5 w-5" />
@@ -75,16 +76,16 @@ export function OrgSidebar({ orgName, userName, userEmail }: OrgSidebarProps) {
         })}
       </nav>
 
-      <div className="border-t border-slate-800 px-6 py-6">
-        <div className="rounded-3xl bg-slate-900 p-4">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Usuario</p>
+      <div className="border-t border-primary/30 px-6 py-6">
+        <div className="rounded-2xl bg-primary/20 p-4">
+          <p className="text-xs uppercase tracking-[0.24em] text-accent">Usuario</p>
           <p className="mt-2 text-sm font-semibold text-white truncate">{userName || 'Miembro del equipo'}</p>
-          <p className="mt-1 text-xs text-slate-500 truncate">{userEmail || 'Sin email'}</p>
+          <p className="mt-1 text-xs text-white/50 truncate">{userEmail || 'Sin email'}</p>
         </div>
         <button
           onClick={handleLogout}
           disabled={isLoggingOut}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-3xl bg-slate-800 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary/30 px-4 py-3 text-sm font-semibold text-white transition hover:bg-primary/50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <LogOut className="h-4 w-4" />
           {isLoggingOut ? 'Cerrando sesión...' : 'Cerrar sesión'}
