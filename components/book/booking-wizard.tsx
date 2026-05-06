@@ -91,6 +91,8 @@ interface BookingWizardProps {
   schedules: ScheduleOption[]
   formFields: FormField[]
   appointmentType?: AppointmentTypeOption
+  orgPrimaryColor?: string
+  orgLogoUrl?: string | null
 }
 
 // ── Calendar utilities ────────────────────────────────────────────────────────
@@ -145,6 +147,7 @@ interface CalendarPickerProps {
   onSelect: (date: string, time: string) => void
   doctorId: string
   minNoticeHours?: number
+  primaryColor?: string
 }
 
 function CalendarPicker({
@@ -156,6 +159,7 @@ function CalendarPicker({
   onSelect,
   doctorId,
   minNoticeHours = 0,
+  primaryColor = '#215F73',
 }: CalendarPickerProps) {
   const today          = todayBogota()
   const minAllowedTime = new Date(Date.now() + minNoticeHours * 3600 * 1000)
@@ -237,7 +241,7 @@ function CalendarPicker({
           <p className="font-medium text-sm leading-snug" style={{ color: B.fg }}>{doctorName}</p>
           {selectedDoctor?.specialty && <p className="text-xs mt-0.5" style={{ color: B.muted }}>{selectedDoctor.specialty}</p>}
         </div>
-        <div className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: B.bg, color: B.primary }}>
+        <div className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: B.bg, color: primaryColor }}>
           <Clock className="w-3 h-3" />{duration} min
         </div>
         {selectedDate && selectedTime && (
@@ -281,7 +285,7 @@ function CalendarPicker({
                 <button key={dateStr} disabled={isPast || !isAvailable} onClick={() => onSelect(dateStr, '')}
                   className="aspect-square rounded-lg text-xs font-medium transition flex items-center justify-center"
                   style={{
-                    background: isSelected ? B.primary : 'transparent',
+                    background: isSelected ? primaryColor : 'transparent',
                     color:      isSelected ? '#fff' : isPast || !isAvailable ? B.border : B.fg,
                     outline:    isToday && isAvailable && !isSelected ? `2px solid ${B.accent}` : 'none',
                     cursor:     isPast || !isAvailable ? 'not-allowed' : 'pointer',
@@ -300,7 +304,7 @@ function CalendarPicker({
             </p>
             {slotsLoading ? (
               <div className="flex items-center gap-2 text-sm" style={{ color: B.muted }}>
-                <div className="w-4 h-4 border-2 border-t-[#215F73] rounded-full animate-spin" style={{ borderColor: B.border, borderTopColor: B.primary }} />
+                <div className="w-4 h-4 border-2 border-t-[#215F73] rounded-full animate-spin" style={{ borderColor: B.border, borderTopColor: primaryColor }} />
                 Cargando horarios...
               </div>
             ) : slotsForDate.length === 0 ? (
@@ -314,7 +318,7 @@ function CalendarPicker({
                     <button key={time} disabled={booked} onClick={() => onSelect(selectedDate, time)}
                       className="rounded-xl px-3 py-2 text-sm font-medium transition text-center"
                       style={{
-                        background: selected ? B.primary : booked ? B.secondary : B.secondary,
+                        background: selected ? primaryColor : booked ? B.secondary : B.secondary,
                         color:      selected ? '#fff'     : booked ? B.border    : B.fg,
                         textDecoration: booked ? 'line-through' : 'none',
                         cursor:     booked ? 'not-allowed' : 'pointer',
@@ -350,8 +354,10 @@ function DoctorAvatar({ name, photoUrl, color, size = 'md' }: { name: string; ph
 
 export default function BookingWizard({
   orgName, orgSlug, orgId, doctors, locations, schedules, formFields, appointmentType,
+  orgPrimaryColor, orgLogoUrl,
 }: BookingWizardProps) {
-  const typeColor = appointmentType?.color ?? B.primary
+  const primaryColor = orgPrimaryColor ?? '#215F73'
+  const typeColor = appointmentType?.color ?? primaryColor
 
   const fixedModality: 'presencial' | 'virtual' | null =
     appointmentType?.modality === 'presencial' ? 'presencial' :
@@ -468,10 +474,10 @@ export default function BookingWizard({
           <div key={label} className="flex items-center">
             <div className="flex flex-col items-center gap-1.5">
               <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors"
-                style={{ background: active ? B.primary : '#e5e7eb', color: active ? '#fff' : B.muted }}>
+                style={{ background: active ? primaryColor : '#e5e7eb', color: active ? '#fff' : B.muted }}>
                 {pos}
               </div>
-              <span className="hidden sm:block text-[11px] font-medium" style={{ color: active ? B.primary : B.muted }}>{label}</span>
+              <span className="hidden sm:block text-[11px] font-medium" style={{ color: active ? primaryColor : B.muted }}>{label}</span>
             </div>
             {idx < INDICATOR_LABELS.length - 1 && (
               <div className="w-6 sm:w-10 h-0.5 mx-1 sm:mx-2 mb-4 transition-colors"
@@ -505,10 +511,10 @@ export default function BookingWizard({
                 onClick={() => setFormData(p => ({ ...p, modality: value as 'presencial' | 'virtual' }))}
                 className="flex items-center gap-3 rounded-2xl p-4 text-left transition"
                 style={{
-                  border:     `${active ? 2 : 0.5}px solid ${active ? B.primary : B.border}`,
+                  border:     `${active ? 2 : 0.5}px solid ${active ? primaryColor : B.border}`,
                   background: active ? B.bg : B.secondary,
                 }}>
-                <div className="shrink-0 rounded-xl p-2" style={{ background: active ? B.primary : B.border }}>
+                <div className="shrink-0 rounded-xl p-2" style={{ background: active ? primaryColor : B.border }}>
                   <Icon className="h-5 w-5" style={{ color: active ? '#fff' : B.muted }} />
                 </div>
                 <div>
@@ -529,7 +535,7 @@ export default function BookingWizard({
           </p>
           {locations.length === 1 ? (
             <div className="flex items-center gap-3 px-1">
-              <Building className="h-4 w-4 shrink-0" style={{ color: B.primary }} />
+              <Building className="h-4 w-4 shrink-0" style={{ color: primaryColor }} />
               <div>
                 <p className="font-semibold text-sm" style={{ color: B.fg }}>{locations[0].name}</p>
                 {locations[0].address && (
@@ -546,10 +552,10 @@ export default function BookingWizard({
                     onClick={() => setFormData(p => ({ ...p, location_id: loc.id }))}
                     className="w-full flex items-center gap-3 rounded-2xl p-4 text-left transition"
                     style={{
-                      border: `${isActive ? 2 : 0.5}px solid ${isActive ? B.primary : B.border}`,
+                      border: `${isActive ? 2 : 0.5}px solid ${isActive ? primaryColor : B.border}`,
                       background: isActive ? B.bg : B.secondary,
                     }}>
-                    <div className="shrink-0 rounded-xl p-2" style={{ background: isActive ? B.primary : B.border }}>
+                    <div className="shrink-0 rounded-xl p-2" style={{ background: isActive ? primaryColor : B.border }}>
                       <Building className="h-4 w-4" style={{ color: isActive ? '#fff' : B.muted }} />
                     </div>
                     <div className="min-w-0">
@@ -581,10 +587,10 @@ export default function BookingWizard({
             onClick={() => setFormData(p => ({ ...p, doctor_id: '', date: '', time: '' }))}
             className="w-full flex items-center gap-4 rounded-2xl p-4 text-left transition"
             style={{
-              border:     `${formData.doctor_id === '' ? 2 : 0.5}px solid ${formData.doctor_id === '' ? B.primary : B.border}`,
+              border:     `${formData.doctor_id === '' ? 2 : 0.5}px solid ${formData.doctor_id === '' ? primaryColor : B.border}`,
               background: formData.doctor_id === '' ? B.bg : B.secondary,
             }}>
-            <div className="h-12 w-12 shrink-0 rounded-2xl flex items-center justify-center" style={{ background: B.primary }}>
+            <div className="h-12 w-12 shrink-0 rounded-2xl flex items-center justify-center" style={{ background: primaryColor }}>
               <Sparkles className="h-6 w-6 text-white" />
             </div>
             <div>
@@ -607,7 +613,7 @@ export default function BookingWizard({
                       onClick={() => setFormData(p => ({ ...p, doctor_id: doc.id, date: '', time: '' }))}
                       className="flex items-center gap-3 rounded-2xl p-3 text-left transition"
                       style={{
-                        border:     `${isActive ? 2 : 0.5}px solid ${isActive ? B.primary : B.border}`,
+                        border:     `${isActive ? 2 : 0.5}px solid ${isActive ? primaryColor : B.border}`,
                         background: isActive ? B.bg : B.secondary,
                       }}>
                       <DoctorAvatar name={name} photoUrl={photoUrl} color={typeColor} size="md" />
@@ -651,6 +657,7 @@ export default function BookingWizard({
           onSelect={(date, time) => setFormData(p => ({ ...p, date, time }))}
           doctorId={formData.doctor_id}
           minNoticeHours={appointmentType?.min_notice_hours ?? 0}
+          primaryColor={primaryColor}
         />
       </div>
     )
@@ -772,7 +779,7 @@ export default function BookingWizard({
         {/* Confirm */}
         <button onClick={handleSubmit} disabled={!canSubmit}
           className="w-full flex items-center justify-center gap-2 px-5 py-3 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ background: canSubmit ? B.primary : B.muted }}>
+          style={{ background: canSubmit ? primaryColor : B.muted }}>
           {loading
             ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Agendando...</>
             : <><UserPlus className="w-4 h-4" /> Confirmar cita</>}
@@ -787,7 +794,7 @@ export default function BookingWizard({
     if (success) {
       return (
         <div className="text-center space-y-6">
-          <CheckCircle className="w-16 h-16 mx-auto" style={{ color: B.primary }} />
+          <CheckCircle className="w-16 h-16 mx-auto" style={{ color: primaryColor }} />
           <h2 className="text-2xl font-bold" style={{ color: B.fg }}>¡Cita agendada!</h2>
           <p style={{ color: B.muted }}>Recibirás una confirmación por email.</p>
           <div className="rounded-2xl p-6 text-left space-y-3 text-sm" style={{ background: B.secondary, border: `1px solid ${B.border}` }}>
@@ -822,7 +829,7 @@ export default function BookingWizard({
         </div>
         <button onClick={() => { setError(null); goPrev() }}
           className="inline-flex items-center gap-2 px-6 py-3 text-white rounded-xl font-medium transition"
-          style={{ background: B.primary }}>
+          style={{ background: primaryColor }}>
           <ArrowLeft className="w-4 h-4" />
           Volver e intentar de nuevo
         </button>
@@ -842,6 +849,9 @@ export default function BookingWizard({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 sm:mb-8">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={{ color: B.accent }}>RESERVAR CITA</p>
+            {orgLogoUrl && (
+              <img src={orgLogoUrl} alt={orgName} className="h-10 w-auto object-contain mb-2" />
+            )}
             <h1 className="text-2xl sm:text-3xl font-bold mt-0.5 truncate" style={{ color: B.fg }}>{orgName}</h1>
             {appointmentType && (
               <p className="text-sm mt-1 truncate" style={{ color: B.muted }}>
@@ -876,7 +886,7 @@ export default function BookingWizard({
             ) : <div />}
             <button onClick={goNext} disabled={!step2Ready}
               className="flex items-center gap-2 px-5 py-2.5 text-white rounded-xl text-sm font-medium ml-auto transition disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: B.primary }}>
+              style={{ background: primaryColor }}>
               Siguiente <ArrowRight className="w-4 h-4" />
             </button>
           </div>

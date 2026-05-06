@@ -27,7 +27,7 @@ export default async function BookPage({ params }: BookPageProps) {
 
   const { data: organization, error: orgError } = await supabaseAdmin
     .from('organizations')
-    .select('id, name')
+    .select('id, name, primary_color, logo_url')
     .eq('slug', slug)
     .single()
 
@@ -57,6 +57,9 @@ export default async function BookPage({ params }: BookPageProps) {
         {/* Header */}
         <div className="rounded-3xl bg-white px-8 py-7 shadow-sm text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Agendamiento online</p>
+          {(organization as any).logo_url && (
+            <img src={(organization as any).logo_url} alt={organization.name} className="h-12 w-auto object-contain mx-auto mb-2" />
+          )}
           <h1 className="mt-1 text-2xl font-bold text-slate-900">{organization.name}</h1>
           <p className="mt-1 text-sm text-slate-500">Selecciona el tipo de cita</p>
         </div>

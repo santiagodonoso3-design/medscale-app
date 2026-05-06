@@ -21,7 +21,7 @@ export default async function BookTypePage({ params }: PageProps) {
 
   const { data: organization, error: orgError } = await supabaseAdmin
     .from('organizations')
-    .select('id, name')
+    .select('id, name, primary_color, logo_url')
     .eq('slug', orgSlug)
     .single()
 
@@ -76,6 +76,8 @@ export default async function BookTypePage({ params }: PageProps) {
         orgName={organization.name}
         orgSlug={orgSlug}
         orgId={organization.id}
+        orgPrimaryColor={organization.primary_color ?? '#215F73'}
+        orgLogoUrl={organization.logo_url ?? null}
         doctors={doctors || []}
         locations={locations || []}
         schedules={schedules || []}
