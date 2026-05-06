@@ -48,6 +48,7 @@ interface DoctorOption {
 interface LocationOption {
   id: string
   name: string
+  address?: string | null
 }
 
 interface ScheduleOption {
@@ -375,6 +376,7 @@ export default function BookingWizard({
   const [formData, setFormData] = useState({
     modality: (fixedModality ?? 'presencial') as 'presencial' | 'virtual',
     doctor_id: '',
+    location_id: locations.length === 1 ? locations[0].id : '',
     date: '',
     time: '',
     patient_first_name: '',
@@ -426,6 +428,7 @@ export default function BookingWizard({
           appointment_type_id: appointmentType?.id ?? null,
           modality:            formData.modality,
           doctor_id:           formData.doctor_id || null,
+          location_id:         formData.location_id || null,
           date:                formData.date,
           time:                formData.time,
           patient_first_name:  formData.patient_first_name,
@@ -515,6 +518,38 @@ export default function BookingWizard({
               </button>
             )
           })}
+        </div>
+      )}
+
+      {/* Sede */}
+      {formData.modality === 'presencial' && locations.length > 0 && (
+        <div className="rounded-2xl px-4 py-3 text-sm" style={{ background: B.secondary, border: `1px solid ${B.border}` }}>
+          {locations.length === 1 ? (
+            <div className="flex items-start gap-3">
+              <Building className="h-4 w-4 mt-0.5 shrink-0" style={{ color: B.primary }} />
+              <div>
+                <p className="font-semibold" style={{ color: B.fg }}>{locations[0].name}</p>
+                {locations[0].address && (
+                  <p className="text-xs mt-0.5" style={{ color: B.muted }}>{locations[0].address}</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: B.muted }}>Sede</p>
+              <select
+                value={formData.location_id ?? ''}
+                onChange={e => setFormData(p => ({ ...p, location_id: e.target.value }))}
+                className="w-full px-3 py-2 rounded-xl text-sm focus:outline-none"
+                style={{ border: `1px solid ${B.border}`, background: '#fff', color: B.fg }}
+              >
+                <option value="">Selecciona una sede</option>
+                {locations.map(loc => (
+                  <option key={loc.id} value={loc.id}>{loc.name}{loc.address ? ` — ${loc.address}` : ''}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       )}
 
