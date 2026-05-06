@@ -190,7 +190,7 @@ export async function POST(request: Request) {
 
     // Get location + doctor metadata in parallel
     const [{ data: locations, error: locError }, { data: doctorData, error: docMetaError }] = await Promise.all([
-      supabase.from('locations').select('id').eq('organization_id', org.id).limit(1),
+      supabase.from('locations').select('id, address, city').eq('organization_id', org.id).limit(1),
       supabase.from('doctors').select('metadata').eq('id', selectedDoctorId!).single(),
     ])
 
@@ -278,6 +278,8 @@ export async function POST(request: Request) {
         modality:            modality ?? 'presencial',
         orgName:             orgNameDisplay,
         appointmentTypeName: null as string | null,
+        locationAddress:     ((locations[0] as any)?.address as string | null) ?? null,
+        locationCity:        ((locations[0] as any)?.city    as string | null) ?? null,
         language,
       }
 

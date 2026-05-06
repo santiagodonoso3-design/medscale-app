@@ -6,8 +6,10 @@ interface BookingEmailParams {
   modality: string    // 'presencial' | 'virtual'
   orgName: string
   appointmentTypeName: string | null
-  typeColor?: string  // hex color for accent bar, default #3B82F6
-  language?: string   // 'es' | 'en', default 'es'
+  typeColor?: string        // hex color for accent bar, default #3B82F6
+  locationAddress?: string | null
+  locationCity?: string | null
+  language?: string         // 'es' | 'en', default 'es'
 }
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -75,6 +77,11 @@ export function bookingConfirmationPatient(p: BookingEmailParams): string {
   const lDate       = isEs ? 'Fecha'         : 'Date'
   const lTime       = isEs ? 'Hora'          : 'Time'
   const lModality   = isEs ? 'Modalidad'     : 'Modality'
+  const lAddress    = isEs ? 'Dirección'     : 'Address'
+
+  const addressDisplay = p.locationAddress
+    ? [p.locationAddress, p.locationCity].filter(Boolean).join(', ')
+    : null
   const footerMain  = isEs
     ? `Si no agendaste esta cita, ignora este mensaje.`
     : `If you didn't schedule this appointment, please ignore this email.`
@@ -120,10 +127,11 @@ export function bookingConfirmationPatient(p: BookingEmailParams): string {
             ${cell(lDate, p.date)}
             ${cell(lTime, time12)}
           </tr>
-          <tr>
+          <tr${addressDisplay ? ' style="border-bottom:1px solid #e2e8f0"' : ''}>
             ${cell(lModality, modalityDisplay)}
             <td></td>
           </tr>
+          ${addressDisplay && p.modality !== 'virtual' ? `<tr>${cell(lAddress, addressDisplay)}<td></td></tr>` : ''}
         </table>
       </div>
 

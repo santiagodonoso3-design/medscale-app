@@ -88,6 +88,13 @@
 - ✅ Campos base (Nombre, Teléfono, Email, Cédula) visibles como no editables
 - ✅ Tabla appointment_form_fields creada y conectada al booking wizard
 
+### Notificaciones por email
+- ✅ Resend integrado: dominio medscale.app verificado, emails salen de citas@medscale.app
+- ✅ Email de confirmación al paciente al agendar (bilingüe es/en según idioma seleccionado)
+- ✅ Template HTML: header oscuro, tarjeta con detalles de cita, footer con info legal
+- ✅ RESEND_API_KEY en Vercel Environment Variables (Production)
+- ✅ Envío no-bloqueante con Promise.allSettled
+
 ### CRM y Calendario
 - ✅ Nombre completo en tabla CRM: contact_name + contact_last_name en una línea
 - ✅ Modal de cita mejorado: reagendar colapsado por defecto, botones de acción más limpios
@@ -105,7 +112,8 @@
 - ✅ CRM: fuentes legacy manychat/manychat_n8n → whatsapp (migración 005 + normalización en carga)
 
 ## 🔴 PRIORIDAD 1 — Probar y corregir en producción
-- [ ] Notificaciones por email con Resend: dominio medscale.app pendiente de verificar, cuenta creada en resend.com
+- [ ] Email de notificación a la clínica (requiere contact_email en organizations)
+- [ ] Logo y color personalizable por cliente (logo_url, primary_color en organizations)
 - [ ] Aplicar max_notice_days y buffer_before/after_min en el booking wizard
 - [ ] Verificar cancelar cita con motivo guarda correctamente en appointment_logs
 - [ ] Verificar reagendar cita — fecha/hora correcta en DB
@@ -156,6 +164,13 @@
 - **Backend:** Supabase (PostgreSQL + Auth)
 - **Agendamiento:** 100% interno, sin Cal.com
 - **Deploy:** Vercel (repo público)
+
+### Email
+- Proveedor: Resend — plan free, 3000 emails/mes
+- Dominio: medscale.app (GoDaddy, auto-configurado por Resend)
+- From: citas@medscale.app
+- Templates: lib/email/templates.ts
+- Cliente singleton: lib/email/resend.ts
 
 ### Stack
 - TypeScript, React, Tailwind CSS, shadcn/ui
