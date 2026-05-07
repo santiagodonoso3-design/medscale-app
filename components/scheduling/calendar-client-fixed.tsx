@@ -190,11 +190,11 @@ export function CalendarClient({ userId }: CalendarClientProps) {
     lead_id: '',
   })
   const [createStep, setCreateStep] = useState<'patient' | 'schedule'>('patient')
-  const [patientMode, setPatientMode] = useState<'search' | 'new'>('search')
+  const [patientMode, setPatientMode] = useState<'search' | 'new'>('new')
   const [leadResults, setLeadResults] = useState<any[]>([])
   const [leadSearch, setLeadSearch] = useState('')
   const [availableSlots, setAvailableSlots] = useState<string[]>([])
-  const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() } })
+
   const [saving, setSaving] = useState(false)
 
   // ── Detail modal state
@@ -1032,115 +1032,45 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                         {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                       </select>
                     </div>
-                    <div className="sm:col-span-2">
-                      <label className="text-xs font-medium text-slate-600">Fecha</label>
-                      <div className="mt-1 rounded-xl border border-slate-200 bg-white p-3">
-                        {/* Calendar header */}
-                        <div className="flex items-center justify-between mb-2">
-                          <button
-                            type="button"
-                            onClick={() => setCalMonth(c => {
-                              const d = new Date(c.year, c.month - 1, 1)
-                              const now = new Date()
-                              if (d.getFullYear() < now.getFullYear() || (d.getFullYear() === now.getFullYear() && d.getMonth() < now.getMonth())) return c
-                              return { year: d.getFullYear(), month: d.getMonth() }
-                            })}
-                            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition disabled:opacity-30"
-                          >
-                            <ChevronLeft className="h-4 w-4" />
-                          </button>
-                          <span className="text-sm font-semibold text-slate-900">
-                            {MONTH_NAMES[calMonth.month]} {calMonth.year}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setCalMonth(c => {
-                              const d = new Date(c.year, c.month + 1, 1)
-                              return { year: d.getFullYear(), month: d.getMonth() }
-                            })}
-                            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
-                          >
-                            <ChevronRight className="h-4 w-4" />
-                          </button>
-                        </div>
-                        {/* Day-of-week headers */}
-                        <div className="grid grid-cols-7 mb-1">
-                          {['LU','MA','MI','JU','VI','SA','DO'].map(d => (
-                            <div key={d} className="text-center text-[10px] font-semibold text-slate-400 py-1">{d}</div>
-                          ))}
-                        </div>
-                        {/* Day cells */}
-                        <div className="grid grid-cols-7">
-                          {(() => {
-                            const availDays = getDoctorAvailableDays(form.doctor_id)
-                            const todayIso = todayStr()
-                            const firstDow = new Date(calMonth.year, calMonth.month, 1).getDay()
-                            const leadingEmpties = firstDow === 0 ? 6 : firstDow - 1
-                            const daysInMonth = new Date(calMonth.year, calMonth.month + 1, 0).getDate()
-                            const prevDays = new Date(calMonth.year, calMonth.month, 0).getDate()
-                            const cells: { dateStr: string | null; day: number; type: 'prev' | 'cur' | 'next' }[] = []
-                            for (let i = leadingEmpties - 1; i >= 0; i--) {
-                              const d = prevDays - i
-                              const mo = calMonth.month === 0 ? 12 : calMonth.month
-                              const yr = calMonth.month === 0 ? calMonth.year - 1 : calMonth.year
-                              cells.push({ dateStr: null, day: d, type: 'prev' })
-                            }
-                            for (let d = 1; d <= daysInMonth; d++) {
-                              const dateStr = `${calMonth.year}-${String(calMonth.month + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
-                              cells.push({ dateStr, day: d, type: 'cur' })
-                            }
-                            let nextDay = 1
-                            while (cells.length % 7 !== 0) {
-                              cells.push({ dateStr: null, day: nextDay++, type: 'next' })
-                            }
-                            return cells.map((cell, i) => {
-                              if (cell.type !== 'cur' || !cell.dateStr) {
-                                return <div key={i} className="flex items-center justify-center h-9 text-sm text-slate-200">{cell.day}</div>
-                              }
-                              const dateStr = cell.dateStr
-                              const jsDay = new Date(dateStr + 'T12:00:00').getDay()
-                              const isAvail = availDays.includes(jsDay) && dateStr >= todayIso
-                              const isSelected = form.scheduled_date === dateStr
-                              const isToday = dateStr === todayIso
-                              return (
-                                <button
-                                  key={i}
-                                  type="button"
-                                  disabled={!isAvail}
-                                  onClick={() => isAvail && setForm(p => ({ ...p, scheduled_date: dateStr, scheduled_time: '' }))}
-                                  className={[
-                                    'flex items-center justify-center h-9 text-sm rounded-full mx-auto w-9 transition',
-                                    isSelected
-                                      ? 'bg-blue-600 text-white font-semibold'
-                                      : isAvail
-                                      ? `text-slate-900 hover:bg-blue-50 cursor-pointer${isToday ? ' ring-1 ring-blue-400' : ''}`
-                                      : 'text-slate-300 cursor-not-allowed',
-                                  ].join(' ')}
-                                >
-                                  {cell.day}
-                                </button>
-                              )
-                            })
-                          })()}
-                        </div>
+                    <div className="sm:col-span-2 space-y-3">
+                      <div>
+                        <label className="text-xs font-medium text-slate-600">Fecha</label>
+                        <input
+                          type="date"
+                          value={form.scheduled_date}
+                          min={new Date().toISOString().slice(0, 10)}
+                          onChange={e => setForm(p => ({ ...p, scheduled_date: e.target.value, scheduled_time: '' }))}
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
                       </div>
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-slate-600">Hora disponible</label>
-                      {form.scheduled_date && form.doctor_id && availableSlots.length === 0 ? (
-                        <p className="mt-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                          El médico no atiende este día
-                        </p>
-                      ) : (
-                        <select
-                          value={form.scheduled_time}
-                          onChange={e => setForm(p => ({ ...p, scheduled_time: e.target.value }))}
-                          disabled={availableSlots.length === 0}
-                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                        >
-                          <option value="">Selecciona hora</option>
-                          {availableSlots.map(slot => <option key={slot} value={slot}>{slot}</option>)}
-                        </select>
+
+                      {form.scheduled_date && form.doctor_id && (
+                        <div>
+                          <label className="text-xs font-medium text-slate-600 mb-2 block">
+                            Hora disponible
+                          </label>
+                          {availableSlots.length === 0 ? (
+                            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                              El médico no atiende este día
+                            </p>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              {availableSlots.map(slot => (
+                                <button
+                                  key={slot}
+                                  onClick={() => setForm(p => ({ ...p, scheduled_time: slot }))}
+                                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                                    form.scheduled_time === slot
+                                      ? 'bg-blue-600 text-white shadow-sm'
+                                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                  }`}
+                                >
+                                  {slot}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                     <div className="sm:col-span-2">
