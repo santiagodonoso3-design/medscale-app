@@ -63,7 +63,7 @@ interface Metrics {
   }[]
 }
 
-function computeMetrics(data: RawDashboardData, months: number[], year: number): Metrics {
+function computeMetrics(data: RawDashboardData, months: number[], year: number, currentYear: number, currentMonth: number): Metrics {
   const { appointments, yearLeads, inProcedureCount, doctors } = data
   const monthSet = new Set(months)
   const inPeriod = (ym: string) =>
@@ -74,9 +74,10 @@ function computeMetrics(data: RawDashboardData, months: number[], year: number):
   const citasCount    = appointments.filter(a => inPeriod(a.ym) && a.status !== 'cancelled').length
   const attendedCount = appointments.filter(a => inPeriod(a.ym) && a.status === 'completed').length
 
-  // Monthly lines
-  const sortedMonths = [...months].sort((a, b) => a - b)
-  const monthlyLines = sortedMonths.map(m => ({
+  // Monthly lines — always full year, ignoring month filter
+  const maxMonth = year === currentYear ? currentMonth : 12
+  const allYearMonths = Array.from({ length: maxMonth }, (_, i) => i + 1)
+  const monthlyLines = allYearMonths.map(m => ({
     label: MONTH_LABELS[m - 1],
     agendadas:   appointments.filter(a => a.ym === `${year}-${pad(m)}` && a.status !== 'cancelled').length,
     asistencias: appointments.filter(a => a.ym === `${year}-${pad(m)}` && a.status === 'completed').length,
@@ -209,7 +210,7 @@ export function DashboardClient({
   const allSelected = selectedMonths.length === available.length
 
   const m = useMemo(
-    () => computeMetrics(rawData, selectedMonths, selectedYear),
+    () => computeMetrics(rawData, selectedMonths, selectedYear, CURRENT_YEAR, CURRENT_MONTH),
     [rawData, selectedMonths, selectedYear]
   )
 
@@ -280,7 +281,7 @@ export function DashboardClient({
       {/* Bloque 2 — Tendencia mensual (ancho completo) */}
       <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
         <h2 className="text-base font-semibold text-slate-900">Tendencia mensual</h2>
-        <p className="mt-0.5 mb-4 text-xs text-slate-400">Agendadas vs Asistencias · meses seleccionados</p>
+        <p className="mt-0.5 mb-4 text-xs text-slate-400">Agendadas vs Asistencias · año completo</p>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={m.monthlyLines} margin={{ top: 4, right: 16, left: -20, bottom: 0 }} barCategoryGap="30%">
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
