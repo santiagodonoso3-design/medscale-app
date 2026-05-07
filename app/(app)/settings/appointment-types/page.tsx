@@ -764,29 +764,36 @@ export default function AppointmentTypesPage() {
                       </div>
                     </div>
                     <div>
-                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Modo de asignación *</label>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        Modo de asignación *
+                      </label>
                       <div className="mt-2 space-y-2">
-                        {ASSIGNMENT_MODE_OPTIONS.map(opt => (
-                          <label key={opt.value}
-                            className={`flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition ${
-                              form.assignment_mode === opt.value
-                                ? 'border-blue-400 bg-blue-50'
-                                : 'border-slate-200 hover:bg-slate-50'
-                            }`}>
-                            <input
-                              type="radio"
-                              name="assignment_mode"
-                              value={opt.value}
-                              checked={form.assignment_mode === opt.value}
-                              onChange={() => setForm(p => ({ ...p, assignment_mode: opt.value as AssignmentMode }))}
-                              className="mt-0.5 shrink-0 accent-blue-600"
-                            />
-                            <div>
-                              <p className="text-sm font-semibold text-slate-800">{opt.label}</p>
-                              <p className="text-xs text-slate-500 mt-0.5">{opt.desc}</p>
-                            </div>
-                          </label>
-                        ))}
+                        {[
+                          { assignment_mode: 'one_on_one',               rr_count_all: true,  label: 'El paciente decide',                   desc: 'El paciente siempre elige su médico. Sin excepción.' },
+                          { assignment_mode: 'hybrid',                   rr_count_all: true,  label: 'Flexible',                             desc: 'El paciente puede elegir médico o dejarlo al sistema.' },
+                          { assignment_mode: 'round_robin_proportional', rr_count_all: true,  label: 'Rotación automática — carga total',     desc: 'El sistema asigna al médico con menos citas, contando todas sus citas.' },
+                          { assignment_mode: 'round_robin_proportional', rr_count_all: false, label: 'Rotación automática — solo automáticas', desc: 'El sistema asigna al médico con menos citas, contando solo las que él mismo asignó anteriormente.' },
+                        ].map(opt => {
+                          const isSelected = form.assignment_mode === opt.assignment_mode && form.rr_count_all === opt.rr_count_all
+                          return (
+                            <label key={opt.label}
+                              className={`flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition ${
+                                isSelected ? 'border-blue-400 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'
+                              }`}>
+                              <input
+                                type="radio"
+                                name="assignment_mode_full"
+                                checked={isSelected}
+                                onChange={() => setForm(p => ({ ...p, assignment_mode: opt.assignment_mode as AssignmentMode, rr_count_all: opt.rr_count_all }))}
+                                className="mt-0.5 shrink-0 accent-blue-600"
+                              />
+                              <div>
+                                <p className="text-sm font-semibold text-slate-800">{opt.label}</p>
+                                <p className="text-xs text-slate-500 mt-0.5">{opt.desc}</p>
+                              </div>
+                            </label>
+                          )
+                        })}
                       </div>
                     </div>
                     <div>
@@ -839,50 +846,6 @@ export default function AppointmentTypesPage() {
                         onChange={e => setForm(p => ({ ...p, min_notice_hours: Number(e.target.value) }))}
                         className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
-                    {form.assignment_mode === 'round_robin_proportional' && (
-                      <div className="mt-4">
-                        <div className="flex items-center gap-1.5">
-                          <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Balanceo de carga
-                          </label>
-                          <InfoTooltip text="Define cómo el sistema cuenta las citas al asignar médicos automáticamente." />
-                        </div>
-                        <div className="mt-2 space-y-2">
-                          <label className="flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-3 cursor-pointer hover:bg-slate-50 transition">
-                            <input
-                              type="radio"
-                              name="rr_count_all"
-                              checked={form.rr_count_all === true}
-                              onChange={() => setForm(p => ({ ...p, rr_count_all: true }))}
-                              className="mt-0.5 shrink-0"
-                            />
-                            <div>
-                              <p className="text-sm font-semibold text-slate-800">Carga total</p>
-                              <p className="text-xs text-slate-500 mt-0.5">
-                                Considera todas las citas del médico — tanto las que el paciente eligió
-                                como las que el sistema asignó. Protege al médico de sobrecarga real.
-                              </p>
-                            </div>
-                          </label>
-                          <label className="flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-3 cursor-pointer hover:bg-slate-50 transition">
-                            <input
-                              type="radio"
-                              name="rr_count_all"
-                              checked={form.rr_count_all === false}
-                              onChange={() => setForm(p => ({ ...p, rr_count_all: false }))}
-                              className="mt-0.5 shrink-0"
-                            />
-                            <div>
-                              <p className="text-sm font-semibold text-slate-800">Solo auto-asignadas</p>
-                              <p className="text-xs text-slate-500 mt-0.5">
-                                Solo considera las citas que el sistema asignó automáticamente.
-                                Los pacientes que eligieron médico directamente no afectan el balanceo.
-                              </p>
-                            </div>
-                          </label>
-                        </div>
-                      </div>
-                    )}
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Aviso máximo</label>
                       <p className="mt-0.5 text-xs text-slate-400">Máximo de días en el futuro que un paciente puede agendar</p>
@@ -1284,29 +1247,36 @@ export default function AppointmentTypesPage() {
 
               {/* Assignment mode */}
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Modo de asignación *</label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Modo de asignación *
+                </label>
                 <div className="mt-2 space-y-2">
-                  {ASSIGNMENT_MODE_OPTIONS.map(opt => (
-                    <label key={opt.value}
-                      className={`flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition ${
-                        form.assignment_mode === opt.value
-                          ? 'border-blue-400 bg-blue-50'
-                          : 'border-slate-200 hover:bg-slate-50'
-                      }`}>
-                      <input
-                        type="radio"
-                        name="assignment_mode"
-                        value={opt.value}
-                        checked={form.assignment_mode === opt.value}
-                        onChange={() => setForm(p => ({ ...p, assignment_mode: opt.value as AssignmentMode }))}
-                        className="mt-0.5 shrink-0 accent-blue-600"
-                      />
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">{opt.label}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">{opt.desc}</p>
-                      </div>
-                    </label>
-                  ))}
+                  {[
+                    { assignment_mode: 'one_on_one',               rr_count_all: true,  label: 'El paciente decide',                   desc: 'El paciente siempre elige su médico. Sin excepción.' },
+                    { assignment_mode: 'hybrid',                   rr_count_all: true,  label: 'Flexible',                             desc: 'El paciente puede elegir médico o dejarlo al sistema.' },
+                    { assignment_mode: 'round_robin_proportional', rr_count_all: true,  label: 'Rotación automática — carga total',     desc: 'El sistema asigna al médico con menos citas, contando todas sus citas.' },
+                    { assignment_mode: 'round_robin_proportional', rr_count_all: false, label: 'Rotación automática — solo automáticas', desc: 'El sistema asigna al médico con menos citas, contando solo las que él mismo asignó anteriormente.' },
+                  ].map(opt => {
+                    const isSelected = form.assignment_mode === opt.assignment_mode && form.rr_count_all === opt.rr_count_all
+                    return (
+                      <label key={opt.label}
+                        className={`flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition ${
+                          isSelected ? 'border-blue-400 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'
+                        }`}>
+                        <input
+                          type="radio"
+                          name="assignment_mode_full"
+                          checked={isSelected}
+                          onChange={() => setForm(p => ({ ...p, assignment_mode: opt.assignment_mode as AssignmentMode, rr_count_all: opt.rr_count_all }))}
+                          className="mt-0.5 shrink-0 accent-blue-600"
+                        />
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">{opt.label}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">{opt.desc}</p>
+                        </div>
+                      </label>
+                    )
+                  })}
                 </div>
               </div>
 
