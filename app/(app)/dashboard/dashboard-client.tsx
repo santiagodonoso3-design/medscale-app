@@ -120,7 +120,7 @@ function computeMetrics(data: RawDashboardData, months: number[], year: number, 
     d.id, { name: d.name, total: 0, completed: 0, autoAssigned: 0, patientChosen: 0 }
   ]))
   appointments.forEach(a => {
-    if (!inPeriod(a.ym) || a.status === 'cancelled') return
+    if (!inPeriod(a.ym)) return
     const e = docMap.get(a.doctor_id)
     if (!e) return
     e.total++
@@ -358,7 +358,6 @@ export function DashboardClient({
                   <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Citas</th>
                   <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Asistencias</th>
                   <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">% Asist.</th>
-                  <th className="py-2 px-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Paciente / Auto</th>
                   <th className="py-2 pl-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 w-36">Progreso asistencia</th>
                 </tr>
               </thead>
@@ -376,12 +375,6 @@ export function DashboardClient({
                       <span className={`text-xs font-bold ${d.pct >= 70 ? 'text-emerald-600' : d.pct >= 40 ? 'text-amber-500' : 'text-red-400'}`}>
                         {d.pct}%
                       </span>
-                    </td>
-                    <td className="py-3 px-3 text-center text-xs text-slate-600">
-                      {d.patientChosen > 0 || d.autoAssigned > 0
-                        ? <span><span className="text-blue-600 font-semibold">{d.patientChosen}</span> / <span className="text-slate-500">{d.autoAssigned}</span></span>
-                        : <span className="text-slate-300">—</span>
-                      }
                     </td>
                     <td className="py-3 pl-4">
                       <div className="flex items-center gap-2">
