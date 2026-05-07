@@ -87,7 +87,7 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
     const toDate   = `${year + 1}-01-01`
 
     const [
-      { data: apts },
+      { data: apts, error: _aptError },
       { data: yearLeadsRaw },
       { data: stateLeads },
       { data: doctorsRaw },
@@ -116,6 +116,10 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
       admin.from('appointment_types')
         .select('id, assignment_mode'),
     ])
+
+    console.log('[dashboard] year:', year, 'fromDate:', fromDate, 'toDate:', toDate)
+    console.log('[dashboard] apts count:', apts?.length, 'error:', _aptError?.message ?? null)
+    console.log('[dashboard] sample apt:', apts?.[0] ?? null)
 
     const appointments: RawAppointment[] = (apts ?? []).map((a: any) => ({
       id: a.id,
