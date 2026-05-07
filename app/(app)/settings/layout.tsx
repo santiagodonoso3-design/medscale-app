@@ -9,6 +9,7 @@ const TABS = [
   { label: 'Sedes',           href: '/settings/locations' },
   { label: 'Tipos de cita',   href: '/settings/appointment-types' },
   { label: 'Notificaciones',  href: '/settings/notifications' },
+  { label: 'Integraciones',   href: '/settings/integrations' },
 ]
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {

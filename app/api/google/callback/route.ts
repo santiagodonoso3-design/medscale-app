@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   const error = request.nextUrl.searchParams.get('error')
 
   if (error || !code || !state) {
-    return Response.redirect('https://app.medscale.app/doctors?google_error=true')
+    return Response.redirect('https://app.medscale.app/settings/integrations?google_error=true')
   }
 
   try {
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     if (!tokens.access_token) {
       console.error('[google/callback] token exchange failed:', tokens)
-      return Response.redirect('https://app.medscale.app/doctors?google_error=true')
+      return Response.redirect('https://app.medscale.app/settings/integrations?google_error=true')
     }
 
     const calRes = await fetch(
@@ -48,9 +48,9 @@ export async function GET(request: NextRequest) {
       google_calendar_connected_at: new Date().toISOString(),
     }).eq('id', state)
 
-    return Response.redirect('https://app.medscale.app/doctors?google_success=true')
+    return Response.redirect('https://app.medscale.app/settings/integrations?google_success=true')
   } catch (e) {
     console.error('[google/callback] error:', e)
-    return Response.redirect('https://app.medscale.app/doctors?google_error=true')
+    return Response.redirect('https://app.medscale.app/settings/integrations?google_error=true')
   }
 }
