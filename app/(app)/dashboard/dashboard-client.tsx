@@ -50,6 +50,7 @@ interface Metrics {
   attendedCount: number
   cancelledCount: number
   inProcedureCount: number
+  finalizedCount: number
   monthlyLines: { label: string; agendadas: number; asistencias: number }[]
   thisWeek: number
   lastWeek: number
@@ -76,6 +77,7 @@ function computeMetrics(data: RawDashboardData, months: number[], year: number, 
   const attendedCount     = appointments.filter(a => inPeriod(a.ym) && a.status === 'completed').length
   const cancelledCount    = appointments.filter(a => inPeriod(a.ym) && a.status === 'cancelled').length
   const inProcedureCount  = yearLeads.filter(l => inPeriod(l.ym) && l.status === 'en_tratamiento_medico').length
+  const finalizedCount    = yearLeads.filter(l => inPeriod(l.ym) && l.status === 'finalizado').length
 
   // Monthly lines — always full year, ignoring month filter
   const maxMonth = year === currentYear ? currentMonth : 12
@@ -122,7 +124,7 @@ function computeMetrics(data: RawDashboardData, months: number[], year: number, 
     .sort((a, b) => b.total - a.total)
 
   return {
-    leadsCount, citasCount, attendedCount, cancelledCount, inProcedureCount,
+    leadsCount, citasCount, attendedCount, cancelledCount, inProcedureCount, finalizedCount,
     monthlyLines, thisWeek, lastWeek, monthAvg, doctorStats,
   }
 }
@@ -221,7 +223,8 @@ export function DashboardClient({
     { label: 'Leads',            count: m.leadsCount,       bg: 'bg-slate-100',  text: 'text-slate-700' },
     { label: 'Citas totales',    count: m.citasCount,       bg: 'bg-violet-50',  text: 'text-violet-700' },
     { label: 'Asistieron',       count: m.attendedCount,    bg: 'bg-emerald-50', text: 'text-emerald-700' },
-    { label: 'En procedimiento', count: m.inProcedureCount, bg: 'bg-amber-50',   text: 'text-amber-700' },
+    { label: 'En procedimiento', count: m.inProcedureCount, bg: 'bg-amber-50',  text: 'text-amber-700' },
+    { label: 'Finalizados',      count: m.finalizedCount,   bg: 'bg-blue-50',   text: 'text-blue-700' },
   ]
 
   const weekMax = Math.max(m.thisWeek, m.lastWeek, m.monthAvg, 1)
