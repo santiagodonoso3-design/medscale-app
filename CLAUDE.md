@@ -1,4 +1,4 @@
-# MedScale App — Estado del proyecto (6 Mayo 2026)
+# MedScale App — Estado del proyecto (7 Mayo 2026)
 
 ## ✅ Completado
 
@@ -121,10 +121,13 @@
 - ✅ Idioma eliminado del booking wizard (hardcodeado es-CO)
 - ✅ Responsive booking wizard móvil (flex-col en móvil, grid-cols-1 médicos, panel lateral oculto)
 - ✅ /settings/general: CRUD de nombre, color primario y logo por organización
-- ✅ Logo subido a Supabase Storage (bucket: organizations, público)
-- ✅ Upload via server action con base64 + service role
-- ✅ Color primario aplicado en booking wizard (24 referencias a B.primary reemplazadas)
-- ✅ Logo renderizado en header del booking wizard cuando logo_url existe
+- ✅ Upload de logo via server action con base64 + service role (app/actions/settings.ts)
+- ✅ Bucket Supabase Storage: organizations (público)
+- ✅ saveOrgSettings() server action para guardar nombre, color y logo_url
+- ✅ Color primario aplicado en booking wizard (primaryColor reemplaza B.primary)
+- ✅ "Powered by MedScale AI" footer en booking wizard y lista de tipos de cita
+- ✅ Botón "Reservas públicas" eliminado del booking wizard
+- ✅ Header booking wizard: logo reemplaza nombre cuando logo_url existe (pendiente PNG transparente)
 
 ### Settings
 - ✅ /settings con tabs: General, Sedes, Tipos de cita, Notificaciones
@@ -318,6 +321,18 @@ const { data: orgData } = await admin
   .single()
 ```
 
+**File objects no se serializan en server actions:**
+Usar `FileReader` + base64 en cliente, luego `Buffer.from(base64, 'base64')` en la server action.
+
+**Upload a Supabase Storage siempre con service role:**
+El cliente anon no tiene permisos de escritura en Storage. Usar `supabaseAdmin` (service role) en server actions.
+
+**saveOrgSettings() en app/actions/settings.ts:**
+Centraliza el guardado de nombre, primary_color y logo_url. Usar en lugar del cliente anon en settings/general.
+
+**Logo en booking wizard:**
+`orgLogoUrl ? <img ...> : <nombre texto>` — condición en el header del wizard.
+
 **Excepciones en schedules:**
 - `is_recurring=true`  → horario semanal recurrente (day_of_week set, specific_date null)
 - `is_recurring=false` → excepción de fecha específica (specific_date set, day_of_week null)
@@ -327,8 +342,8 @@ const { data: orgData } = await admin
 ### Storage
 - Bucket: organizations (público) en Supabase Storage
 - Upload: server action uploadOrgLogo() en app/actions/settings.ts
-- Ruta: logos/{orgId}.{ext} con upsert: true
-- File objects no se serializan en server actions — usar base64 + FileReader en cliente
+- Ruta logos: logos/{orgId}.{ext} con upsert: true
+- Upload: base64 → Buffer.from(base64, 'base64') en server action
 
 ### Integraciones activas
 - n8n: envía leads via POST /api/webhooks/lead
