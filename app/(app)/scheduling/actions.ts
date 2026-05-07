@@ -4,6 +4,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { resend } from '@/lib/email/resend'
 import { cancellationEmail, rescheduleEmail } from '@/lib/email/templates'
+import { deleteGoogleCalendarEvent } from '@/lib/google/calendar'
 
 // ── Email helper (fire-and-forget, never throws) ──────────────────────────────
 
@@ -42,6 +43,21 @@ export async function cancelAppointment(id: string): Promise<{ error?: string }>
     .eq('id', id)
   if (error) return { error: error.message }
   revalidatePath('/scheduling/calendar')
+
+  // Delete Google Calendar event if exists (non-blocking)
+  Promise.allSettled([
+    (async () => {
+      const admin = await createServiceClient()
+      const { data: aptData } = await admin
+        .from('appointments')
+        .select('external_calendar_id, doctor_id')
+        .eq('id', id)
+        .single()
+      if (aptData?.external_calendar_id && aptData?.doctor_id) {
+        await deleteGoogleCalendarEvent(aptData.doctor_id, aptData.external_calendar_id)
+      }
+    })(),
+  ]).catch(() => {})
 
   // Send cancellation email (non-blocking)
   if (process.env.RESEND_API_KEY) {

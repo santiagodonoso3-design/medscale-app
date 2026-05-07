@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { resend } from '@/lib/email/resend'
 import { bookingConfirmationPatient, bookingNotificationDoctor, bookingNotificationClinic } from '@/lib/email/templates'
+import { createGoogleCalendarEvent } from '@/lib/google/calendar'
 
 const supabasePublic = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -285,6 +286,28 @@ export async function POST(request: Request) {
     }
 
     console.log('[/api/book] success — lead:', lead.id, 'appointment:', appointment.id)
+
+    // ── Create Google Calendar event (non-blocking) ───────────────────────────
+    if (selectedDoctorId) {
+      Promise.allSettled([
+        createGoogleCalendarEvent({
+          doctorId:      selectedDoctorId,
+          summary:       `Cita — ${patient_first_name}${patient_last_name ? ' ' + patient_last_name : ''}`,
+          description:   `Paciente: ${patient_first_name}${patient_last_name ? ' ' + patient_last_name : ''}\nTeléfono: ${phone}\nModalidad: ${modality ?? 'presencial'}`,
+          startIso:      scheduledAt.toISOString(),
+          endsIso:       endDate.toISOString(),
+          attendeeEmail: email ?? null,
+        }).then(eventId => {
+          if (eventId) {
+            supabase.from('appointments')
+              .update({ external_calendar_id: eventId })
+              .eq('id', appointment.id)
+              .then(() => {})
+          }
+        }),
+      ]).catch(() => {})
+    }
+
     const manageUrl = (appointment as any).manage_token
       ? `https://app.medscale.app/appointment/${(appointment as any).manage_token}/manage`
       : undefined
