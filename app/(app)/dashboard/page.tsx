@@ -1,10 +1,14 @@
-export const dynamic   = 'force-dynamic'
+export const dynamic    = 'force-dynamic'
 export const revalidate = 0
+export const fetchCache = 'force-no-store'
 
+import { unstable_noStore } from 'next/cache'
 import { getDashboardRawData, getDashboardYears } from './actions'
 import { DashboardClient } from './dashboard-client'
 
 export default async function DashboardPage() {
+  unstable_noStore()
+
   const currentYear = Number(
     new Intl.DateTimeFormat('en-CA', { year: 'numeric', timeZone: 'America/Bogota' }).format(new Date())
   )
