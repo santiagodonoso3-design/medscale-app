@@ -106,6 +106,18 @@ export default async function BookPage({ params }: BookPageProps) {
           </div>
         )}
       </div>
+      <div className="text-center mt-4 pb-6">
+        <a
+          href="https://medscale.app"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs font-medium transition hover:opacity-80"
+          style={{ color: '#94a3b8' }}
+        >
+          <span>Agendamiento con</span>
+          <span className="font-bold tracking-tight" style={{ color: '#215F73' }}>MedScale AI</span>
+        </a>
+      </div>
     </div>
   )
 }

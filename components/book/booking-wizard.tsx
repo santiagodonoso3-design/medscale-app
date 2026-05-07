@@ -859,11 +859,6 @@ export default function BookingWizard({
               </p>
             )}
           </div>
-          <div className="inline-flex self-start items-center gap-2 rounded-2xl px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold shrink-0"
-            style={{ background: B.secondary, border: `1px solid ${B.border}`, color: B.muted }}>
-            <CalendarDays className="h-4 w-4" style={{ color: B.accent }} />
-            Reservas públicas
-          </div>
         </div>
 
         {currentStep < 4 && renderStepIndicator()}
@@ -901,6 +896,18 @@ export default function BookingWizard({
           </div>
         )}
       </div>
+    </div>
+    <div className="text-center mt-4 pb-6">
+      <a
+        href="https://medscale.app"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 text-xs font-medium transition hover:opacity-80"
+        style={{ color: '#94a3b8' }}
+      >
+        <span>Agendamiento con</span>
+        <span className="font-bold tracking-tight" style={{ color: '#215F73' }}>MedScale AI</span>
+      </a>
     </div>
   )
 }
