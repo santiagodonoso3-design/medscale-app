@@ -999,36 +999,48 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                         {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                       </select>
                     </div>
-                    <div className="sm:col-span-2">
-                      <label className="text-xs font-medium text-slate-600 mb-2 block">Fecha y hora</label>
-                      <div style={{ fontSize: '0.9em' }}>
-                        <CalendarPicker
-                          orgName=""
-                          selectedDoctor={doctors.find(d => d.id === form.doctor_id) ?? null}
-                          effectiveSchedules={schedules.filter(s => s.doctor_id === form.doctor_id)}
-                          selectedDate={form.scheduled_date}
-                          selectedTime={form.scheduled_time}
-                          onSelect={(date, time) => {
-                            setForm(p => ({ ...p, scheduled_date: date, scheduled_time: time }))
-                          }}
-                          doctorId={form.doctor_id}
-                          minNoticeHours={0}
-                          texts={{
-                            org: '',
-                            doctor: '',
-                            autoAssign: '',
-                            selected: 'Seleccionado',
-                            loading: 'Cargando...',
-                            noSlots: 'El médico no atiende este día',
-                            docFallback: 'Médico'
-                          }}
-                        />
+                    <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-medium text-slate-600 mb-2 block">Fecha y hora</label>
+                        <div style={{ fontSize: '0.85em' }} className="[&>div>div:first-child]:hidden">
+                          <CalendarPicker
+                            orgName=""
+                            selectedDoctor={doctors.find(d => d.id === form.doctor_id) ?? null}
+                            effectiveSchedules={schedules.filter(s => s.doctor_id === form.doctor_id)}
+                            selectedDate={form.scheduled_date}
+                            selectedTime={form.scheduled_time}
+                            onSelect={(date, time) => {
+                              setForm(p => ({ ...p, scheduled_date: date, scheduled_time: time }))
+                            }}
+                            doctorId={form.doctor_id}
+                            minNoticeHours={0}
+                            texts={{
+                              org: '',
+                              doctor: '',
+                              autoAssign: '',
+                              selected: 'Seleccionado',
+                              loading: 'Cargando...',
+                              noSlots: 'El médico no atiende este día',
+                              docFallback: 'Médico'
+                            }}
+                          />
+                        </div>
                       </div>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="text-xs font-medium text-slate-600">Notas (opcional)</label>
-                      <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
-                        rows={2} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <div className="flex flex-col gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-slate-600">Notas (opcional)</label>
+                          <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+                            rows={6} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                        </div>
+                        {form.scheduled_date && form.scheduled_time && (
+                          <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3">
+                            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Resumen</p>
+                            <p className="text-sm font-medium text-slate-900">{doctors.find(d => d.id === form.doctor_id)?.metadata?.name || 'Médico'}</p>
+                            <p className="text-sm text-slate-600">{form.scheduled_date} · {form.scheduled_time}</p>
+                            <p className="text-sm text-slate-600">{locations.find(l => l.id === form.location_id)?.name || ''}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
