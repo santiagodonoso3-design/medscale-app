@@ -2,11 +2,11 @@
 
 import { useState, useTransition, useMemo } from 'react'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import {
-  Users, CalendarDays, Activity, Stethoscope, Loader2, ArrowRight,
+  Loader2, ArrowRight,
 } from 'lucide-react'
 import type { RawDashboardData } from './actions'
 import { getDashboardRawData } from './actions'
@@ -14,21 +14,6 @@ import { getDashboardRawData } from './actions'
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const MONTH_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-
-const STATUS_BADGE: Record<string, string> = {
-  scheduled: 'bg-blue-100 text-blue-700',
-  confirmed:  'bg-sky-100 text-sky-700',
-  completed:  'bg-emerald-100 text-emerald-700',
-  cancelled:  'bg-slate-100 text-slate-400',
-  no_show:    'bg-orange-100 text-orange-700',
-}
-const STATUS_LABEL: Record<string, string> = {
-  scheduled: 'Programada',
-  confirmed:  'Confirmada',
-  completed:  'Completada',
-  cancelled:  'Cancelada',
-  no_show:    'No asistió',
-}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -53,10 +38,6 @@ function convPct(num: number, den: number): number | null {
   return Math.round((num / den) * 100)
 }
 
-function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false })
-}
-
 // ── Metric computation ────────────────────────────────────────────────────────
 
 interface Metrics {
@@ -79,7 +60,7 @@ interface Metrics {
 }
 
 function computeMetrics(data: RawDashboardData, months: number[], year: number): Metrics {
-  const { appointments, yearLeads, inProcedureCount, doctors, appointmentTypes } = data
+  const { appointments, yearLeads, inProcedureCount, doctors } = data
   const monthSet = new Set(months)
   const inPeriod = (ym: string) =>
     Number(ym.slice(0, 4)) === year && monthSet.has(Number(ym.slice(5)))
@@ -115,7 +96,6 @@ function computeMetrics(data: RawDashboardData, months: number[], year: number):
   const monthAvg = Math.round(thisMonthTotal / 4)
 
   // Doctor stats
-  const typeMap = new Map(appointmentTypes.map(t => [t.id, t.assignment_mode]))
   const docMap = new Map(doctors.map(d => [
     d.id, { name: d.name, total: 0, completed: 0, autoAssigned: 0, patientChosen: 0 }
   ]))
@@ -125,9 +105,8 @@ function computeMetrics(data: RawDashboardData, months: number[], year: number):
     if (!e) return
     e.total++
     if (a.status === 'completed') e.completed++
-    const mode = a.appointment_type_id ? typeMap.get(a.appointment_type_id) : undefined
-    if (mode?.startsWith('round_robin')) e.autoAssigned++
-    else if (mode === 'one_on_one' || mode === 'hybrid') e.patientChosen++
+    if (a.doctor_assignment_type === 'patient_choice') e.patientChosen++
+    else e.autoAssigned++
   })
   const doctorStats = Array.from(docMap.values())
     .filter(d => d.total > 0)
@@ -173,7 +152,7 @@ function FunnelBlock({ steps }: {
   )
 }
 
-function LineTooltip({ active, payload, label }: any) {
+function BarTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg text-sm space-y-1">
@@ -207,7 +186,7 @@ export function DashboardClient({
 
   const [rawData, setRawData]               = useState(initialData)
   const [selectedYear, setSelectedYear]     = useState(initialData.year)
-  const [selectedMonths, setSelectedMonths] = useState<number[]>(() => allMonths(initialData.year))
+  const [selectedMonths, setSelectedMonths] = useState<number[]>([currentMonth])
   const [isPending, startTransition]        = useTransition()
 
   function handleYearChange(year: number) {
@@ -300,101 +279,52 @@ export function DashboardClient({
         </div>
       </div>
 
-      {/* Citas de hoy — ignores all filters */}
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-base font-semibold text-slate-900">
-          Citas de hoy
-          {rawData.todayAppointments.length > 0 && (
-            <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-100 px-1.5 text-xs font-bold text-blue-700">
-              {rawData.todayAppointments.length}
-            </span>
-          )}
-        </h2>
-        {rawData.todayAppointments.length === 0 ? (
-          <div className="rounded-2xl bg-slate-50 py-8 text-center">
-            <CalendarDays className="mx-auto mb-2 h-8 w-8 text-slate-300" />
-            <p className="text-sm text-slate-400">No hay citas programadas para hoy.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Hora</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Paciente</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Médico</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {rawData.todayAppointments.map(apt => (
-                  <tr key={apt.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-3 py-2.5 font-medium text-slate-900">{fmtTime(apt.scheduled_at)}</td>
-                    <td className="px-3 py-2.5 text-slate-700">{apt.patientName ?? 'Sin nombre'}</td>
-                    <td className="px-3 py-2.5 text-slate-600">{apt.doctorName ?? '—'}</td>
-                    <td className="px-3 py-2.5">
-                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE[apt.status] ?? 'bg-slate-100 text-slate-600'}`}>
-                        {STATUS_LABEL[apt.status] ?? apt.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+      {/* Bloque 2 — Tendencia mensual (ancho completo) */}
+      <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
+        <h2 className="text-base font-semibold text-slate-900">Tendencia mensual</h2>
+        <p className="mt-0.5 mb-4 text-xs text-slate-400">Agendadas vs Asistencias · meses seleccionados</p>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={m.monthlyLines} margin={{ top: 4, right: 16, left: -20, bottom: 0 }} barCategoryGap="30%">
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
+            <Tooltip content={<BarTooltip />} cursor={{ fill: '#f8fafc' }} />
+            <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+            <Bar dataKey="agendadas"   name="Agendadas"   fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={32} />
+            <Bar dataKey="asistencias" name="Asistencias" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={32} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
 
-      {/* Bloque 2 + Bloque 3 */}
-      <div className={`grid gap-4 xl:grid-cols-3 transition-opacity ${isPending ? 'opacity-50' : ''}`}>
-
-        {/* Bloque 2 — Tendencia mensual */}
-        <div className="xl:col-span-2 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-900">Tendencia mensual</h2>
-          <p className="mt-0.5 mb-4 text-xs text-slate-400">Agendadas vs Asistencias · meses seleccionados</p>
-          <ResponsiveContainer width="100%" height={210}>
-            <LineChart data={m.monthlyLines} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip content={<LineTooltip />} />
-              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-              <Line type="monotone" dataKey="agendadas"   name="Agendadas"   stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-              <Line type="monotone" dataKey="asistencias" name="Asistencias" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Bloque 3 — Agendamiento semanal */}
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-900">Agendamiento semanal</h2>
-          <p className="mt-0.5 mb-5 text-xs text-slate-400">Citas no canceladas</p>
-          <div className="space-y-3">
-            {[
-              { label: 'Esta semana',    value: m.thisWeek, bg: 'bg-blue-50',   text: 'text-blue-700',   bar: 'bg-blue-500' },
-              { label: 'Semana anterior', value: m.lastWeek, bg: 'bg-slate-50', text: 'text-slate-700',  bar: 'bg-slate-400' },
-              { label: 'Prom. del mes',  value: m.monthAvg, bg: 'bg-violet-50', text: 'text-violet-700', bar: 'bg-violet-500', suffix: '/sem' },
-            ].map(item => (
-              <div key={item.label} className={`rounded-2xl ${item.bg} px-4 py-3.5`}>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-medium text-slate-500">{item.label}</p>
-                  <p className={`text-xl font-bold ${item.text}`}>{item.value}{item.suffix ?? ''}</p>
-                </div>
-                <div className="h-1.5 bg-white/60 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${item.bar} rounded-full transition-all`}
-                    style={{ width: `${Math.round((item.value / weekMax) * 100)}%` }}
-                  />
-                </div>
+      {/* Bloque 3 — Agendamiento semanal (ancho completo) */}
+      <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
+        <h2 className="text-base font-semibold text-slate-900">Agendamiento semanal</h2>
+        <p className="mt-0.5 mb-5 text-xs text-slate-400">Citas no canceladas</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            { label: 'Esta semana',     value: m.thisWeek, bg: 'bg-blue-50',   text: 'text-blue-700',   bar: 'bg-blue-500' },
+            { label: 'Semana anterior', value: m.lastWeek, bg: 'bg-slate-50',  text: 'text-slate-700',  bar: 'bg-slate-400' },
+            { label: 'Prom. del mes',   value: m.monthAvg, bg: 'bg-violet-50', text: 'text-violet-700', bar: 'bg-violet-500', suffix: '/sem' },
+          ].map(item => (
+            <div key={item.label} className={`rounded-2xl ${item.bg} px-4 py-3.5`}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-slate-500">{item.label}</p>
+                <p className={`text-xl font-bold ${item.text}`}>{item.value}{item.suffix ?? ''}</p>
               </div>
-            ))}
-            {m.lastWeek > 0 && (
-              <p className={`text-xs font-semibold text-center pt-1 ${m.thisWeek >= m.lastWeek ? 'text-emerald-600' : 'text-red-500'}`}>
-                {m.thisWeek >= m.lastWeek ? '↑' : '↓'} {Math.abs(m.thisWeek - m.lastWeek)} vs sem. anterior
-              </p>
-            )}
-          </div>
+              <div className="h-1.5 bg-white/60 rounded-full overflow-hidden">
+                <div
+                  className={`h-full ${item.bar} rounded-full transition-all`}
+                  style={{ width: `${Math.round((item.value / weekMax) * 100)}%` }}
+                />
+              </div>
+            </div>
+          ))}
         </div>
+        {m.lastWeek > 0 && (
+          <p className={`mt-3 text-xs font-semibold text-center ${m.thisWeek >= m.lastWeek ? 'text-emerald-600' : 'text-red-500'}`}>
+            {m.thisWeek >= m.lastWeek ? '↑' : '↓'} {Math.abs(m.thisWeek - m.lastWeek)} vs sem. anterior
+          </p>
+        )}
       </div>
 
       {/* Bloque 4 — Por médico */}
