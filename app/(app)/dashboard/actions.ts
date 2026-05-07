@@ -67,8 +67,6 @@ export interface RawDashboardData {
   year: number
   appointments: RawAppointment[]
   yearLeads: RawLead[]
-  inConversationCount: number  // current state — no date filter
-  inProcedureCount: number     // current state — no date filter
   doctors: RawDoctor[]
   todayAppointments: TodayAppointment[]
   appointmentTypes: AppointmentTypeInfo[]
@@ -87,7 +85,6 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
     const [
       { data: apts, error: _aptError },
       { data: yearLeadsRaw },
-      { data: stateLeads },
       { data: doctorsRaw },
       { data: todayRaw },
       { data: apptTypesRaw },
@@ -96,10 +93,6 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
         .select('id, scheduled_at, status, doctor_id, doctor_assignment_type')
         .gte('scheduled_at', fromDate)
         .lt('scheduled_at', toDate),
-      admin.from('leads')
-        .select('id, status, created_at')
-        .gte('created_at', fromDate)
-        .lt('created_at', toDate),
       admin.from('leads')
         .select('id, status, created_at')
         .gte('created_at', fromDate)
@@ -141,10 +134,6 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
       ym: toBogotaYM(l.created_at),
     }))
 
-    const sl = stateLeads ?? []
-    const inConversationCount = sl.filter((l: any) => l.status === 'contactado').length
-    const inProcedureCount    = sl.filter((l: any) => l.status === 'en_tratamiento_medico').length
-
     const doctors: RawDoctor[] = (doctorsRaw ?? []).map((d: any) => ({
       id: d.id, name: String(d.metadata?.name ?? 'Médico'),
     }))
@@ -165,7 +154,6 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
 
     return {
       year, appointments, yearLeads,
-      inConversationCount, inProcedureCount,
       doctors, todayAppointments, appointmentTypes,
     }
   } catch (e) {

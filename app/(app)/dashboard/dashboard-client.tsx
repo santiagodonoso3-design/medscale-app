@@ -65,16 +65,17 @@ interface Metrics {
 }
 
 function computeMetrics(data: RawDashboardData, months: number[], year: number, currentYear: number, currentMonth: number): Metrics {
-  const { appointments, yearLeads, inProcedureCount, doctors } = data
+  const { appointments, yearLeads, doctors } = data
   const monthSet = new Set(months)
   const inPeriod = (ym: string) =>
     Number(ym.slice(0, 4)) === year && monthSet.has(Number(ym.slice(5)))
 
   // Funnel
-  const leadsCount     = yearLeads.filter(l => inPeriod(l.ym)).length
-  const citasCount     = appointments.filter(a => inPeriod(a.ym)).length
-  const attendedCount  = appointments.filter(a => inPeriod(a.ym) && a.status === 'completed').length
-  const cancelledCount = appointments.filter(a => inPeriod(a.ym) && a.status === 'cancelled').length
+  const leadsCount        = yearLeads.filter(l => inPeriod(l.ym)).length
+  const citasCount        = appointments.filter(a => inPeriod(a.ym)).length
+  const attendedCount     = appointments.filter(a => inPeriod(a.ym) && a.status === 'completed').length
+  const cancelledCount    = appointments.filter(a => inPeriod(a.ym) && a.status === 'cancelled').length
+  const inProcedureCount  = yearLeads.filter(l => inPeriod(l.ym) && l.status === 'en_tratamiento_medico').length
 
   // Monthly lines — always full year, ignoring month filter
   const maxMonth = year === currentYear ? currentMonth : 12
