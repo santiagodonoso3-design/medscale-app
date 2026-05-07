@@ -19,11 +19,13 @@ function todayBogota(): string {
 
 function toBogotaYM(iso: string): string {
   const d = new Date(iso)
-  const bogota = new Intl.DateTimeFormat('en-CA', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    timeZone: 'America/Bogota',
-  }).format(d)  // returns 'YYYY-MM-DD'
-  return bogota.slice(0, 7)  // 'YYYY-MM'
+  const year = new Intl.DateTimeFormat('en', {
+    year: 'numeric', timeZone: 'America/Bogota',
+  }).format(d)
+  const month = new Intl.DateTimeFormat('en', {
+    month: '2-digit', timeZone: 'America/Bogota',
+  }).format(d)
+  return `${year}-${month}`
 }
 
 function currentBogotaYear(): number {
@@ -136,6 +138,9 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
 
     const sampleYMs = appointments.slice(0, 5).map(a => a.ym)
     console.log('[dashboard] sample YMs:', sampleYMs, 'selectedYear:', year)
+    console.log('[dashboard] first 3 apts:', appointments.slice(0, 3).map(a => ({
+      scheduled_at: a.scheduled_at, ym: a.ym,
+    })))
 
     const yearLeads: RawLead[] = (yearLeadsRaw ?? []).map((l: any) => ({
       id: l.id, status: l.status, created_at: l.created_at,
