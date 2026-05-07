@@ -849,20 +849,10 @@ export default function BookingWizard({
         {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 sm:mb-8">
           <div className="min-w-0">
-            {orgLogoUrl ? (
-              <img
-                src={orgLogoUrl}
-                alt={orgName}
-                style={{ height: '120px', width: 'auto', maxWidth: '360px', objectFit: 'contain' }}
-              />
-            ) : (
-              <>
-                <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: B.muted }}>
-                  Reservar cita
-                </p>
-                <h1 className="text-2xl font-bold mt-1" style={{ color: B.fg }}>{orgName}</h1>
-              </>
-            )}
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: B.muted }}>
+              Reservar cita
+            </p>
+            <h1 className="text-2xl font-bold mt-1" style={{ color: B.fg }}>{orgName}</h1>
           </div>
         </div>
 
