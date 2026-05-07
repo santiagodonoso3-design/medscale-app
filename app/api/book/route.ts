@@ -66,14 +66,16 @@ export async function POST(request: Request) {
     }
 
     // ── Assign doctor ─────────────────────────────────────────────────────────
-    let selectedDoctorId: string | null = doctor_id ?? null
+    const bodyDoctorId: string | null = doctor_id ?? null  // original value from request
+    let selectedDoctorId: string | null = bodyDoctorId
     let appointmentTypeName: string | null = null
     let appointmentTypePrice: number | null = null
+    let assignmentMode = ''
 
     if (!selectedDoctorId) {
       try {
         // 1. Fetch appointment type config (assignment_mode + doctor_ids)
-        let assignmentMode = 'round_robin_proportional'
+        assignmentMode = 'round_robin_proportional'
         let typeDoctorIds: string[] = []
 
         if (appointment_type_id) {
@@ -190,7 +192,23 @@ export async function POST(request: Request) {
       }
     }
 
-    console.log('[/api/book] selectedDoctorId:', selectedDoctorId)
+    // If doctor came from body and assignmentMode not yet resolved, fetch it now
+    if (bodyDoctorId && !assignmentMode && appointment_type_id) {
+      const { data: typeData } = await supabase
+        .from('appointment_types')
+        .select('assignment_mode')
+        .eq('id', appointment_type_id)
+        .single()
+      assignmentMode = typeData?.assignment_mode ?? ''
+    }
+
+    // Determine assignment type: patient chose explicitly vs system auto-assigned
+    const doctorAssignmentType: 'patient_choice' | 'auto_assigned' =
+      bodyDoctorId && (assignmentMode === 'one_on_one' || assignmentMode === 'hybrid')
+        ? 'patient_choice'
+        : 'auto_assigned'
+
+    console.log('[/api/book] selectedDoctorId:', selectedDoctorId, 'assignment:', doctorAssignmentType)
 
     // Get location + doctor metadata in parallel
     const [{ data: locations, error: locError }, { data: doctorData, error: docMetaError }] = await Promise.all([
@@ -250,6 +268,7 @@ export async function POST(request: Request) {
         status: 'scheduled',
         notes: modality === 'virtual' ? 'Consulta virtual' : 'Consulta presencial',
         external_calendar_id: null,
+        doctor_assignment_type: doctorAssignmentType,
       })
       .select('id, manage_token')
       .single()
