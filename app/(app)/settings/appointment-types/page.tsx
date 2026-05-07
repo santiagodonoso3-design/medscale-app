@@ -75,7 +75,12 @@ const ASSIGNMENT_MODES: { value: AssignmentMode; label: string }[] = [
   { value: 'hybrid',                    label: 'Flexible — paciente elige o el sistema asigna' },
   { value: 'one_on_one',                label: 'Elección directa — paciente siempre elige médico' },
   { value: 'round_robin_proportional',  label: 'Auto-asignación balanceada — médico con menos citas' },
-  { value: 'round_robin_availability',  label: 'Auto-asignación rápida — primer médico disponible' },
+]
+
+const ASSIGNMENT_MODE_OPTIONS = [
+  { value: 'hybrid',                   label: 'Flexible',                     desc: 'El paciente puede elegir médico o dejarlo al sistema' },
+  { value: 'one_on_one',               label: 'El paciente elige',             desc: 'El paciente siempre selecciona su médico' },
+  { value: 'round_robin_proportional', label: 'Sistema asigna — balanceado',   desc: 'Asigna automáticamente al médico con menos citas del período' },
 ]
 
 const EMPTY_FORM = {
@@ -760,10 +765,29 @@ export default function AppointmentTypesPage() {
                     </div>
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Modo de asignación *</label>
-                      <select value={form.assignment_mode} onChange={e => setForm(p => ({ ...p, assignment_mode: e.target.value as AssignmentMode }))}
-                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        {ASSIGNMENT_MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                      </select>
+                      <div className="mt-2 space-y-2">
+                        {ASSIGNMENT_MODE_OPTIONS.map(opt => (
+                          <label key={opt.value}
+                            className={`flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition ${
+                              form.assignment_mode === opt.value
+                                ? 'border-blue-400 bg-blue-50'
+                                : 'border-slate-200 hover:bg-slate-50'
+                            }`}>
+                            <input
+                              type="radio"
+                              name="assignment_mode"
+                              value={opt.value}
+                              checked={form.assignment_mode === opt.value}
+                              onChange={() => setForm(p => ({ ...p, assignment_mode: opt.value as AssignmentMode }))}
+                              className="mt-0.5 shrink-0 accent-blue-600"
+                            />
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800">{opt.label}</p>
+                              <p className="text-xs text-slate-500 mt-0.5">{opt.desc}</p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
                     </div>
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Idiomas disponibles *</label>
@@ -1261,15 +1285,29 @@ export default function AppointmentTypesPage() {
               {/* Assignment mode */}
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Modo de asignación *</label>
-                <select
-                  value={form.assignment_mode}
-                  onChange={e => setForm(p => ({ ...p, assignment_mode: e.target.value as AssignmentMode }))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {ASSIGNMENT_MODES.map(m => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
+                <div className="mt-2 space-y-2">
+                  {ASSIGNMENT_MODE_OPTIONS.map(opt => (
+                    <label key={opt.value}
+                      className={`flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition ${
+                        form.assignment_mode === opt.value
+                          ? 'border-blue-400 bg-blue-50'
+                          : 'border-slate-200 hover:bg-slate-50'
+                      }`}>
+                      <input
+                        type="radio"
+                        name="assignment_mode"
+                        value={opt.value}
+                        checked={form.assignment_mode === opt.value}
+                        onChange={() => setForm(p => ({ ...p, assignment_mode: opt.value as AssignmentMode }))}
+                        className="mt-0.5 shrink-0 accent-blue-600"
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">{opt.label}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{opt.desc}</p>
+                      </div>
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
 
               {/* Min notice hours */}
