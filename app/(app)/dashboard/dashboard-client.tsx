@@ -416,7 +416,17 @@ export function DashboardClient({
                     </td>
                     <td className="py-3 px-3 text-center text-xs text-slate-600">
                       {d.patientChosen > 0 || d.autoAssigned > 0
-                        ? <span><span className="text-blue-600 font-semibold">{d.patientChosen}</span> / <span className="text-slate-500">{d.autoAssigned}</span></span>
+                        ? <span>
+                            <span className="text-blue-600 font-semibold">{d.patientChosen}</span>
+                            <span className="text-slate-400"> / {d.autoAssigned}</span>
+                            {d.total > 0 && (
+                              <span className={`ml-1.5 text-xs font-bold ${
+                                Math.round((d.patientChosen / d.total) * 100) >= 50 ? 'text-emerald-600' : 'text-amber-500'
+                              }`}>
+                                {Math.round((d.patientChosen / d.total) * 100)}%
+                              </span>
+                            )}
+                          </span>
                         : <span className="text-slate-300">—</span>
                       }
                     </td>
