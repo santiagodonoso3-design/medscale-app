@@ -842,6 +842,7 @@ export default function BookingWizard({
   const step2Ready = currentStep !== 2 || (!!formData.date && !!formData.time)
 
   return (
+    <>
     <div className="mx-auto max-w-4xl">
       <div className="rounded-2xl sm:rounded-3xl shadow-sm p-5 sm:p-8" style={{ background: '#fff', border: `1px solid ${B.border}` }}>
 
@@ -909,5 +910,6 @@ export default function BookingWizard({
         <span className="font-bold tracking-tight" style={{ color: '#215F73' }}>MedScale AI</span>
       </a>
     </div>
+    </>
   )
 }
