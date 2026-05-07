@@ -48,6 +48,7 @@ interface Metrics {
   leadsCount: number
   citasCount: number
   attendedCount: number
+  cancelledCount: number
   inProcedureCount: number
   monthlyLines: { label: string; agendadas: number; asistencias: number }[]
   thisWeek: number
@@ -70,16 +71,17 @@ function computeMetrics(data: RawDashboardData, months: number[], year: number, 
     Number(ym.slice(0, 4)) === year && monthSet.has(Number(ym.slice(5)))
 
   // Funnel
-  const leadsCount    = yearLeads.filter(l => inPeriod(l.ym)).length
-  const citasCount    = appointments.filter(a => inPeriod(a.ym) && a.status !== 'cancelled').length
-  const attendedCount = appointments.filter(a => inPeriod(a.ym) && a.status === 'completed').length
+  const leadsCount     = yearLeads.filter(l => inPeriod(l.ym)).length
+  const citasCount     = appointments.filter(a => inPeriod(a.ym)).length
+  const attendedCount  = appointments.filter(a => inPeriod(a.ym) && a.status === 'completed').length
+  const cancelledCount = appointments.filter(a => inPeriod(a.ym) && a.status === 'cancelled').length
 
   // Monthly lines — always full year, ignoring month filter
   const maxMonth = year === currentYear ? currentMonth : 12
   const allYearMonths = Array.from({ length: maxMonth }, (_, i) => i + 1)
   const monthlyLines = allYearMonths.map(m => ({
     label: MONTH_LABELS[m - 1],
-    agendadas:   appointments.filter(a => a.ym === `${year}-${pad(m)}` && a.status !== 'cancelled').length,
+    agendadas:   appointments.filter(a => a.ym === `${year}-${pad(m)}`).length,
     asistencias: appointments.filter(a => a.ym === `${year}-${pad(m)}` && a.status === 'completed').length,
   }))
 
@@ -119,7 +121,7 @@ function computeMetrics(data: RawDashboardData, months: number[], year: number, 
     .sort((a, b) => b.total - a.total)
 
   return {
-    leadsCount, citasCount, attendedCount, inProcedureCount,
+    leadsCount, citasCount, attendedCount, cancelledCount, inProcedureCount,
     monthlyLines, thisWeek, lastWeek, monthAvg, doctorStats,
   }
 }
@@ -215,10 +217,10 @@ export function DashboardClient({
   )
 
   const funnelSteps = [
-    { label: 'Leads',            count: m.leadsCount,        bg: 'bg-slate-100',   text: 'text-slate-700' },
-    { label: 'Citas agendadas',  count: m.citasCount,        bg: 'bg-violet-50',   text: 'text-violet-700' },
-    { label: 'Asistieron',       count: m.attendedCount,     bg: 'bg-emerald-50',  text: 'text-emerald-700' },
-    { label: 'En procedimiento', count: m.inProcedureCount,  bg: 'bg-amber-50',    text: 'text-amber-700' },
+    { label: 'Leads',            count: m.leadsCount,       bg: 'bg-slate-100',  text: 'text-slate-700' },
+    { label: 'Citas totales',    count: m.citasCount,       bg: 'bg-violet-50',  text: 'text-violet-700' },
+    { label: 'Asistieron',       count: m.attendedCount,    bg: 'bg-emerald-50', text: 'text-emerald-700' },
+    { label: 'En procedimiento', count: m.inProcedureCount, bg: 'bg-amber-50',   text: 'text-amber-700' },
   ]
 
   const weekMax = Math.max(m.thisWeek, m.lastWeek, m.monthAvg, 1)
@@ -276,6 +278,14 @@ export function DashboardClient({
             </div>
           ))}
         </div>
+        <p className="mt-3 text-xs text-slate-400">
+          Canceladas en el período: <span className="font-semibold text-slate-600">{m.cancelledCount}</span>
+          {m.citasCount > 0 && (
+            <span className="ml-1 text-red-400 font-semibold">
+              ({Math.round((m.cancelledCount / m.citasCount) * 100)}%)
+            </span>
+          )}
+        </p>
       </div>
 
       {/* Bloque 2 — Tendencia mensual (ancho completo) */}
