@@ -1,15 +1,7 @@
 'use server'
 
 import { unstable_noStore as noStore } from 'next/cache'
-import { createClient } from '@supabase/supabase-js'
-
-// ── Admin client (bypasses RLS) ───────────────────────────────────────────────
-
-const admin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
+import { createServiceClient } from '@/lib/supabase/server'
 
 // ── Timezone helpers (Bogotá = UTC-5, no DST) ────────────────────────────────
 
@@ -87,7 +79,8 @@ export interface RawDashboardData {
 export async function getDashboardRawData(year: number): Promise<RawDashboardData | null> {
   noStore()
   try {
-    const today    = todayBogota()
+    const admin  = await createServiceClient()
+    const today  = todayBogota()
     const fromDate = `${year}-01-01`
     const toDate   = `${year + 1}-01-01`
 
@@ -184,6 +177,7 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
 
 export async function getDashboardYears(): Promise<number[]> {
   try {
+    const admin   = await createServiceClient()
     const curYear = currentBogotaYear()
     const [{ data: firstApt }, { data: firstLead }] = await Promise.all([
       admin.from('appointments').select('scheduled_at').order('scheduled_at', { ascending: true }).limit(1),
