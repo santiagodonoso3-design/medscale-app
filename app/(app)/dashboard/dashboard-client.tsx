@@ -329,7 +329,7 @@ export function DashboardClient({
             <Legend wrapperStyle={{ fontSize: 11, paddingTop: 12 }} />
             {m.avgAsistencias > 0 && (
               <ReferenceLine y={m.avgAsistencias} stroke="#10b981" strokeDasharray="5 5" strokeWidth={1.5}
-                label={{ value: `Prom. ${m.avgAsistencias}`, position: 'right', fontSize: 10, fill: '#10b981' }} />
+                label={{ value: `Prom. ${m.avgAsistencias}`, position: 'insideTopLeft', fontSize: 10, fill: '#10b981' }} />
             )}
             <Bar dataKey="agendadas" name="Agendadas" fill="#6366f1" radius={[4,4,0,0]}>
               <LabelList dataKey="agendadas" position="top" style={{ fontSize: 9, fill: '#6366f1', fontWeight: 600 }} />
