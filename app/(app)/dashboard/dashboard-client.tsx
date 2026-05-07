@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer,
+  Tooltip, Legend, ResponsiveContainer, ReferenceLine, LabelList,
 } from 'recharts'
 import {
   Loader2, ArrowRight,
@@ -51,7 +51,8 @@ interface Metrics {
   cancelledCount: number
   inProcedureCount: number
   finalizedCount: number
-  monthlyLines: { label: string; agendadas: number; asistencias: number }[]
+  monthlyLines: { label: string; agendadas: number; asistencias: number; procedimiento: number; finalizados: number }[]
+  avgAsistencias: number
   thisWeek: number
   lastWeek: number
   monthAvg: number
@@ -82,11 +83,20 @@ function computeMetrics(data: RawDashboardData, months: number[], year: number, 
   // Monthly lines — always full year, ignoring month filter
   const maxMonth = year === currentYear ? currentMonth : 12
   const allYearMonths = Array.from({ length: maxMonth }, (_, i) => i + 1)
-  const monthlyLines = allYearMonths.map(m => ({
-    label: MONTH_LABELS[m - 1],
-    agendadas:   appointments.filter(a => a.ym === `${year}-${pad(m)}`).length,
-    asistencias: appointments.filter(a => a.ym === `${year}-${pad(m)}` && a.status === 'completed').length,
-  }))
+  const monthlyLines = allYearMonths.map(m => {
+    const ym_str = `${year}-${pad(m)}`
+    return {
+      label:         MONTH_LABELS[m - 1],
+      agendadas:     appointments.filter(a => a.ym === ym_str).length,
+      asistencias:   appointments.filter(a => a.ym === ym_str && a.status === 'completed').length,
+      procedimiento: yearLeads.filter(l => l.ym === ym_str && l.status === 'en_tratamiento_medico').length,
+      finalizados:   yearLeads.filter(l => l.ym === ym_str && l.status === 'finalizado').length,
+    }
+  })
+  const activeMths = monthlyLines.filter(ml => ml.agendadas > 0)
+  const avgAsistencias = activeMths.length > 0
+    ? Math.round(activeMths.reduce((s, ml) => s + ml.asistencias, 0) / activeMths.length)
+    : 0
 
   // Weekly (uses raw scheduled_at, independent of year filter)
   const thisWeekRange = getWeekRange(0)
@@ -125,42 +135,12 @@ function computeMetrics(data: RawDashboardData, months: number[], year: number, 
 
   return {
     leadsCount, citasCount, attendedCount, cancelledCount, inProcedureCount, finalizedCount,
-    monthlyLines, thisWeek, lastWeek, monthAvg, doctorStats,
+    monthlyLines, avgAsistencias, thisWeek, lastWeek, monthAvg, doctorStats,
   }
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function FunnelBlock({ steps }: {
-  steps: { label: string; count: number; bg: string; text: string }[]
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {steps.map((step, i) => (
-        <div key={step.label} className="flex items-center gap-2">
-          <div className={`rounded-2xl ${step.bg} px-5 py-4 text-center min-w-[110px]`}>
-            <p className={`text-3xl font-bold ${step.text}`}>{step.count}</p>
-            <p className="mt-1 text-xs font-medium text-slate-500 leading-tight">{step.label}</p>
-          </div>
-          {i < steps.length - 1 && (
-            <div className="flex flex-col items-center gap-0.5 shrink-0">
-              <ArrowRight className="h-4 w-4 text-slate-300" />
-              {(() => {
-                const p = convPct(steps[i + 1].count, step.count)
-                if (p === null) return null
-                return (
-                  <span className={`text-[10px] font-bold ${p >= 50 ? 'text-emerald-600' : p >= 25 ? 'text-amber-500' : 'text-red-400'}`}>
-                    {p}%
-                  </span>
-                )
-              })()}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
 
 function BarTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
@@ -190,7 +170,7 @@ export function DashboardClient({
 
   const [rawData, setRawData]               = useState(initialData)
   const [selectedYear, setSelectedYear]     = useState(CURRENT_YEAR)
-  const [selectedMonths, setSelectedMonths] = useState<number[]>([CURRENT_MONTH])
+  const [selectedMonths, setSelectedMonths] = useState<number[]>(() => allMonths(CURRENT_YEAR))
   const [isPending, startTransition]        = useTransition()
 
   function handleYearChange(year: number) {
@@ -232,79 +212,103 @@ export function DashboardClient({
   return (
     <div className="space-y-6">
 
-      {/* Header */}
-      <div className="rounded-3xl border border-slate-200 bg-white px-8 py-6 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Panel principal</p>
-        <h1 className="mt-0.5 text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-400">Lead → Cita agendada → Asistió → En procedimiento</p>
-      </div>
-
-      {/* Date filter */}
-      <div className="rounded-3xl border border-slate-200 bg-white px-6 py-4 shadow-sm space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400 mr-1">Año</span>
-          {availableYears.map(y => (
-            <button key={y} onClick={() => handleYearChange(y)}
-              className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
-                selectedYear === y ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}>{y}</button>
-          ))}
-          {isPending && <Loader2 className="h-4 w-4 animate-spin text-slate-400 ml-1" />}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400 mr-1">Mes</span>
-          <button onClick={() => setSelectedMonths(allMonths(selectedYear))}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-              allSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}>Todos</button>
-          {available.map(mo => (
-            <button key={mo} onClick={() => toggleMonth(mo)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                selectedMonths.includes(mo) ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}>{MONTH_LABELS[mo - 1]}</button>
-          ))}
+      {/* Header + filtros */}
+      <div className="rounded-3xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Panel principal</p>
+            <h1 className="text-xl font-bold text-slate-900">Dashboard</h1>
+          </div>
+          <div className="flex flex-col gap-2 items-end">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Año</span>
+              {availableYears.map(y => (
+                <button key={y} onClick={() => handleYearChange(y)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                    selectedYear === y ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}>{y}</button>
+              ))}
+              {isPending && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap justify-end">
+              <button onClick={() => setSelectedMonths(allMonths(selectedYear))}
+                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                  allSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}>Todos</button>
+              {available.map(mo => (
+                <button key={mo} onClick={() => toggleMonth(mo)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                    selectedMonths.includes(mo) ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}>{MONTH_LABELS[mo - 1]}</button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Bloque 1 — Funnel visual */}
       <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
-        <h2 className="mb-5 text-base font-semibold text-slate-900">Funnel de conversión</h2>
-        <FunnelBlock steps={funnelSteps} />
-        <div className="mt-4 flex flex-wrap gap-4">
-          {[
-            { label: 'Lead → Cita', v: convPct(m.citasCount, m.leadsCount) },
-            { label: 'Cita → Asistencia', v: convPct(m.attendedCount, m.citasCount) },
-            { label: 'Asistencia → Procedimiento', v: convPct(m.inProcedureCount, m.attendedCount) },
-          ].map(({ label, v }) => v !== null && (
-            <div key={label} className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span>{label}</span>
-              <span className={`font-bold ${v >= 50 ? 'text-emerald-600' : v >= 25 ? 'text-amber-500' : 'text-red-400'}`}>{v}%</span>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {funnelSteps.map((step, i) => (
+            <div key={step.label} className="flex items-center gap-2">
+              <div className={`rounded-2xl ${step.bg} px-6 py-5 text-center min-w-[120px]`}>
+                <p className={`text-4xl font-black ${step.text}`}>{step.count}</p>
+                <p className="mt-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{step.label}</p>
+                {i > 0 && (() => {
+                  const prev = funnelSteps[i - 1].count
+                  const pct = prev > 0 ? Math.round((step.count / prev) * 100) : null
+                  return pct !== null ? (
+                    <p className={`mt-1 text-sm font-bold ${pct >= 50 ? 'text-emerald-500' : pct >= 25 ? 'text-amber-500' : 'text-red-400'}`}>
+                      {pct}%
+                    </p>
+                  ) : null
+                })()}
+              </div>
+              {i < funnelSteps.length - 1 && (
+                <ArrowRight className="h-5 w-5 text-slate-300 shrink-0" />
+              )}
             </div>
           ))}
         </div>
-        <p className="mt-3 text-xs text-slate-400">
-          Canceladas en el período: <span className="font-semibold text-slate-600">{m.cancelledCount}</span>
-          {m.citasCount > 0 && (
-            <span className="ml-1 text-red-400 font-semibold">
-              ({Math.round((m.cancelledCount / m.citasCount) * 100)}%)
-            </span>
-          )}
-        </p>
+        <div className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-1">
+          <p className="text-xs text-slate-400">
+            Canceladas en el período: <span className="font-semibold text-slate-600">{m.cancelledCount}</span>
+            {m.citasCount > 0 && (
+              <span className="ml-1 font-semibold text-red-400">
+                ({Math.round((m.cancelledCount / m.citasCount) * 100)}%)
+              </span>
+            )}
+          </p>
+        </div>
       </div>
 
       {/* Bloque 2 — Tendencia mensual (ancho completo) */}
       <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
         <h2 className="text-base font-semibold text-slate-900">Tendencia mensual</h2>
         <p className="mt-0.5 mb-4 text-xs text-slate-400">Agendadas vs Asistencias · año completo</p>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={m.monthlyLines} margin={{ top: 4, right: 16, left: -20, bottom: 0 }} barCategoryGap="30%">
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={m.monthlyLines} margin={{ top: 20, right: 16, left: -20, bottom: 0 }} barCategoryGap="20%" barGap={2}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
             <Tooltip content={<BarTooltip />} cursor={{ fill: '#f8fafc' }} />
-            <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-            <Bar dataKey="agendadas"   name="Agendadas"   fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={32} />
-            <Bar dataKey="asistencias" name="Asistencias" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={32} />
+            <Legend wrapperStyle={{ fontSize: 11, paddingTop: 12 }} />
+            {m.avgAsistencias > 0 && (
+              <ReferenceLine y={m.avgAsistencias} stroke="#10b981" strokeDasharray="5 5" strokeWidth={1.5}
+                label={{ value: `Prom. ${m.avgAsistencias}`, position: 'right', fontSize: 10, fill: '#10b981' }} />
+            )}
+            <Bar dataKey="agendadas" name="Agendadas" fill="#6366f1" radius={[4,4,0,0]}>
+              <LabelList dataKey="agendadas" position="top" style={{ fontSize: 9, fill: '#6366f1', fontWeight: 600 }} />
+            </Bar>
+            <Bar dataKey="asistencias" name="Asistencias" fill="#10b981" radius={[4,4,0,0]}>
+              <LabelList dataKey="asistencias" position="top" style={{ fontSize: 9, fill: '#10b981', fontWeight: 600 }} />
+            </Bar>
+            <Bar dataKey="procedimiento" name="Procedimiento" fill="#f59e0b" radius={[4,4,0,0]}>
+              <LabelList dataKey="procedimiento" position="top" style={{ fontSize: 9, fill: '#f59e0b', fontWeight: 600 }} />
+            </Bar>
+            <Bar dataKey="finalizados" name="Finalizados" fill="#3b82f6" radius={[4,4,0,0]}>
+              <LabelList dataKey="finalizados" position="top" style={{ fontSize: 9, fill: '#3b82f6', fontWeight: 600 }} />
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
