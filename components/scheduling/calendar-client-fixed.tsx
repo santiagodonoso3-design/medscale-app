@@ -193,8 +193,6 @@ export function CalendarClient({ userId }: CalendarClientProps) {
   const [patientMode, setPatientMode] = useState<'search' | 'new'>('new')
   const [leadResults, setLeadResults] = useState<any[]>([])
   const [leadSearch, setLeadSearch] = useState('')
-  const [availableSlots, setAvailableSlots] = useState<string[]>([])
-
   const [saving, setSaving] = useState(false)
 
   // ── Detail modal state
@@ -261,37 +259,6 @@ export function CalendarClient({ userId }: CalendarClientProps) {
       .map(s => s.day_of_week)
       .filter((v, i, a) => a.indexOf(v) === i)
   }
-
-  function generateSlots(doctorId: string, dateStr: string): string[] {
-    if (!doctorId || !dateStr) return []
-    const dow = new Date(dateStr + 'T12:00:00').getDay()
-    const doctorSchedules = schedules.filter(s =>
-      s.doctor_id === doctorId &&
-      s.day_of_week === dow &&
-      (s as any).is_recurring !== false
-    )
-    if (!doctorSchedules.length) return []
-    const slots: string[] = []
-    doctorSchedules.forEach(s => {
-      const [sh, sm] = s.start_time.split(':').map(Number)
-      const [eh, em] = s.end_time.split(':').map(Number)
-      let cur = sh * 60 + sm
-      const end = eh * 60 + em
-      while (cur < end) {
-        const h = Math.floor(cur / 60).toString().padStart(2, '0')
-        const m = (cur % 60).toString().padStart(2, '0')
-        slots.push(`${h}:${m}`)
-        cur += 30
-      }
-    })
-    return slots
-  }
-
-  useEffect(() => {
-    const slots = generateSlots(form.doctor_id, form.scheduled_date)
-    setAvailableSlots(slots)
-    setForm(p => ({ ...p, scheduled_time: '' }))
-  }, [form.doctor_id, form.scheduled_date, schedules])
 
   // ── Filtered appointments ──────────────────────────────────────────────────
 
@@ -1032,46 +999,31 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                         {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                       </select>
                     </div>
-                    <div className="sm:col-span-2 space-y-3">
-                      <div>
-                        <label className="text-xs font-medium text-slate-600">Fecha</label>
-                        <input
-                          type="date"
-                          value={form.scheduled_date}
-                          min={new Date().toISOString().slice(0, 10)}
-                          onChange={e => setForm(p => ({ ...p, scheduled_date: e.target.value, scheduled_time: '' }))}
-                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-medium text-slate-600 mb-2 block">Fecha y hora</label>
+                      <div style={{ fontSize: '0.9em' }}>
+                        <CalendarPicker
+                          orgName=""
+                          selectedDoctor={doctors.find(d => d.id === form.doctor_id) ?? null}
+                          effectiveSchedules={schedules.filter(s => s.doctor_id === form.doctor_id)}
+                          selectedDate={form.scheduled_date}
+                          selectedTime={form.scheduled_time}
+                          onSelect={(date, time) => {
+                            setForm(p => ({ ...p, scheduled_date: date, scheduled_time: time }))
+                          }}
+                          doctorId={form.doctor_id}
+                          minNoticeHours={0}
+                          texts={{
+                            org: '',
+                            doctor: '',
+                            autoAssign: '',
+                            selected: 'Seleccionado',
+                            loading: 'Cargando...',
+                            noSlots: 'El médico no atiende este día',
+                            docFallback: 'Médico'
+                          }}
                         />
                       </div>
-
-                      {form.scheduled_date && form.doctor_id && (
-                        <div>
-                          <label className="text-xs font-medium text-slate-600 mb-2 block">
-                            Hora disponible
-                          </label>
-                          {availableSlots.length === 0 ? (
-                            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                              El médico no atiende este día
-                            </p>
-                          ) : (
-                            <div className="flex flex-wrap gap-2">
-                              {availableSlots.map(slot => (
-                                <button
-                                  key={slot}
-                                  onClick={() => setForm(p => ({ ...p, scheduled_time: slot }))}
-                                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                                    form.scheduled_time === slot
-                                      ? 'bg-blue-600 text-white shadow-sm'
-                                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                                  }`}
-                                >
-                                  {slot}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </div>
                     <div className="sm:col-span-2">
                       <label className="text-xs font-medium text-slate-600">Notas (opcional)</label>
