@@ -151,6 +151,7 @@ export async function POST(request: Request) {
             .gte('scheduled_at', monthStart)
             .lte('scheduled_at', monthEnd)
             .eq('status', 'scheduled')
+            .eq('doctor_assignment_type', 'auto_assigned')
 
           if (monthErr) console.error('[/api/book] monthly appointments fetch error:', monthErr)
 
@@ -170,6 +171,7 @@ export async function POST(request: Request) {
               .in('doctor_id', tied)
               .gte('scheduled_at', weekAgo)
               .eq('status', 'scheduled')
+              .eq('doctor_assignment_type', 'auto_assigned')
 
             if (recentErr) console.error('[/api/book] recent appointments fetch error:', recentErr)
 
