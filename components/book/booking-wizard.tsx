@@ -849,11 +849,20 @@ export default function BookingWizard({
         {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 sm:mb-8">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={{ color: B.accent }}>RESERVAR CITA</p>
-            {orgLogoUrl && (
-              <img src={orgLogoUrl} alt={orgName} className="h-10 w-auto object-contain mb-2" />
+            {orgLogoUrl ? (
+              <img
+                src={orgLogoUrl}
+                alt={orgName}
+                className="h-16 w-auto max-w-[200px] object-contain"
+              />
+            ) : (
+              <>
+                <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: B.muted }}>
+                  Reservar cita
+                </p>
+                <h1 className="text-2xl font-bold mt-1" style={{ color: B.fg }}>{orgName}</h1>
+              </>
             )}
-            <h1 className="text-2xl sm:text-3xl font-bold mt-0.5 truncate" style={{ color: B.fg }}>{orgName}</h1>
             {appointmentType && (
               <p className="text-sm mt-1 truncate" style={{ color: B.muted }}>
                 {appointmentType.name} · {appointmentType.duration_minutes} min
