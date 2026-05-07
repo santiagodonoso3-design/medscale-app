@@ -844,9 +844,19 @@ export function CalendarClient({ userId }: CalendarClientProps) {
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-600">Fecha y hora</label>
-                <input type="datetime-local" value={form.scheduled_at}
-                  onChange={e => setForm(p => ({ ...p, scheduled_at: e.target.value }))}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm" />
+                <div className="mt-1 w-full overflow-x-hidden overflow-hidden" style={{ fontSize: '0.85em' }}>
+                  <CalendarPicker
+                    orgName=""
+                    selectedDoctor={doctors.find(d => d.id === form.doctor_id) ?? null}
+                    effectiveSchedules={schedules.filter(s => s.doctor_id === form.doctor_id)}
+                    selectedDate={form.scheduled_at ? form.scheduled_at.slice(0, 10) : ''}
+                    selectedTime={form.scheduled_at ? form.scheduled_at.slice(11, 16) : ''}
+                    onSelect={(date, time) => setForm(p => ({ ...p, scheduled_at: date && time ? `${date}T${time}` : '' }))}
+                    doctorId={form.doctor_id || ''}
+                    minNoticeHours={0}
+                    texts={{ org: 'Org', doctor: 'Médico', autoAssign: 'Sin asignar', selected: 'Seleccionado', loading: 'Cargando...', noSlots: 'Sin horarios disponibles.', docFallback: 'Médico' }}
+                  />
+                </div>
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-600">Nombre del paciente</label>
