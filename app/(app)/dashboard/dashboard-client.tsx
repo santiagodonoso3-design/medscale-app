@@ -15,6 +15,10 @@ import { getDashboardRawData } from './actions'
 
 const MONTH_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
+const _nowBogota   = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', timeZone: 'America/Bogota' }).format(new Date())
+const CURRENT_YEAR  = Number(_nowBogota.slice(0, 4))
+const CURRENT_MONTH = Number(_nowBogota.slice(5, 7))
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function pad(n: number) { return String(n).padStart(2, '0') }
@@ -173,26 +177,20 @@ export function DashboardClient({
   initialData: RawDashboardData
   availableYears: number[]
 }) {
-  const nowBogota    = new Intl.DateTimeFormat('en-CA', {
-    year: 'numeric', month: '2-digit', timeZone: 'America/Bogota',
-  }).format(new Date())
-  const currentYear  = Number(nowBogota.slice(0, 4))
-  const currentMonth = Number(nowBogota.slice(5, 7))
-
   function allMonths(year: number): number[] {
-    const max = year === currentYear ? currentMonth : 12
+    const max = year === CURRENT_YEAR ? CURRENT_MONTH : 12
     return Array.from({ length: max }, (_, i) => i + 1)
   }
 
   const [rawData, setRawData]               = useState(initialData)
-  const [selectedYear, setSelectedYear]     = useState(initialData.year)
-  const [selectedMonths, setSelectedMonths] = useState<number[]>([currentMonth])
+  const [selectedYear, setSelectedYear]     = useState(CURRENT_YEAR)
+  const [selectedMonths, setSelectedMonths] = useState<number[]>([CURRENT_MONTH])
   const [isPending, startTransition]        = useTransition()
 
   function handleYearChange(year: number) {
     if (year === selectedYear) return
     setSelectedYear(year)
-    setSelectedMonths(allMonths(year))
+    setSelectedMonths(year === CURRENT_YEAR ? [CURRENT_MONTH] : allMonths(year))
     startTransition(async () => {
       const newData = await getDashboardRawData(year)
       if (newData) setRawData(newData)
