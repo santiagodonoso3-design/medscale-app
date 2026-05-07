@@ -63,6 +63,7 @@ interface Metrics {
     pct: number
     autoAssigned: number
     patientChosen: number
+    inProcedure: number
   }[]
 }
 
@@ -116,8 +117,15 @@ function computeMetrics(data: RawDashboardData, months: number[], year: number, 
   const monthAvg = Math.round(thisMonthTotal / 4)
 
   // Doctor stats
+  const leadDoctorMap = new Map<string, Set<string>>()
+  appointments.forEach(a => {
+    if (!inPeriod(a.ym) || !a.lead_id) return
+    if (!leadDoctorMap.has(a.lead_id)) leadDoctorMap.set(a.lead_id, new Set())
+    leadDoctorMap.get(a.lead_id)!.add(a.doctor_id)
+  })
+
   const docMap = new Map(doctors.map(d => [
-    d.id, { name: d.name, total: 0, completed: 0, autoAssigned: 0, patientChosen: 0 }
+    d.id, { name: d.name, total: 0, completed: 0, autoAssigned: 0, patientChosen: 0, inProcedure: 0 }
   ]))
   appointments.forEach(a => {
     if (!inPeriod(a.ym)) return
@@ -127,6 +135,13 @@ function computeMetrics(data: RawDashboardData, months: number[], year: number, 
     if (a.status === 'completed') e.completed++
     if (a.doctor_assignment_type === 'patient_choice') e.patientChosen++
     else e.autoAssigned++
+  })
+  docMap.forEach((entry, doctorId) => {
+    entry.inProcedure = yearLeads.filter(l =>
+      inPeriod(l.ym) &&
+      l.status === 'en_tratamiento_medico' &&
+      leadDoctorMap.get(l.id)?.has(doctorId)
+    ).length
   })
   const doctorStats = Array.from(docMap.values())
     .filter(d => d.total > 0)
@@ -391,12 +406,12 @@ export function DashboardClient({
                   <th className="py-2 pr-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Médico</th>
                   <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Citas</th>
                   <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Asistencias</th>
-                  <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">% Asist.</th>
+                  <th className="py-2 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 w-36">Progreso asistencia</th>
                   <th className="py-2 px-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Paciente / Auto
                     <InfoTooltip text="Paciente: el paciente eligió este médico. Auto: el sistema lo asignó automáticamente. Útil para medir demanda real por médico." />
                   </th>
-                  <th className="py-2 pl-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 w-36">Progreso asistencia</th>
+                  <th className="py-2 px-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Procedimientos</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -409,10 +424,16 @@ export function DashboardClient({
                         {d.completed}
                       </span>
                     </td>
-                    <td className="py-3 px-3 text-right">
-                      <span className={`text-xs font-bold ${d.pct >= 70 ? 'text-emerald-600' : d.pct >= 40 ? 'text-amber-500' : 'text-red-400'}`}>
-                        {d.pct}%
-                      </span>
+                    <td className="py-3 px-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden min-w-[60px]">
+                          <div
+                            className={`h-full rounded-full transition-all ${d.pct >= 70 ? 'bg-emerald-500' : d.pct >= 40 ? 'bg-amber-400' : 'bg-red-400'}`}
+                            style={{ width: `${d.pct}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-slate-400 w-7 text-right shrink-0">{d.pct}%</span>
+                      </div>
                     </td>
                     <td className="py-3 px-3 text-center text-xs text-slate-600">
                       {d.patientChosen > 0 || d.autoAssigned > 0
@@ -430,16 +451,10 @@ export function DashboardClient({
                         : <span className="text-slate-300">—</span>
                       }
                     </td>
-                    <td className="py-3 pl-4">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden min-w-[60px]">
-                          <div
-                            className={`h-full rounded-full transition-all ${d.pct >= 70 ? 'bg-emerald-500' : d.pct >= 40 ? 'bg-amber-400' : 'bg-red-400'}`}
-                            style={{ width: `${d.pct}%` }}
-                          />
-                        </div>
-                        <span className="text-[10px] text-slate-400 w-7 text-right shrink-0">{d.pct}%</span>
-                      </div>
+                    <td className="py-3 px-3 text-center">
+                      <span className="inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700">
+                        {d.inProcedure}
+                      </span>
                     </td>
                   </tr>
                 ))}
