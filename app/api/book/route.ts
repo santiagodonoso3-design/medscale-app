@@ -71,6 +71,7 @@ export async function POST(request: Request) {
     let appointmentTypeName: string | null = null
     let appointmentTypePrice: number | null = null
     let assignmentMode = ''
+    let rrCountAll = true
 
     if (!selectedDoctorId) {
       try {
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
         if (appointment_type_id) {
           const { data: apptType, error: typeError } = await supabase
             .from('appointment_types')
-            .select('name, price, assignment_mode, doctor_ids')
+            .select('name, price, assignment_mode, doctor_ids, rr_count_all')
             .eq('id', appointment_type_id)
             .single()
           if (typeError) {
@@ -91,6 +92,7 @@ export async function POST(request: Request) {
             appointmentTypePrice = (apptType.price as number) ?? null
             assignmentMode = (apptType.assignment_mode as string) ?? 'round_robin_proportional'
             typeDoctorIds  = (apptType.doctor_ids as string[]) ?? []
+            rrCountAll     = (apptType.rr_count_all ?? true) as boolean
             console.log('[/api/book] type config:', { assignmentMode, typeDoctorIds })
           }
         }
@@ -144,14 +146,15 @@ export async function POST(request: Request) {
           const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
           const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
 
-          const { data: monthApts, error: monthErr } = await supabase
+          let monthQuery = supabase
             .from('appointments')
             .select('doctor_id')
             .in('doctor_id', availableIds)
             .gte('scheduled_at', monthStart)
             .lte('scheduled_at', monthEnd)
             .eq('status', 'scheduled')
-            .eq('doctor_assignment_type', 'auto_assigned')
+          if (!rrCountAll) monthQuery = (monthQuery as any).eq('doctor_assignment_type', 'auto_assigned')
+          const { data: monthApts, error: monthErr } = await monthQuery
 
           if (monthErr) console.error('[/api/book] monthly appointments fetch error:', monthErr)
 
@@ -165,13 +168,14 @@ export async function POST(request: Request) {
             selectedDoctorId = tied[0]
           } else {
             const weekAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()
-            const { data: recentApts, error: recentErr } = await supabase
+            let recentQuery = supabase
               .from('appointments')
               .select('doctor_id')
               .in('doctor_id', tied)
               .gte('scheduled_at', weekAgo)
               .eq('status', 'scheduled')
-              .eq('doctor_assignment_type', 'auto_assigned')
+            if (!rrCountAll) recentQuery = (recentQuery as any).eq('doctor_assignment_type', 'auto_assigned')
+            const { data: recentApts, error: recentErr } = await recentQuery
 
             if (recentErr) console.error('[/api/book] recent appointments fetch error:', recentErr)
 

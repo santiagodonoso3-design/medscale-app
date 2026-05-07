@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, Copy, Check, Loader2, Pencil, Link2, X, Save, Settings, Clock, ClipboardList, GripVertical, Trash2, Bell } from 'lucide-react'
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
@@ -25,6 +25,7 @@ interface AppointmentType {
   buffer_before_min: number
   buffer_after_min: number
   languages: string[]
+  rr_count_all: boolean
 }
 
 interface FormFieldRow {
@@ -71,10 +72,10 @@ const PRESET_COLORS = [
 ]
 
 const ASSIGNMENT_MODES: { value: AssignmentMode; label: string }[] = [
-  { value: 'hybrid',                    label: 'Híbrido (paciente puede escoger médico)' },
-  { value: 'one_on_one',                label: 'One-on-One (paciente escoge médico)' },
-  { value: 'round_robin_proportional',  label: 'Round Robin — Proporcional (menos citas)' },
-  { value: 'round_robin_availability',  label: 'Round Robin — Disponibilidad (primer disponible)' },
+  { value: 'hybrid',                    label: 'Flexible — paciente elige o el sistema asigna' },
+  { value: 'one_on_one',                label: 'Elección directa — paciente siempre elige médico' },
+  { value: 'round_robin_proportional',  label: 'Auto-asignación balanceada — médico con menos citas' },
+  { value: 'round_robin_availability',  label: 'Auto-asignación rápida — primer médico disponible' },
 ]
 
 const EMPTY_FORM = {
@@ -91,6 +92,7 @@ const EMPTY_FORM = {
   buffer_before_min: 0,
   buffer_after_min: 0,
   languages: ['es'] as string[],
+  rr_count_all: true,
 }
 
 const BASE_FIELDS = [
@@ -238,6 +240,40 @@ const NOTIF_META: Record<string, { label: string; description: string }> = {
   reschedule:   { label: 'Reagendamiento',  description: 'Se envía cuando se cambia la fecha/hora' },
 }
 
+function InfoTooltip({ text }: { text: string }) {
+  const [show, setShow] = useState(false)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  function handleMouseEnter() {
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setPos({ top: rect.top - 8, left: rect.left + rect.width / 2 })
+    }
+    setShow(true)
+  }
+
+  return (
+    <span className="relative inline-flex items-center ml-1">
+      <button
+        ref={btnRef}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={() => setShow(false)}
+        className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-slate-200 text-slate-500 text-[9px] font-bold hover:bg-slate-300 transition"
+      >?</button>
+      {show && (
+        <div
+          className="fixed w-56 rounded-xl bg-slate-900 px-3 py-2 text-xs text-white shadow-lg z-[9999] -translate-x-1/2 -translate-y-full"
+          style={{ top: pos.top, left: pos.left }}
+        >
+          {text}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+        </div>
+      )}
+    </span>
+  )
+}
+
 export default function AppointmentTypesPage() {
   const [types,         setTypes]         = useState<AppointmentType[]>([])
   const [org,           setOrg]           = useState<OrgInfo | null>(null)
@@ -380,6 +416,7 @@ export default function AppointmentTypesPage() {
       buffer_before_min: t.buffer_before_min ?? 0,
       buffer_after_min:  t.buffer_after_min  ?? 0,
       languages:         t.languages?.length ? t.languages : ['es'],
+      rr_count_all:      t.rr_count_all ?? true,
     })
     setSlugManual(true)
     setFormError(null)
@@ -423,6 +460,7 @@ export default function AppointmentTypesPage() {
       buffer_before_min: Number(form.buffer_before_min),
       buffer_after_min:  Number(form.buffer_after_min),
       languages:         form.languages.length ? form.languages : ['es'],
+      rr_count_all:      form.rr_count_all,
     }
 
     if (editing) {
@@ -777,6 +815,50 @@ export default function AppointmentTypesPage() {
                         onChange={e => setForm(p => ({ ...p, min_notice_hours: Number(e.target.value) }))}
                         className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
+                    {form.assignment_mode === 'round_robin_proportional' && (
+                      <div className="mt-4">
+                        <div className="flex items-center gap-1.5">
+                          <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                            Balanceo de carga
+                          </label>
+                          <InfoTooltip text="Define cómo el sistema cuenta las citas al asignar médicos automáticamente." />
+                        </div>
+                        <div className="mt-2 space-y-2">
+                          <label className="flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-3 cursor-pointer hover:bg-slate-50 transition">
+                            <input
+                              type="radio"
+                              name="rr_count_all"
+                              checked={form.rr_count_all === true}
+                              onChange={() => setForm(p => ({ ...p, rr_count_all: true }))}
+                              className="mt-0.5 shrink-0"
+                            />
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800">Carga total</p>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                Considera todas las citas del médico — tanto las que el paciente eligió
+                                como las que el sistema asignó. Protege al médico de sobrecarga real.
+                              </p>
+                            </div>
+                          </label>
+                          <label className="flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-3 cursor-pointer hover:bg-slate-50 transition">
+                            <input
+                              type="radio"
+                              name="rr_count_all"
+                              checked={form.rr_count_all === false}
+                              onChange={() => setForm(p => ({ ...p, rr_count_all: false }))}
+                              className="mt-0.5 shrink-0"
+                            />
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800">Solo auto-asignadas</p>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                Solo considera las citas que el sistema asignó automáticamente.
+                                Los pacientes que eligieron médico directamente no afectan el balanceo.
+                              </p>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                    )}
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Aviso máximo</label>
                       <p className="mt-0.5 text-xs text-slate-400">Máximo de días en el futuro que un paciente puede agendar</p>
