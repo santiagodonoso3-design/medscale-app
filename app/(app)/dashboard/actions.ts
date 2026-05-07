@@ -101,8 +101,9 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
         .gte('created_at', fromDate)
         .lt('created_at', toDate),
       admin.from('leads')
-        .select('id, status')
-        .in('status', ['contactado', 'en_tratamiento_medico']),
+        .select('id, status, created_at')
+        .gte('created_at', fromDate)
+        .lt('created_at', toDate),
       admin.from('doctors')
         .select('id, metadata')
         .eq('is_active', true),
