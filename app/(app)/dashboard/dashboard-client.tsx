@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, useRef } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, ReferenceLine, LabelList,
@@ -144,15 +144,30 @@ function computeMetrics(data: RawDashboardData, months: number[], year: number, 
 
 function InfoTooltip({ text }: { text: string }) {
   const [show, setShow] = useState(false)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  function handleMouseEnter() {
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setPos({ top: rect.top - 8, left: rect.left + rect.width / 2 })
+    }
+    setShow(true)
+  }
+
   return (
     <span className="relative inline-flex items-center ml-1">
       <button
-        onMouseEnter={() => setShow(true)}
+        ref={btnRef}
+        onMouseEnter={handleMouseEnter}
         onMouseLeave={() => setShow(false)}
         className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-slate-200 text-slate-500 text-[9px] font-bold hover:bg-slate-300 transition"
       >?</button>
       {show && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 rounded-xl bg-slate-900 px-3 py-2 text-xs text-white shadow-lg z-50">
+        <div
+          className="fixed w-52 rounded-xl bg-slate-900 px-3 py-2 text-xs text-white shadow-lg z-[9999] -translate-x-1/2 -translate-y-full"
+          style={{ top: pos.top, left: pos.left }}
+        >
           {text}
           <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
         </div>
