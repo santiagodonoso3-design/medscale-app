@@ -853,7 +853,7 @@ export default function BookingWizard({
               <img
                 src={orgLogoUrl}
                 alt={orgName}
-                className="h-24 w-auto max-w-[280px] object-contain"
+                style={{ height: '120px', width: 'auto', maxWidth: '360px', objectFit: 'contain' }}
               />
             ) : (
               <>
