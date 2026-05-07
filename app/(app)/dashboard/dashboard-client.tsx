@@ -2,12 +2,11 @@
 
 import { useState, useTransition, useMemo } from 'react'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ReferenceLine, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import {
-  TrendingUp, TrendingDown, Users, CalendarDays,
-  Activity, Stethoscope, MessageCircle, Loader2,
+  Users, CalendarDays, Activity, Stethoscope, Loader2, ArrowRight,
 } from 'lucide-react'
 import type { RawDashboardData } from './actions'
 import { getDashboardRawData } from './actions'
@@ -31,107 +30,159 @@ const STATUS_LABEL: Record<string, string> = {
   no_show:    'No asistió',
 }
 
-// ── Client-side metric computation ────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function pad(n: number) { return String(n).padStart(2, '0') }
+
+function bogotaDateStr(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(date)
+}
+
+function getWeekRange(offset: number): { from: string; to: string } {
+  const d = new Date(bogotaDateStr(new Date()) + 'T12:00:00')
+  const dow = d.getDay() === 0 ? 6 : d.getDay() - 1  // Mon=0
+  const mon = new Date(d)
+  mon.setDate(d.getDate() - dow + offset * 7)
+  const sun = new Date(mon)
+  sun.setDate(mon.getDate() + 6)
+  return { from: bogotaDateStr(mon), to: bogotaDateStr(sun) }
+}
+
+function convPct(num: number, den: number): number | null {
+  if (den === 0) return null
+  return Math.round((num / den) * 100)
+}
+
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+// ── Metric computation ────────────────────────────────────────────────────────
 
 interface Metrics {
   leadsCount: number
-  inConversationCount: number
-  inProcedureCount: number
   citasCount: number
   attendedCount: number
-  monthlyTrend: { label: string; count: number }[]
-  monthlyAvg: number
-  trendVsPrev: number | null
-  doctorStats: { name: string; total: number; completed: number }[]
+  inProcedureCount: number
+  monthlyLines: { label: string; agendadas: number; asistencias: number }[]
+  thisWeek: number
+  lastWeek: number
+  monthAvg: number
+  doctorStats: {
+    name: string
+    total: number
+    completed: number
+    pct: number
+    autoAssigned: number
+    patientChosen: number
+  }[]
 }
 
 function computeMetrics(data: RawDashboardData, months: number[], year: number): Metrics {
-  const { appointments, yearLeads, inConversationCount, inProcedureCount, doctors } = data
+  const { appointments, yearLeads, inProcedureCount, doctors, appointmentTypes } = data
   const monthSet = new Set(months)
-
   const inPeriod = (ym: string) =>
     Number(ym.slice(0, 4)) === year && monthSet.has(Number(ym.slice(5)))
 
+  // Funnel
   const leadsCount    = yearLeads.filter(l => inPeriod(l.ym)).length
   const citasCount    = appointments.filter(a => inPeriod(a.ym) && a.status !== 'cancelled').length
   const attendedCount = appointments.filter(a => inPeriod(a.ym) && a.status === 'completed').length
 
+  // Monthly lines
   const sortedMonths = [...months].sort((a, b) => a - b)
-  const monthlyTrend = sortedMonths.map(m => ({
+  const monthlyLines = sortedMonths.map(m => ({
     label: MONTH_LABELS[m - 1],
-    count: appointments.filter(a =>
-      a.ym === `${year}-${String(m).padStart(2, '0')}` && a.status !== 'cancelled'
-    ).length,
+    agendadas:   appointments.filter(a => a.ym === `${year}-${pad(m)}` && a.status !== 'cancelled').length,
+    asistencias: appointments.filter(a => a.ym === `${year}-${pad(m)}` && a.status === 'completed').length,
   }))
 
-  const monthlyAvg = monthlyTrend.length
-    ? Math.round(monthlyTrend.reduce((s, p) => s + p.count, 0) / monthlyTrend.length)
-    : 0
+  // Weekly (uses raw scheduled_at, independent of year filter)
+  const thisWeekRange = getWeekRange(0)
+  const lastWeekRange = getWeekRange(-1)
+  const thisWeek = appointments.filter(a => {
+    const d = bogotaDateStr(new Date(a.scheduled_at))
+    return a.status !== 'cancelled' && d >= thisWeekRange.from && d <= thisWeekRange.to
+  }).length
+  const lastWeek = appointments.filter(a => {
+    const d = bogotaDateStr(new Date(a.scheduled_at))
+    return a.status !== 'cancelled' && d >= lastWeekRange.from && d <= lastWeekRange.to
+  }).length
+  const nowM = new Date().getMonth() + 1
+  const thisMonthTotal = appointments.filter(a =>
+    a.ym === `${year}-${pad(nowM)}` && a.status !== 'cancelled'
+  ).length
+  const monthAvg = Math.round(thisMonthTotal / 4)
 
-  // Compare last selected month vs the month immediately before it
-  const lastM      = sortedMonths[sortedMonths.length - 1]
-  const prevM      = lastM > 1 ? lastM - 1 : null
-  const lastCount  = monthlyTrend[monthlyTrend.length - 1]?.count ?? 0
-  const prevCount  = prevM
-    ? appointments.filter(a =>
-        a.ym === `${year}-${String(prevM).padStart(2, '0')}` && a.status !== 'cancelled'
-      ).length
-    : 0
-  const trendVsPrev = prevCount > 0
-    ? Math.round(((lastCount - prevCount) / prevCount) * 100)
-    : null
-
-  const docMap = new Map(doctors.map(d => [d.id, { name: d.name, total: 0, completed: 0 }]))
+  // Doctor stats
+  const typeMap = new Map(appointmentTypes.map(t => [t.id, t.assignment_mode]))
+  const docMap = new Map(doctors.map(d => [
+    d.id, { name: d.name, total: 0, completed: 0, autoAssigned: 0, patientChosen: 0 }
+  ]))
   appointments.forEach(a => {
-    if (!inPeriod(a.ym)) return
+    if (!inPeriod(a.ym) || a.status === 'cancelled') return
     const e = docMap.get(a.doctor_id)
     if (!e) return
     e.total++
     if (a.status === 'completed') e.completed++
+    const mode = a.appointment_type_id ? typeMap.get(a.appointment_type_id) : undefined
+    if (mode?.startsWith('round_robin')) e.autoAssigned++
+    else if (mode === 'one_on_one' || mode === 'hybrid') e.patientChosen++
   })
   const doctorStats = Array.from(docMap.values())
     .filter(d => d.total > 0)
+    .map(d => ({ ...d, pct: Math.round((d.completed / d.total) * 100) }))
     .sort((a, b) => b.total - a.total)
 
   return {
-    leadsCount, inConversationCount, inProcedureCount,
-    citasCount, attendedCount,
-    monthlyTrend, monthlyAvg, trendVsPrev,
-    doctorStats,
+    leadsCount, citasCount, attendedCount, inProcedureCount,
+    monthlyLines, thisWeek, lastWeek, monthAvg, doctorStats,
   }
 }
 
-// ── Small UI helpers ──────────────────────────────────────────────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, icon: Icon, accent, step }: {
-  label: string; value: number; icon: React.ElementType; accent: string; step: number
+function FunnelBlock({ steps }: {
+  steps: { label: string; count: number; bg: string; text: string }[]
 }) {
   return (
-    <div className="relative rounded-3xl border border-slate-200 bg-white p-5 shadow-sm overflow-hidden">
-      <span className="absolute top-3 right-3 text-[10px] font-bold text-slate-200 select-none">#{step}</span>
-      <div className={`mb-3 inline-flex rounded-xl p-2 ${accent}`}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <p className="text-3xl font-bold text-slate-900">{value}</p>
-      <p className="mt-1 text-xs font-medium text-slate-500">{label}</p>
+    <div className="flex flex-wrap items-center gap-2">
+      {steps.map((step, i) => (
+        <div key={step.label} className="flex items-center gap-2">
+          <div className={`rounded-2xl ${step.bg} px-5 py-4 text-center min-w-[110px]`}>
+            <p className={`text-3xl font-bold ${step.text}`}>{step.count}</p>
+            <p className="mt-1 text-xs font-medium text-slate-500 leading-tight">{step.label}</p>
+          </div>
+          {i < steps.length - 1 && (
+            <div className="flex flex-col items-center gap-0.5 shrink-0">
+              <ArrowRight className="h-4 w-4 text-slate-300" />
+              {(() => {
+                const p = convPct(steps[i + 1].count, step.count)
+                if (p === null) return null
+                return (
+                  <span className={`text-[10px] font-bold ${p >= 50 ? 'text-emerald-600' : p >= 25 ? 'text-amber-500' : 'text-red-400'}`}>
+                    {p}%
+                  </span>
+                )
+              })()}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   )
 }
 
-function ChartTooltip({ active, payload, label }: any) {
+function LineTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg text-sm">
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg text-sm space-y-1">
       <p className="font-semibold text-slate-700">{label}</p>
-      <p className="text-blue-600">{payload[0].value} citas</p>
+      {payload.map((p: any) => (
+        <p key={p.dataKey} style={{ color: p.color }}>{p.name}: <strong>{p.value}</strong></p>
+      ))}
     </div>
   )
-}
-
-function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('es-CO', {
-    hour: '2-digit', minute: '2-digit', hour12: false,
-  })
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -172,18 +223,27 @@ export function DashboardClient({
   function toggleMonth(m: number) {
     setSelectedMonths(prev =>
       prev.includes(m)
-        ? prev.length > 1 ? prev.filter(x => x !== m) : prev  // prevent empty selection
+        ? prev.length > 1 ? prev.filter(x => x !== m) : prev
         : [...prev, m].sort((a, b) => a - b)
     )
   }
 
-  const available  = allMonths(selectedYear)
+  const available   = allMonths(selectedYear)
   const allSelected = selectedMonths.length === available.length
 
-  const metrics = useMemo(
+  const m = useMemo(
     () => computeMetrics(rawData, selectedMonths, selectedYear),
     [rawData, selectedMonths, selectedYear]
   )
+
+  const funnelSteps = [
+    { label: 'Leads',            count: m.leadsCount,        bg: 'bg-slate-100',   text: 'text-slate-700' },
+    { label: 'Citas agendadas',  count: m.citasCount,        bg: 'bg-violet-50',   text: 'text-violet-700' },
+    { label: 'Asistieron',       count: m.attendedCount,     bg: 'bg-emerald-50',  text: 'text-emerald-700' },
+    { label: 'En procedimiento', count: m.inProcedureCount,  bg: 'bg-amber-50',    text: 'text-amber-700' },
+  ]
+
+  const weekMax = Math.max(m.thisWeek, m.lastWeek, m.monthAvg, 1)
 
   return (
     <div className="space-y-6">
@@ -192,62 +252,52 @@ export function DashboardClient({
       <div className="rounded-3xl border border-slate-200 bg-white px-8 py-6 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Panel principal</p>
         <h1 className="mt-0.5 text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-400">Funnel Lead → Conversación → Cita → Asistencia → Procedimiento</p>
+        <p className="mt-1 text-sm text-slate-400">Lead → Cita agendada → Asistió → En procedimiento</p>
       </div>
 
       {/* Date filter */}
       <div className="rounded-3xl border border-slate-200 bg-white px-6 py-4 shadow-sm space-y-3">
-        {/* Year pills */}
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-400 mr-1">Año</span>
           {availableYears.map(y => (
-            <button
-              key={y}
-              onClick={() => handleYearChange(y)}
+            <button key={y} onClick={() => handleYearChange(y)}
               className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
-                selectedYear === y
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {y}
-            </button>
+                selectedYear === y ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}>{y}</button>
           ))}
           {isPending && <Loader2 className="h-4 w-4 animate-spin text-slate-400 ml-1" />}
         </div>
-
-        {/* Month chips */}
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-400 mr-1">Mes</span>
-          <button
-            onClick={() => setSelectedMonths(allMonths(selectedYear))}
+          <button onClick={() => setSelectedMonths(allMonths(selectedYear))}
             className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
               allSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Todos
-          </button>
-          {available.map(m => (
-            <button
-              key={m}
-              onClick={() => toggleMonth(m)}
+            }`}>Todos</button>
+          {available.map(mo => (
+            <button key={mo} onClick={() => toggleMonth(mo)}
               className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                selectedMonths.includes(m) ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {MONTH_LABELS[m - 1]}
-            </button>
+                selectedMonths.includes(mo) ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}>{MONTH_LABELS[mo - 1]}</button>
           ))}
         </div>
       </div>
 
-      {/* Funnel KPIs */}
-      <div className={`grid gap-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 transition-opacity ${isPending ? 'opacity-50' : ''}`}>
-        <KpiCard step={1} label="Leads en período"  value={metrics.leadsCount}          icon={Users}         accent="bg-slate-100 text-slate-500" />
-        <KpiCard step={2} label="En conversación"   value={metrics.inConversationCount} icon={MessageCircle} accent="bg-blue-50 text-blue-500" />
-        <KpiCard step={3} label="Citas agendadas"   value={metrics.citasCount}          icon={CalendarDays}  accent="bg-violet-50 text-violet-500" />
-        <KpiCard step={4} label="Asistieron"        value={metrics.attendedCount}       icon={Activity}      accent="bg-emerald-50 text-emerald-600" />
-        <KpiCard step={5} label="En procedimiento"  value={metrics.inProcedureCount}    icon={Stethoscope}   accent="bg-amber-50 text-amber-600" />
+      {/* Bloque 1 — Funnel visual */}
+      <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
+        <h2 className="mb-5 text-base font-semibold text-slate-900">Funnel de conversión</h2>
+        <FunnelBlock steps={funnelSteps} />
+        <div className="mt-4 flex flex-wrap gap-4">
+          {[
+            { label: 'Lead → Cita', v: convPct(m.citasCount, m.leadsCount) },
+            { label: 'Cita → Asistencia', v: convPct(m.attendedCount, m.citasCount) },
+            { label: 'Asistencia → Procedimiento', v: convPct(m.inProcedureCount, m.attendedCount) },
+          ].map(({ label, v }) => v !== null && (
+            <div key={label} className="flex items-center gap-1.5 text-xs text-slate-500">
+              <span>{label}</span>
+              <span className={`font-bold ${v >= 50 ? 'text-emerald-600' : v >= 25 ? 'text-amber-500' : 'text-red-400'}`}>{v}%</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Citas de hoy — ignores all filters */}
@@ -295,76 +345,114 @@ export function DashboardClient({
         )}
       </div>
 
-      {/* Chart + Doctor table */}
+      {/* Bloque 2 + Bloque 3 */}
       <div className={`grid gap-4 xl:grid-cols-3 transition-opacity ${isPending ? 'opacity-50' : ''}`}>
 
-        {/* Chart */}
+        {/* Bloque 2 — Tendencia mensual */}
         <div className="xl:col-span-2 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-4 flex items-start justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-slate-900">Agendamientos por mes</h2>
-              <p className="mt-0.5 text-xs text-slate-400">Meses seleccionados · citas no canceladas</p>
-            </div>
-            {metrics.trendVsPrev !== null && (
-              <div className={`flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-semibold ${
-                metrics.trendVsPrev >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
-              }`}>
-                {metrics.trendVsPrev >= 0
-                  ? <TrendingUp className="h-3.5 w-3.5" />
-                  : <TrendingDown className="h-3.5 w-3.5" />}
-                {metrics.trendVsPrev >= 0 ? '+' : ''}{metrics.trendVsPrev}% vs mes ant.
-              </div>
-            )}
-          </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={metrics.monthlyTrend} margin={{ top: 4, right: 40, left: -20, bottom: 0 }}>
+          <h2 className="text-base font-semibold text-slate-900">Tendencia mensual</h2>
+          <p className="mt-0.5 mb-4 text-xs text-slate-400">Agendadas vs Asistencias · meses seleccionados</p>
+          <ResponsiveContainer width="100%" height={210}>
+            <LineChart data={m.monthlyLines} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: '#f8fafc' }} />
-              {metrics.monthlyAvg > 0 && (
-                <ReferenceLine
-                  y={metrics.monthlyAvg}
-                  stroke="#94a3b8"
-                  strokeDasharray="4 4"
-                  label={{ value: `Prom ${metrics.monthlyAvg}`, position: 'right', fontSize: 10, fill: '#94a3b8' }}
-                />
-              )}
-              <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={48} />
-            </BarChart>
+              <Tooltip content={<LineTooltip />} />
+              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+              <Line type="monotone" dataKey="agendadas"   name="Agendadas"   stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line type="monotone" dataKey="asistencias" name="Asistencias" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+            </LineChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Doctor table */}
+        {/* Bloque 3 — Agendamiento semanal */}
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-base font-semibold text-slate-900">Por médico</h2>
-          {metrics.doctorStats.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-400">Sin citas registradas.</p>
-          ) : (
+          <h2 className="text-base font-semibold text-slate-900">Agendamiento semanal</h2>
+          <p className="mt-0.5 mb-5 text-xs text-slate-400">Citas no canceladas</p>
+          <div className="space-y-3">
+            {[
+              { label: 'Esta semana',    value: m.thisWeek, bg: 'bg-blue-50',   text: 'text-blue-700',   bar: 'bg-blue-500' },
+              { label: 'Semana anterior', value: m.lastWeek, bg: 'bg-slate-50', text: 'text-slate-700',  bar: 'bg-slate-400' },
+              { label: 'Prom. del mes',  value: m.monthAvg, bg: 'bg-violet-50', text: 'text-violet-700', bar: 'bg-violet-500', suffix: '/sem' },
+            ].map(item => (
+              <div key={item.label} className={`rounded-2xl ${item.bg} px-4 py-3.5`}>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-slate-500">{item.label}</p>
+                  <p className={`text-xl font-bold ${item.text}`}>{item.value}{item.suffix ?? ''}</p>
+                </div>
+                <div className="h-1.5 bg-white/60 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${item.bar} rounded-full transition-all`}
+                    style={{ width: `${Math.round((item.value / weekMax) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+            {m.lastWeek > 0 && (
+              <p className={`text-xs font-semibold text-center pt-1 ${m.thisWeek >= m.lastWeek ? 'text-emerald-600' : 'text-red-500'}`}>
+                {m.thisWeek >= m.lastWeek ? '↑' : '↓'} {Math.abs(m.thisWeek - m.lastWeek)} vs sem. anterior
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Bloque 4 — Por médico */}
+      <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
+        <h2 className="mb-4 text-base font-semibold text-slate-900">Por médico</h2>
+        {m.doctorStats.length === 0 ? (
+          <p className="py-6 text-center text-sm text-slate-400">Sin citas en el período.</p>
+        ) : (
+          <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100">
-                  <th className="py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Médico</th>
-                  <th className="py-2 px-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Citas</th>
-                  <th className="py-2 px-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Asistieron</th>
+                  <th className="py-2 pr-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Médico</th>
+                  <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Citas</th>
+                  <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Asistencias</th>
+                  <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">% Asist.</th>
+                  <th className="py-2 px-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Paciente / Auto</th>
+                  <th className="py-2 pl-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 w-36">Progreso asistencia</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {metrics.doctorStats.map(d => (
+                {m.doctorStats.map(d => (
                   <tr key={d.name} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-2.5 pr-2 font-medium text-slate-800 text-xs leading-tight">{d.name}</td>
-                    <td className="py-2.5 px-2 text-right text-slate-700">{d.total}</td>
-                    <td className="py-2.5 px-2 text-right">
+                    <td className="py-3 pr-4 font-medium text-slate-800 text-xs leading-tight">{d.name}</td>
+                    <td className="py-3 px-3 text-right font-semibold text-slate-700">{d.total}</td>
+                    <td className="py-3 px-3 text-right">
                       <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
                         {d.completed}
                       </span>
+                    </td>
+                    <td className="py-3 px-3 text-right">
+                      <span className={`text-xs font-bold ${d.pct >= 70 ? 'text-emerald-600' : d.pct >= 40 ? 'text-amber-500' : 'text-red-400'}`}>
+                        {d.pct}%
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-center text-xs text-slate-600">
+                      {d.patientChosen > 0 || d.autoAssigned > 0
+                        ? <span><span className="text-blue-600 font-semibold">{d.patientChosen}</span> / <span className="text-slate-500">{d.autoAssigned}</span></span>
+                        : <span className="text-slate-300">—</span>
+                      }
+                    </td>
+                    <td className="py-3 pl-4">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden min-w-[60px]">
+                          <div
+                            className={`h-full rounded-full transition-all ${d.pct >= 70 ? 'bg-emerald-500' : d.pct >= 40 ? 'bg-amber-400' : 'bg-red-400'}`}
+                            style={{ width: `${d.pct}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-slate-400 w-7 text-right shrink-0">{d.pct}%</span>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
     </div>

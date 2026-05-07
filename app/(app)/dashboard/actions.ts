@@ -44,6 +44,7 @@ export interface RawAppointment {
   scheduled_at: string
   status: string
   doctor_id: string
+  appointment_type_id: string | null
   ym: string  // YYYY-MM in Bogota tz, pre-computed server-side
 }
 
@@ -59,6 +60,11 @@ export interface RawDoctor {
   name: string
 }
 
+export interface AppointmentTypeInfo {
+  id: string
+  assignment_mode: string
+}
+
 export interface RawDashboardData {
   year: number
   appointments: RawAppointment[]
@@ -67,6 +73,7 @@ export interface RawDashboardData {
   inProcedureCount: number     // current state — no date filter
   doctors: RawDoctor[]
   todayAppointments: TodayAppointment[]
+  appointmentTypes: AppointmentTypeInfo[]
 }
 
 // ── Fetch all data for a given year ──────────────────────────────────────────
@@ -84,9 +91,10 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
       { data: stateLeads },
       { data: doctorsRaw },
       { data: todayRaw },
+      { data: apptTypesRaw },
     ] = await Promise.all([
       admin.from('appointments')
-        .select('id, scheduled_at, status, doctor_id')
+        .select('id, scheduled_at, status, doctor_id, appointment_type_id')
         .gte('scheduled_at', fromDate)
         .lt('scheduled_at', toDate),
       admin.from('leads')
@@ -104,10 +112,16 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
         .gte('scheduled_at', today + 'T00:00:00')
         .lte('scheduled_at', today + 'T23:59:59')
         .order('scheduled_at', { ascending: true }),
+      admin.from('appointment_types')
+        .select('id, assignment_mode'),
     ])
 
     const appointments: RawAppointment[] = (apts ?? []).map((a: any) => ({
-      id: a.id, scheduled_at: a.scheduled_at, status: a.status, doctor_id: a.doctor_id,
+      id: a.id,
+      scheduled_at: a.scheduled_at,
+      status: a.status,
+      doctor_id: a.doctor_id,
+      appointment_type_id: a.appointment_type_id ?? null,
       ym: toBogotaYM(a.scheduled_at),
     }))
 
@@ -130,10 +144,19 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
         const l = Array.isArray(a.lead) ? a.lead[0] : a.lead
         return [l?.contact_name, l?.contact_last_name].filter(Boolean).join(' ') || null
       })(),
-      doctorName:  (Array.isArray(a.doctor) ? a.doctor[0]?.metadata?.name : a.doctor?.metadata?.name) ?? null,
+      doctorName: (Array.isArray(a.doctor) ? a.doctor[0]?.metadata?.name : a.doctor?.metadata?.name) ?? null,
     }))
 
-    return { year, appointments, yearLeads, inConversationCount, inProcedureCount, doctors, todayAppointments }
+    const appointmentTypes: AppointmentTypeInfo[] = (apptTypesRaw ?? []).map((t: any) => ({
+      id: t.id,
+      assignment_mode: t.assignment_mode ?? 'hybrid',
+    }))
+
+    return {
+      year, appointments, yearLeads,
+      inConversationCount, inProcedureCount,
+      doctors, todayAppointments, appointmentTypes,
+    }
   } catch (e) {
     console.error('getDashboardRawData error:', e)
     return null
