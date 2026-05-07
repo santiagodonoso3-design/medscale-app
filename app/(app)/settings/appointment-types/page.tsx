@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Copy, Check, Loader2, Pencil, Link2, X, Save, Settings, Clock, ClipboardList, GripVertical, Trash2, Bell } from 'lucide-react'
+import { Plus, Copy, Check, Loader2, Pencil, Link2, X, Save, Settings, Clock, ClipboardList, GripVertical, Trash2 } from 'lucide-react'
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -291,7 +291,7 @@ export default function AppointmentTypesPage() {
   const [formError,     setFormError]     = useState<string | null>(null)
   const [copiedId,      setCopiedId]      = useState<string | null>(null)
   const [slugManual,    setSlugManual]    = useState(false)
-  const [activeTab,     setActiveTab]     = useState<'general' | 'rules' | 'form' | 'notifications'>('general')
+  const [activeTab,     setActiveTab]     = useState<'general' | 'rules' | 'form'>('general')
   const [notifications, setNotifications] = useState<NotificationRow[]>(NOTIF_DEFAULTS)
   const [notifLoading,  setNotifLoading]  = useState(false)
   const [formFields,    setFormFields]    = useState<FormFieldRow[]>([])
@@ -373,29 +373,6 @@ export default function AppointmentTypesPage() {
       .then(({ data }) => { setFormFields(data ?? []); setFieldsLoading(false) })
   }, [activeTab, editing?.id])
 
-  useEffect(() => {
-    if (activeTab !== 'notifications' || !editing) return
-    setNotifLoading(true)
-    supabase
-      .from('appointment_type_notifications')
-      .select('*')
-      .eq('appointment_type_id', editing.id)
-      .then(({ data }) => {
-        const fetched = data ?? []
-        setNotifications(NOTIF_DEFAULTS.map(def => {
-          const found = fetched.find((r: any) => r.event_type === def.event_type)
-          return found ? {
-            id:           found.id,
-            event_type:   found.event_type,
-            enabled:      found.enabled,
-            to_patient:   found.to_patient,
-            to_clinic:    found.to_clinic,
-            hours_before: found.hours_before,
-          } : def
-        }))
-        setNotifLoading(false)
-      })
-  }, [activeTab, editing?.id])
 
   const openCreate = () => {
     setEditing(null)
@@ -681,7 +658,6 @@ export default function AppointmentTypesPage() {
                     { id: 'general',       label: 'General',        Icon: Settings },
                     { id: 'rules',         label: 'Reglas',         Icon: Clock },
                     { id: 'form',          label: 'Formulario',     Icon: ClipboardList },
-                    { id: 'notifications', label: 'Notificaciones', Icon: Bell },
                   ] as const).map(({ id, label, Icon }) => (
                     <button
                       key={id}
@@ -1069,75 +1045,6 @@ export default function AppointmentTypesPage() {
                             </button>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* ── Tab: Notificaciones ──────────────────────────────── */}
-                  {activeTab === 'notifications' && (
-                    <div className="space-y-3">
-                      <p className="text-xs text-slate-500">Configura los emails automáticos para este tipo de cita.</p>
-
-                      {notifLoading ? (
-                        <div className="flex items-center gap-2 py-6 text-slate-400">
-                          <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
-                        </div>
-                      ) : (
-                        <>
-                          <div className="space-y-2">
-                            {notifications.map((notif, idx) => {
-                              const meta = NOTIF_META[notif.event_type]
-                              return (
-                                <div key={notif.event_type} className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-                                  {/* Header row */}
-                                  <div className="flex items-center justify-between gap-3">
-                                    <div className="min-w-0">
-                                      <p className="text-sm font-semibold text-slate-900">{meta.label}</p>
-                                      <p className="text-xs text-slate-500 mt-0.5">{meta.description}</p>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => setNotifications(prev => prev.map((n, i) => i === idx ? { ...n, enabled: !n.enabled } : n))}
-                                      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${notif.enabled ? 'bg-blue-600' : 'bg-slate-200'}`}
-                                    >
-                                      <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${notif.enabled ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
-                                    </button>
-                                  </div>
-
-                                  {/* Expanded controls when enabled */}
-                                  {notif.enabled && (
-                                    <div className="pt-2 border-t border-slate-100 space-y-2.5">
-                                      <label className="flex cursor-pointer items-center gap-2.5 text-sm text-slate-700">
-                                        <input type="checkbox" className="rounded border-slate-300 accent-blue-600"
-                                          checked={notif.to_patient}
-                                          onChange={e => setNotifications(prev => prev.map((n, i) => i === idx ? { ...n, to_patient: e.target.checked } : n))} />
-                                        Notificar paciente
-                                      </label>
-                                      <label className="flex cursor-pointer items-center gap-2.5 text-sm text-slate-700">
-                                        <input type="checkbox" className="rounded border-slate-300 accent-blue-600"
-                                          checked={notif.to_clinic}
-                                          onChange={e => setNotifications(prev => prev.map((n, i) => i === idx ? { ...n, to_clinic: e.target.checked } : n))} />
-                                        Notificar clínica
-                                      </label>
-                                      {notif.event_type === 'reminder' && (
-                                        <div className="flex items-center gap-2">
-                                          <label className="text-sm text-slate-700 shrink-0">Horas antes</label>
-                                          <input
-                                            type="number" min={1} max={168}
-                                            value={notif.hours_before ?? 24}
-                                            onChange={e => setNotifications(prev => prev.map((n, i) => i === idx ? { ...n, hours_before: Number(e.target.value) } : n))}
-                                            className="w-20 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                          />
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })}
-                          </div>
-
-                        </>
                       )}
                     </div>
                   )}
