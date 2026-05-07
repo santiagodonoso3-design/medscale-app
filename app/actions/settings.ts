@@ -71,3 +71,20 @@ export async function uploadOrgLogo(
   const { data } = admin.storage.from('organizations').getPublicUrl(path)
   return data.publicUrl
 }
+
+export async function saveOrgSettings(orgId: string, data: {
+  name?: string
+  primary_color?: string
+  logo_url?: string | null
+}) {
+  const admin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+  const { error } = await admin
+    .from('organizations')
+    .update(data)
+    .eq('id', orgId)
+  return !error
+}

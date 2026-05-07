@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
-import { getOrgSettings, uploadOrgLogo } from '@/app/actions/settings'
+import { getOrgSettings, uploadOrgLogo, saveOrgSettings } from '@/app/actions/settings'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -45,12 +45,9 @@ export default function GeneralPage() {
   const handleSave = async () => {
     if (!orgId) return
     setSaving(true)
-    const { error } = await supabase
-      .from('organizations')
-      .update({ name, primary_color: primaryColor, logo_url: logoUrl })
-      .eq('id', orgId)
+    const ok = await saveOrgSettings(orgId, { name, primary_color: primaryColor, logo_url: logoUrl })
     setSaving(false)
-    if (error) showToast('Error al guardar')
+    if (!ok) showToast('Error al guardar')
     else showToast('Cambios guardados')
   }
 
@@ -66,7 +63,8 @@ export default function GeneralPage() {
       setUploading(false)
       if (!url) { showToast('Error subiendo logo'); return }
       setLogoUrl(url)
-      showToast('Logo subido correctamente')
+      await saveOrgSettings(orgId, { name, primary_color: primaryColor, logo_url: url })
+      showToast('Logo guardado correctamente')
     }
     reader.readAsDataURL(file)
   }
