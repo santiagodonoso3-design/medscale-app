@@ -142,6 +142,25 @@ function computeMetrics(data: RawDashboardData, months: number[], year: number, 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 
+function InfoTooltip({ text }: { text: string }) {
+  const [show, setShow] = useState(false)
+  return (
+    <span className="relative inline-flex items-center ml-1">
+      <button
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-slate-200 text-slate-500 text-[9px] font-bold hover:bg-slate-300 transition"
+      >?</button>
+      {show && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 rounded-xl bg-slate-900 px-3 py-2 text-xs text-white shadow-lg z-50">
+          {text}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+        </div>
+      )}
+    </span>
+  )
+}
+
 function BarTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
   return (
@@ -358,6 +377,10 @@ export function DashboardClient({
                   <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Citas</th>
                   <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Asistencias</th>
                   <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">% Asist.</th>
+                  <th className="py-2 px-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Paciente / Auto
+                    <InfoTooltip text="Paciente: el paciente eligió este médico. Auto: el sistema lo asignó automáticamente. Útil para medir demanda real por médico." />
+                  </th>
                   <th className="py-2 pl-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 w-36">Progreso asistencia</th>
                 </tr>
               </thead>
@@ -375,6 +398,12 @@ export function DashboardClient({
                       <span className={`text-xs font-bold ${d.pct >= 70 ? 'text-emerald-600' : d.pct >= 40 ? 'text-amber-500' : 'text-red-400'}`}>
                         {d.pct}%
                       </span>
+                    </td>
+                    <td className="py-3 px-3 text-center text-xs text-slate-600">
+                      {d.patientChosen > 0 || d.autoAssigned > 0
+                        ? <span><span className="text-blue-600 font-semibold">{d.patientChosen}</span> / <span className="text-slate-500">{d.autoAssigned}</span></span>
+                        : <span className="text-slate-300">—</span>
+                      }
                     </td>
                     <td className="py-3 pl-4">
                       <div className="flex items-center gap-2">
