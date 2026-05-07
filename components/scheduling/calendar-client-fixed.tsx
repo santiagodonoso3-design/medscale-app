@@ -166,6 +166,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
 
   // ── View/filter state
   const [viewMode,      setViewMode]      = useState<'calendar' | 'list'>('list')
+  const [timeView,      setTimeView]      = useState<'upcoming' | 'past'>('upcoming')
   const [showCancelled, setShowCancelled] = useState(true)
   const [listRange,     setListRange]     = useState<'hoy' | 'semana' | 'mes' | 'todos'>('todos')
   const [filterDoctor, setFilterDoctor] = useState('')
@@ -295,14 +296,13 @@ export function CalendarClient({ userId }: CalendarClientProps) {
 
   // ── List view data ─────────────────────────────────────────────────────────
 
-  const listData = useMemo(() => {
-    const range = getDateRange(listRange)
-    const source = range
-      ? filteredAppointments.filter(a => {
-          const day = a.scheduled_at.slice(0, 10)
-          return day >= range.from && day <= range.to
-        })
-      : filteredAppointments
+  const todayForFilter = todayStr()
+
+  const upcomingData = useMemo(() => {
+    const source = filteredAppointments.filter(a => {
+      const day = a.scheduled_at.slice(0, 10)
+      return day >= todayForFilter && a.status !== 'cancelled'
+    })
     const grouped: Record<string, AppointmentRecord[]> = {}
     source.forEach(apt => {
       const day = apt.scheduled_at.slice(0, 10)
@@ -314,7 +314,28 @@ export function CalendarClient({ userId }: CalendarClientProps) {
     )
     const days = Object.keys(grouped).sort()
     return { grouped, days }
-  }, [filteredAppointments, listRange])
+  }, [filteredAppointments])
+
+  const pastData = useMemo(() => {
+    const range = getDateRange(listRange)
+    const source = filteredAppointments.filter(a => {
+      const day = a.scheduled_at.slice(0, 10)
+      const isPast = day < todayForFilter
+      const inRange = range ? day >= range.from && day <= range.to : true
+      return isPast && inRange && (showCancelled || a.status !== 'cancelled')
+    })
+    const grouped: Record<string, AppointmentRecord[]> = {}
+    source.forEach(apt => {
+      const day = apt.scheduled_at.slice(0, 10)
+      if (!grouped[day]) grouped[day] = []
+      grouped[day].push(apt)
+    })
+    Object.values(grouped).forEach(apts =>
+      apts.sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
+    )
+    const days = Object.keys(grouped).sort().reverse()
+    return { grouped, days }
+  }, [filteredAppointments, listRange, showCancelled])
 
   // ── Modal handlers ─────────────────────────────────────────────────────────
 
@@ -659,103 +680,133 @@ export function CalendarClient({ userId }: CalendarClientProps) {
       )
     }
 
-    const { grouped, days } = listData
-
-    if (days.length === 0) {
-      return <p className="py-12 text-center text-sm text-slate-400">No hay citas para los filtros seleccionados.</p>
-    }
+    const { grouped, days } = timeView === 'upcoming' ? upcomingData : pastData
 
     return (
       <div className="space-y-3">
-        {/* Toggle canceladas */}
-        <div className="flex items-center justify-end">
-          <label className="flex cursor-pointer select-none items-center gap-2 text-xs text-slate-500">
-            Mostrar canceladas
-            <button
-              onClick={() => setShowCancelled(p => !p)}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${showCancelled ? 'bg-blue-500' : 'bg-slate-200'}`}
-            >
-              <span className={`absolute left-0.5 inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${showCancelled ? 'translate-x-4' : 'translate-x-0'}`} />
-            </button>
-          </label>
+        {/* Tabs Próximas / Pasadas */}
+        <div className="flex items-center gap-1 mb-4">
+          <button
+            onClick={() => setTimeView('upcoming')}
+            className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+              timeView === 'upcoming' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Próximas
+          </button>
+          <button
+            onClick={() => setTimeView('past')}
+            className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+              timeView === 'past' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Pasadas
+          </button>
         </div>
 
-        {/* Single table */}
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="border-b-2 border-slate-100">
-                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Paciente</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Médico</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Hora</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Estado</th>
-              </tr>
-            </thead>
-            {days.map(day => {
-              const apts = grouped[day]
-              const visible = showCancelled ? apts : apts.filter(a => a.status !== 'cancelled')
-              if (visible.length === 0) return null
-              return (
-                <tbody key={day} className="divide-y divide-slate-50">
-                  {/* Date separator */}
-                  <tr className="bg-blue-50">
-                    <td colSpan={4} className="px-4 py-2 text-sm font-bold text-blue-700 capitalize">
-                      {formatDateHeader(day)}
-                    </td>
-                  </tr>
-                  {/* Appointment rows */}
-                  {visible.map(apt => {
-                    const cancelled = apt.status === 'cancelled'
-                    const d = new Date(apt.scheduled_at)
-                    return (
-                      <tr
-                        key={apt.id}
-                        onClick={() => openModal(apt)}
-                        className={`cursor-pointer transition-colors ${cancelled ? 'hover:bg-red-50/40' : 'hover:bg-slate-50'}`}
-                      >
-                        <td className={`py-2.5 font-medium ${cancelled ? 'pl-0 border-l-4 border-red-400' : 'px-3'}`}>
-                          {cancelled && (
-                            <span className={`${cancelled ? 'pl-3' : ''} ${apt.lead?.contact_name ? 'text-slate-400 line-through' : 'italic text-slate-400'}`}>
-                              {[apt.lead?.contact_name, apt.lead?.contact_last_name].filter(Boolean).join(' ') || 'Paciente no disponible'}
-                            </span>
-                          )}
-                          {!cancelled && (
-                            <span className="text-slate-900">{[apt.lead?.contact_name, apt.lead?.contact_last_name].filter(Boolean).join(' ') || 'Sin nombre'}</span>
-                          )}
-                        </td>
-                        <td className={`px-3 py-2.5 ${cancelled ? 'text-slate-400' : 'text-slate-600'}`}>
-                          {apt.doctor?.metadata?.name as string || '—'}
-                        </td>
-                        <td className={`px-3 py-2.5 font-medium ${cancelled ? 'text-slate-400' : 'text-slate-900'}`}>
-                          {d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
-                        </td>
-                        <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
-                          {STATUS_TRANSITIONS[apt.status]?.length ? (
-                            <button
-                              onClick={e => {
-                                if (statusPopover?.aptId === apt.id) { setStatusPopover(null); return }
-                                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                                setStatusPopover({ aptId: apt.id, top: rect.bottom + 4, left: rect.left })
-                              }}
-                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold transition hover:opacity-75 ${STATUS_BADGE[apt.status] ?? 'bg-slate-100 text-slate-600'}`}
-                            >
-                              {STATUS_LABELS[apt.status] ?? apt.status}
-                              <ChevronDown className="h-3 w-3 opacity-60" />
-                            </button>
-                          ) : (
-                            <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE[apt.status] ?? 'bg-slate-100 text-slate-600'}`}>
-                              {STATUS_LABELS[apt.status] ?? apt.status}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              )
-            })}
-          </table>
-        </div>
+        {/* Toggle canceladas — solo en vista pasadas */}
+        {timeView === 'past' && (
+          <div className="flex items-center justify-end">
+            <label className="flex cursor-pointer select-none items-center gap-2 text-xs text-slate-500">
+              Mostrar canceladas
+              <button
+                onClick={() => setShowCancelled(p => !p)}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${showCancelled ? 'bg-blue-500' : 'bg-slate-200'}`}
+              >
+                <span className={`absolute left-0.5 inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${showCancelled ? 'translate-x-4' : 'translate-x-0'}`} />
+              </button>
+            </label>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {days.length === 0 && timeView === 'upcoming' && (
+          <div className="py-12 text-center">
+            <p className="text-sm text-slate-400">No hay citas próximas programadas.</p>
+            <p className="text-xs text-slate-300 mt-1">Las citas canceladas no se muestran aquí.</p>
+          </div>
+        )}
+        {days.length === 0 && timeView === 'past' && (
+          <p className="py-12 text-center text-sm text-slate-400">No hay citas para los filtros seleccionados.</p>
+        )}
+
+        {/* Table */}
+        {days.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b-2 border-slate-100">
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Paciente</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Médico</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Hora</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Estado</th>
+                </tr>
+              </thead>
+              {days.map((day, dayIndex) => {
+                const apts = grouped[day]
+                const visible = timeView === 'past' && showCancelled ? apts : apts.filter(a => a.status !== 'cancelled')
+                if (visible.length === 0) return null
+                const isFirst = timeView === 'upcoming' && dayIndex === 0
+                return (
+                  <tbody key={day} className="divide-y divide-slate-50">
+                    <tr className={isFirst ? 'bg-slate-900' : 'bg-blue-50'}>
+                      <td colSpan={4} className={`px-4 py-2 text-sm font-bold capitalize ${isFirst ? 'text-white' : 'text-blue-700'}`}>
+                        {formatDateHeader(day)}
+                      </td>
+                    </tr>
+                    {visible.map(apt => {
+                      const cancelled = apt.status === 'cancelled'
+                      const d = new Date(apt.scheduled_at)
+                      return (
+                        <tr
+                          key={apt.id}
+                          onClick={() => openModal(apt)}
+                          className={`cursor-pointer transition-colors ${cancelled ? 'hover:bg-red-50/40' : 'hover:bg-slate-50'}`}
+                        >
+                          <td className={`py-2.5 font-medium ${cancelled ? 'pl-0 border-l-4 border-red-400' : 'px-3'}`}>
+                            {cancelled && (
+                              <span className={`${cancelled ? 'pl-3' : ''} ${apt.lead?.contact_name ? 'text-slate-400 line-through' : 'italic text-slate-400'}`}>
+                                {[apt.lead?.contact_name, apt.lead?.contact_last_name].filter(Boolean).join(' ') || 'Paciente no disponible'}
+                              </span>
+                            )}
+                            {!cancelled && (
+                              <span className="text-slate-900">{[apt.lead?.contact_name, apt.lead?.contact_last_name].filter(Boolean).join(' ') || 'Sin nombre'}</span>
+                            )}
+                          </td>
+                          <td className={`px-3 py-2.5 ${cancelled ? 'text-slate-400' : 'text-slate-600'}`}>
+                            {apt.doctor?.metadata?.name as string || '—'}
+                          </td>
+                          <td className={`px-3 py-2.5 font-medium ${cancelled ? 'text-slate-400' : 'text-slate-900'}`}>
+                            {d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
+                            {STATUS_TRANSITIONS[apt.status]?.length ? (
+                              <button
+                                onClick={e => {
+                                  if (statusPopover?.aptId === apt.id) { setStatusPopover(null); return }
+                                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                                  setStatusPopover({ aptId: apt.id, top: rect.bottom + 4, left: rect.left })
+                                }}
+                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold transition hover:opacity-75 ${STATUS_BADGE[apt.status] ?? 'bg-slate-100 text-slate-600'}`}
+                              >
+                                {STATUS_LABELS[apt.status] ?? apt.status}
+                                <ChevronDown className="h-3 w-3 opacity-60" />
+                              </button>
+                            ) : (
+                              <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE[apt.status] ?? 'bg-slate-100 text-slate-600'}`}>
+                                {STATUS_LABELS[apt.status] ?? apt.status}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                )
+              })}
+            </table>
+          </div>
+        )}
       </div>
     )
   }
@@ -821,8 +872,8 @@ export function CalendarClient({ userId }: CalendarClientProps) {
               </button>
             </div>
 
-            {/* Date range pills — solo en vista lista */}
-            {viewMode === 'list' && (
+            {/* Date range pills — solo en vista lista pasada */}
+            {viewMode === 'list' && timeView === 'past' && (
               <div className="flex gap-1.5 flex-wrap">
                 {([
                   { value: 'hoy',    label: 'Hoy' },
