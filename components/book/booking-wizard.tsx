@@ -853,7 +853,7 @@ export default function BookingWizard({
               <img
                 src={orgLogoUrl}
                 alt={orgName}
-                className="h-16 w-auto max-w-[200px] object-contain"
+                className="h-24 w-auto max-w-[280px] object-contain"
               />
             ) : (
               <>
@@ -862,11 +862,6 @@ export default function BookingWizard({
                 </p>
                 <h1 className="text-2xl font-bold mt-1" style={{ color: B.fg }}>{orgName}</h1>
               </>
-            )}
-            {appointmentType && (
-              <p className="text-sm mt-1 truncate" style={{ color: B.muted }}>
-                {appointmentType.name} · {appointmentType.duration_minutes} min
-              </p>
             )}
           </div>
         </div>
