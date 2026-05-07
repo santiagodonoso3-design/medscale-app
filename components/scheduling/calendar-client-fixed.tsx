@@ -416,13 +416,18 @@ export function CalendarClient({ userId }: CalendarClientProps) {
     setSaving(true)
     setError(null)
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data: profile } = await supabase.from('users').select('organization_id').eq('id', user!.id).single()
+      const orgId = profile?.organization_id
+
       let leadId = form.lead_id
       if (!leadId) {
         const { data: leadData, error: leadErr } = await supabase.from('leads').insert({
           contact_name: form.patient_name,
           contact_phone: form.patient_phone || null,
           contact_email: form.patient_email || null,
-          source: 'manual', status: 'new', notes: form.notes || null,
+          source: 'manual', status: 'cita_valoracion_agendada', notes: form.notes || null,
+          organization_id: orgId,
         }).select('id').single()
         if (leadErr || !leadData) throw leadErr || new Error('Error creando lead')
         leadId = leadData.id
@@ -432,6 +437,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
       const { error: aptErr } = await supabase.from('appointments').insert({
         doctor_id: form.doctor_id, location_id: form.location_id, lead_id: leadId,
         scheduled_at: start.toISOString(), ends_at: end.toISOString(), status: 'scheduled', notes: form.notes || null,
+        organization_id: orgId,
       })
       if (aptErr) throw aptErr
       setForm(prev => ({ ...prev, lead_search: '', lead_id: '', patient_name: '', patient_phone: '', patient_email: '', notes: '' }))
