@@ -1,16 +1,29 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 
 export default function ResetPasswordPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
+
+  useEffect(() => {
+    const token_hash = searchParams.get('token_hash')
+    const type = searchParams.get('type')
+    if (token_hash && type === 'recovery') {
+      const supabase = createClient()
+      supabase.auth.verifyOtp({ token_hash, type: 'recovery' })
+        .then(({ error }) => {
+          if (error) setError('El enlace es inválido o ha expirado.')
+        })
+    }
+  }, [searchParams])
 
   async function handleReset() {
     if (!password || password.length < 6) {
