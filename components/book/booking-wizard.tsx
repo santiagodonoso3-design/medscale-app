@@ -79,6 +79,9 @@ interface AppointmentTypeOption {
   doctor_ids?: string[]
   assignment_mode?: 'one_on_one' | 'round_robin_proportional' | 'round_robin_availability' | 'hybrid'
   min_notice_hours?: number
+  max_notice_days?: number | null
+  buffer_before_min?: number
+  buffer_after_min?: number
   price?: number | null
 }
 
@@ -147,6 +150,9 @@ interface CalendarPickerProps {
   onSelect: (date: string, time: string) => void
   doctorId: string
   minNoticeHours?: number
+  maxNoticeDays?: number | null
+  bufferBeforeMin?: number
+  bufferAfterMin?: number
   primaryColor?: string
 }
 
@@ -159,6 +165,9 @@ function CalendarPicker({
   onSelect,
   doctorId,
   minNoticeHours = 0,
+  maxNoticeDays,
+  bufferBeforeMin = 0,
+  bufferAfterMin = 0,
   primaryColor = '#215F73',
 }: CalendarPickerProps) {
   const today          = todayBogota()
@@ -168,7 +177,7 @@ function CalendarPicker({
 
   const [viewYear,     setViewYear]     = useState(todayYear)
   const [viewMonth,    setViewMonth]    = useState(todayMonth)
-  const [bookedSlots,  setBookedSlots]  = useState<string[]>([])
+  const [bookedSlots,  setBookedSlots]  = useState<{ start: string; end: string }[]>([])
   const [slotsLoading, setSlotsLoading] = useState(false)
 
   const duration    = Number(selectedDoctor?.metadata?.duration || selectedDoctor?.metadata?.default_duration || 60)
@@ -203,6 +212,12 @@ function CalendarPicker({
   function isDayAvailable(dateStr: string): boolean {
     const supabaseDay = toSupabaseDay(new Date(dateStr + 'T12:00:00').getDay())
     if (!availableSupabaseDays.has(supabaseDay)) return false
+    if (maxNoticeDays != null) {
+      const maxAllowedDate = new Date()
+      maxAllowedDate.setDate(maxAllowedDate.getDate() + maxNoticeDays)
+      const maxDateStr = maxAllowedDate.toISOString().slice(0, 10)
+      if (dateStr > maxDateStr) return false
+    }
     return new Date(dateStr + 'T23:59:00') >= minAllowedTime
   }
 
@@ -216,7 +231,16 @@ function CalendarPicker({
   }, [selectedDate, effectiveSchedules, duration, minAllowedTime])
 
   function isSlotBooked(time: string): boolean {
-    return bookedSlots.some(iso => iso.startsWith(`${selectedDate}T${time}:`))
+    if (!selectedDate || !doctorId) return false
+    const slotStart = new Date(`${selectedDate}T${time}:00`)
+    const slotEnd   = new Date(slotStart.getTime() + duration * 60000)
+    return bookedSlots.some(({ start, end }) => {
+      const apptStart = new Date(start)
+      const apptEnd   = new Date(end)
+      const bufferedApptStart = new Date(apptStart.getTime() - bufferBeforeMin * 60000)
+      const bufferedApptEnd   = new Date(apptEnd.getTime()   + bufferAfterMin  * 60000)
+      return slotStart < bufferedApptEnd && slotEnd > bufferedApptStart
+    })
   }
 
   const isPrevDisabled = viewYear === todayYear && viewMonth === todayMonth
@@ -657,6 +681,9 @@ export default function BookingWizard({
           onSelect={(date, time) => setFormData(p => ({ ...p, date, time }))}
           doctorId={formData.doctor_id}
           minNoticeHours={appointmentType?.min_notice_hours ?? 0}
+          maxNoticeDays={appointmentType?.max_notice_days ?? null}
+          bufferBeforeMin={appointmentType?.buffer_before_min ?? 0}
+          bufferAfterMin={appointmentType?.buffer_after_min ?? 0}
           primaryColor={primaryColor}
         />
       </div>
