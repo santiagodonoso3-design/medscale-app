@@ -149,9 +149,10 @@ function statusChipClass(status: string): string {
 
 interface CalendarClientProps {
   userId: string | null
+  doctorId?: string | null
 }
 
-export function CalendarClient({ userId }: CalendarClientProps) {
+export function CalendarClient({ userId, doctorId }: CalendarClientProps) {
   const today = todayStr()
   const todayYear = Number(today.slice(0, 4))
   const todayMonth = Number(today.slice(5, 7)) - 1
@@ -225,10 +226,14 @@ export function CalendarClient({ userId }: CalendarClientProps) {
     ] = await Promise.all([
       supabase.from('doctors').select('id, specialty, is_active, metadata').eq('is_active', true).order('created_at', { ascending: true }),
       supabase.from('locations').select('id, name').order('name', { ascending: true }),
-      supabase
-        .from('appointments')
-        .select('id, scheduled_at, ends_at, status, doctor_id, lead_id, location_id, notes, doctor:doctor_id(metadata), lead:lead_id(contact_name,contact_last_name,contact_phone,contact_email), location:location_id(name)')
-        .order('scheduled_at', { ascending: true }),
+      (() => {
+        let q = supabase
+          .from('appointments')
+          .select('id, scheduled_at, ends_at, status, doctor_id, lead_id, location_id, notes, doctor:doctor_id(metadata), lead:lead_id(contact_name,contact_last_name,contact_phone,contact_email), location:location_id(name)')
+          .order('scheduled_at', { ascending: true })
+        if (doctorId) q = q.eq('doctor_id', doctorId)
+        return q
+      })(),
     ])
     if (doctorError || locationError || aptError) {
       setError(doctorError?.message || locationError?.message || aptError?.message || 'Error cargando datos')
@@ -245,7 +250,8 @@ export function CalendarClient({ userId }: CalendarClientProps) {
         .in('doctor_id', doctorData.map((d: any) => d.id))
       setSchedules((schedData ?? []) as ScheduleOption[])
     }
-    if (!form.doctor_id && doctorData?.length) setForm(prev => ({ ...prev, doctor_id: doctorData[0].id }))
+    if (doctorId) setFilterDoctor(doctorId)
+    else if (!form.doctor_id && doctorData?.length) setForm(prev => ({ ...prev, doctor_id: doctorData[0].id }))
     if (!form.location_id && locationData?.length) setForm(prev => ({ ...prev, location_id: locationData[0].id }))
     setLoading(false)
   }
@@ -840,25 +846,29 @@ export function CalendarClient({ userId }: CalendarClientProps) {
                   </button>
                 </div>
 
-                <select
-                  value={filterDoctor}
-                  onChange={e => setFilterDoctor(e.target.value)}
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Todos los médicos</option>
-                  {doctors.map(d => (
-                    <option key={d.id} value={d.id}>{d.metadata?.name || 'Médico'}</option>
-                  ))}
-                </select>
-                <div className="relative flex-1 min-w-0">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  <input
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    placeholder="Buscar paciente..."
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+                {!doctorId && (
+                  <select
+                    value={filterDoctor}
+                    onChange={e => setFilterDoctor(e.target.value)}
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Todos los médicos</option>
+                    {doctors.map(d => (
+                      <option key={d.id} value={d.id}>{d.metadata?.name || 'Médico'}</option>
+                    ))}
+                  </select>
+                )}
+                {!doctorId && (
+                  <div className="relative flex-1 min-w-0">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <input
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                      placeholder="Buscar paciente..."
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Right: nueva cita */}
