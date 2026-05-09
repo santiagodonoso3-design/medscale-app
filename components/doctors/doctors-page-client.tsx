@@ -19,7 +19,12 @@ const DAY_ABBR: Record<number, string> = {
 
 const EMPTY_FORM = { name: '', specialty: '', duration: '30', color: '#2563eb', active: true }
 
-export function DoctorsPageClient() {
+interface DoctorsPageClientProps {
+  isDoctor?: boolean
+  userDoctorId?: string | null
+}
+
+export function DoctorsPageClient({ isDoctor = false, userDoctorId = null }: DoctorsPageClientProps) {
   const [doctors, setDoctors] = useState<DoctorRow[]>([])
   const [schedules, setSchedules] = useState<ScheduleRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -47,7 +52,11 @@ export function DoctorsPageClient() {
       ? await supabase.from('schedules').select('doctor_id, day_of_week').in('doctor_id', ids)
       : { data: [] }
 
-    setDoctors((doctorData as DoctorRow[]) ?? [])
+    let filteredDoctors = (doctorData as DoctorRow[]) ?? []
+    if (isDoctor && userDoctorId) {
+      filteredDoctors = filteredDoctors.filter(d => d.id === userDoctorId)
+    }
+    setDoctors(filteredDoctors)
     setSchedules((scheduleData as ScheduleRow[]) ?? [])
     setLoading(false)
   }
@@ -132,13 +141,15 @@ export function DoctorsPageClient() {
               {loading ? '…' : `${doctors.length} médico${doctors.length !== 1 ? 's' : ''}`}
             </p>
           </div>
-          <button
-            onClick={openCreate}
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition"
-          >
-            <Plus className="h-4 w-4" />
-            Nuevo médico
-          </button>
+          {!isDoctor && (
+            <button
+              onClick={openCreate}
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition"
+            >
+              <Plus className="h-4 w-4" />
+              Nuevo médico
+            </button>
+          )}
         </div>
 
         {/* Table body */}
@@ -216,17 +227,19 @@ export function DoctorsPageClient() {
                           <Pencil className="h-3 w-3" />
                           Editar
                         </button>
-                        <button
-                          onClick={() => toggleActive(doc.id, doc.is_active)}
-                          className={[
-                            'rounded-lg px-3 py-1.5 text-xs font-medium transition',
-                            doc.is_active
-                              ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                              : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
-                          ].join(' ')}
-                        >
-                          {doc.is_active ? 'Desactivar' : 'Activar'}
-                        </button>
+                        {!isDoctor && (
+                          <button
+                            onClick={() => toggleActive(doc.id, doc.is_active)}
+                            className={[
+                              'rounded-lg px-3 py-1.5 text-xs font-medium transition',
+                              doc.is_active
+                                ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+                            ].join(' ')}
+                          >
+                            {doc.is_active ? 'Desactivar' : 'Activar'}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
