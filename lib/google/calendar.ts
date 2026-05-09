@@ -1,5 +1,3 @@
-import { createServiceClient } from '@/lib/supabase/server'
-
 interface CalendarEventParams {
   doctorId: string
   summary: string
@@ -28,6 +26,7 @@ export async function createGoogleCalendarEvent(
   params: CalendarEventParams
 ): Promise<string | null> {
   try {
+    const { createServiceClient } = await import('@/lib/supabase/server')
     const admin = await createServiceClient()
 
     const { data: doctor } = await admin
@@ -36,7 +35,12 @@ export async function createGoogleCalendarEvent(
       .eq('id', params.doctorId)
       .single()
 
-    if (!doctor?.google_calendar_token) return null
+    console.log('[google/calendar] doctor token exists:', !!doctor?.google_calendar_token)
+
+    if (!doctor?.google_calendar_token) {
+      console.log('[google/calendar] no token found for doctor:', params.doctorId)
+      return null
+    }
 
     const token = doctor.google_calendar_token as any
     let accessToken = token.access_token
@@ -88,7 +92,7 @@ export async function createGoogleCalendarEvent(
     console.error('[google/calendar] create failed:', data)
     return null
   } catch (e) {
-    console.error('[google/calendar] error:', e)
+    console.error('[google/calendar] fatal error:', e)
     return null
   }
 }
@@ -98,6 +102,7 @@ export async function deleteGoogleCalendarEvent(
   eventId: string
 ): Promise<void> {
   try {
+    const { createServiceClient } = await import('@/lib/supabase/server')
     const admin = await createServiceClient()
 
     const { data: doctor } = await admin
