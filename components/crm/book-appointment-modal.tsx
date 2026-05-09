@@ -76,7 +76,7 @@ export function BookAppointmentModal({ isOpen, onClose, onSuccess, lead, orgId }
   const [selectedTime, setSelectedTime] = useState('')
   const [viewYear,     setViewYear]     = useState(todayYear)
   const [viewMonth,    setViewMonth]    = useState(todayMonth)
-  const [bookedSlots,  setBookedSlots]  = useState<string[]>([])
+  const [bookedSlots,  setBookedSlots]  = useState<{ start: string; end: string }[]>([])
   const [slotsLoading, setSlotsLoading] = useState(false)
   const [saving,       setSaving]       = useState(false)
   const [error,        setError]        = useState<string | null>(null)
@@ -135,7 +135,7 @@ export function BookAppointmentModal({ isOpen, onClose, onSuccess, lead, orgId }
     return availableDays.has(toSupabaseDay(new Date(d + 'T12:00:00').getDay()))
   }
   function isSlotBooked(t: string) {
-    return doctorId ? bookedSlots.some(iso => iso.startsWith(`${selectedDate}T${t}:`)) : false
+    return doctorId ? bookedSlots.some(b => b.start.startsWith(`${selectedDate}T${t}:`)) : false
   }
 
   const prevMonth = () => {
