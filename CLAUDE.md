@@ -1,4 +1,4 @@
-# MedScale App — Estado del proyecto (7 Mayo 2026)
+# MedScale App — Estado del proyecto (9 Mayo 2026)
 
 ## ✅ Completado
 
@@ -7,229 +7,127 @@
 - ✅ Variables de entorno en Vercel
 - ✅ Repo público — deploys automáticos funcionando
 - ✅ Middleware protección de rutas (/book/* público)
+- ✅ "Olvidé mi contraseña" — flujo completo con email desde passwordreset@medscale.app
+- ✅ /reset-password — página para cambiar contraseña (maneja invite + recovery flows)
+- ✅ SMTP configurado en Supabase con Resend (bypasea rate limit)
+- ✅ Email template reset password con logo MedScale y diseño branded
+
+### Sistema de Roles y Equipo
+- ✅ Tabla organization_members: id, organization_id, user_id, role, doctor_id, invited_by
+- ✅ Roles: owner | staff | doctor (superadmin invisible en UI)
+- ✅ Usuarios existentes migrados como owner automáticamente
+- ✅ Sidebar filtra items según rol del usuario
+- ✅ Badge de rol visible en sidebar (Admin / Colaborador / Médico)
+- ✅ /team: panel de gestión de equipo
+  - Lista de miembros con rol, email, fecha de ingreso
+  - Cambiar rol desde dropdown inline
+  - Eliminar miembro
+  - Invitar usuario con rol (owner/staff/doctor)
+  - Al invitar médico: crea registro en doctors automáticamente (nombre + especialidad)
+  - Indicador ⚠️ Sin disponibilidad / ✓ Disponibilidad configurada por médico
+- ✅ /api/team/invite: invita via Supabase Auth + agrega a organization_members + crea doctor si aplica
+- ✅ Permisos por módulo según rol:
+  | Módulo | Owner | Staff | Doctor |
+  |---|---|---|---|
+  | Dashboard | ✅✅ | ✅❌ | ❌❌ |
+  | CRM | ✅✅ | ✅✅ | ❌❌ |
+  | Agenda | ✅✅ | ✅✅ | ✅ solo suyas |
+  | Doctores | ✅✅ | ✅ ver+disponibilidad | ✅ solo su perfil |
+  | Conversaciones | ✅✅ | ✅✅ | ❌❌ |
+  | Equipo | ✅✅ | ❌❌ | ❌❌ |
+  | Configuración | ✅✅ | ❌❌ | Solo Integraciones |
+  | Integraciones | ✅✅ | ❌❌ | ✅ solo su calendario |
 
 ### Agendamiento público /book/[org-slug]
 - ✅ Wizard: modalidad → médico → calendario visual → formulario → confirmación
 - ✅ Slots generados desde schedules de Supabase
-- ✅ Round-robin de médicos
-- ✅ Campos configurables por organización (appointment_form_fields)
-- ✅ ends_at calculado con metadata.duration del médico
-- ✅ external_calendar_id en appointments (preparado para Google Calendar)
-- ✅ Calendario responsive en móvil (aspect-square, flex-col)
+- ✅ Round-robin de médicos con rr_count_all configurable
+- ✅ max_notice_days aplicado en CalendarPicker (bloquea fechas futuras)
+- ✅ buffer_before_min y buffer_after_min aplicados en isSlotBooked
+- ✅ Slots ocupados bloqueados (getBookedSlots retorna {start, end}[] en Bogotá)
+- ✅ Timezone fix: scheduledAt usa -05:00 en lugar de UTC
 
 ### Agenda /scheduling/calendar
-- ✅ Vista dual toggle: Calendario mensual / Lista agrupada por fecha
-- ✅ Tabs pill: Calendario | (Médicos y Disponibilidad movidos a /doctors)
-- ✅ Calendario mensual: chips de texto en desktop (hora + nombre), dots en móvil
-- ✅ Cancelación con motivo obligatorio (textarea requerida)
-- ✅ Log en appointment_logs: event_type='cancelled', note=motivo, performed_by=userId
-- ✅ Reagendar cita: fecha + hora separados
-- ✅ Notas editables por cita
-- ✅ Nueva cita manual: modal con búsqueda de lead o creación nueva
-- ✅ Filtro por médico + búsqueda de paciente
-- ✅ Vista lista por defecto (no calendario)
-- ✅ Toggle Lista/Calendario prominente a la izquierda junto a los filtros (pill bg-slate-900)
-- ✅ Vista lista: pills de rango Hoy / Esta semana / Este mes / Todos (default: Esta semana)
-- ✅ Vista lista: separadores de fecha en bg-blue-50, texto blue-700 bold
-- ✅ Vista lista: canceladas en su fecha original, borde izquierdo rojo (border-l-4 border-red-400) + nombre tachado
-- ✅ Vista lista: "Sin nombre" en canceladas → "Paciente no disponible" gris itálico
-- ✅ Vista lista: toggle "Mostrar canceladas" (default ON) — solo visual, no afecta métricas
-- ✅ Vista lista: header de columnas único arriba (no repetido por grupo de fecha)
-- ✅ Vista lista: columna Modalidad eliminada
+- ✅ Vista dual toggle: Calendario mensual / Lista
+- ✅ Lista separada en Próximas (default) / Pasadas
+- ✅ Calendario mensual: navegar a meses anteriores habilitado
+- ✅ Nueva cita manual: flujo 2 pasos (Paciente → Fecha y médico)
+- ✅ Rol doctor: ve solo sus propias citas, sin filtro de médicos
 
 ### Módulo Doctores /doctors
-- ✅ Lista de médicos: tabla con Nombre (dot color), Especialidad, Duración, Días que atiende, Estado
-- ✅ Nuevo médico y Editar médico: modal (no formulario inline)
-- ✅ Duración desde metadata.default_duration
-- ✅ Días que atiende: computed desde schedules filtrados por doctor_id
-- ✅ Activar/Desactivar médico desde tabla
+- ✅ Lista de médicos con ⚠️ Sin disponibilidad + link "Configurar →" cuando días = —
+- ✅ Rol doctor: ve solo su propio perfil, sin botón Nuevo médico ni Desactivar
 - ✅ Disponibilidad /doctors/availability: estilo Cal.com
-  - Toggle por día (Lun–Dom), hora inicio–fin en la misma fila
-  - Dropdown médico + sede en la parte superior
-  - Guardar: DELETE is_recurring=true + INSERT días activos (preserva excepciones)
-- ✅ Días adicionales: fecha específica + horario (active=true, is_recurring=false)
-- ✅ Días bloqueados: fecha específica sin atención (active=false, is_recurring=false)
-- ✅ Migración 003: columna specific_date DATE en tabla schedules
 
 ### CRM /crm
-- ✅ Estados del pipeline: contactado → cita_valoracion_agendada → asistio_cita → cancelo_cita → en_tratamiento_medico → finalizado
-- ✅ Pipeline clicable: clic en tarjeta filtra la tabla, color de acento por etapa
-- ✅ Fuentes actualizadas: instagram, whatsapp, facebook, web, book, referido, manual (legacy manychat → whatsapp)
-- ✅ contact_cedula en leads (migración 006)
-- ✅ Dropdown inline en columna Estado — actualiza Supabase sin abrir modal
-- ✅ Dropdown inline en columna Fuente — mismo patrón que Estado
-- ✅ Ordenar tabla por columna: Nombre, Estado, Creado, Actualizado
-- ✅ Columnas adicionales: Cédula, Citas (badge azul), Creado, Actualizado, Notas (truncada 40 chars)
-- ✅ Vista Kanban toggle: columnas por estado, cards arrastrables con drag & drop
-- ✅ Modal completo: nombre, cédula, teléfono, email, fuente, estado, notas, fechas
-- ✅ Modal: tabla de citas vinculadas (fecha, médico, estado)
-- ✅ Modal: sección de comentarios con autor + tiempo relativo (tabla lead_comments, migración 007)
-- ✅ Modal: agendamiento interno — selector médico + calendario visual + slots (sin salir del CRM)
-- ✅ Toast de éxito al guardar lead y al agendar cita; modal se cierra automáticamente
-- ✅ Crear lead manual: fuente default 'manual', estado inicial 'contactado'
+- ✅ Pipeline completo con 6 estados
+- ✅ Vista Kanban con drag & drop
+- ✅ Modal: citas vinculadas, comentarios, agendamiento interno
 
-### Sidebar y navegación
-- ✅ 7 items: Dashboard, CRM, Agenda, Conversaciones, Doctores, Equipo, Configuración
-- ✅ Agenda activo en cualquier ruta /scheduling/*
-- ✅ /team placeholder "Próximamente — gestión de equipo y roles"
-- ✅ /scheduling redirige a /scheduling/calendar
+### Dashboard /dashboard
+- ✅ Funnel: Leads → Citas totales → Asistieron → En procedimiento → Finalizados
+- ✅ Tendencia mensual: BarChart 4 barras + promedio asistencia
+- ✅ Agendamiento semanal: esta semana vs anterior vs promedio mes
+- ✅ Por médico: Citas | Asistencias | Progreso | Paciente/Auto | Procedimientos
 
-### Booking Form (/book/[org-slug]/[tipo-slug])
-- ✅ i18n completo: wizard en español e inglés (TRANSLATIONS object, t.* keys reactivos al idioma)
-- ✅ min_notice_hours aplicado en CalendarPicker (bloquea días y slots dentro del aviso mínimo)
-- ✅ Round robin proporcional funcionando: asigna médico con menos citas del mes que tenga el slot disponible
-- ✅ Bug middleware corregido: /api/book ya no redirige a /dashboard en sesiones autenticadas
-- ✅ Nombre y apellido separados: contact_last_name agregado a leads, booking form usa patient_first_name + patient_last_name
+### Tipos de cita /settings/appointment-types
+- ✅ 4 modos de asignación como radio buttons con descripción
+- ✅ rr_count_all configurable por tipo
+- ✅ max_notice_days, buffer_before_min, buffer_after_min en tab Reglas
 
-### Tipos de cita (/scheduling/appointment-types)
-- ✅ Modal expandido con 3 tabs verticales: General, Reglas, Formulario
-- ✅ Tab Reglas: min_notice_hours, max_notice_days, buffer_before_min, buffer_after_min
-- ✅ Tab Formulario: campos configurables por tipo de cita con drag & drop para reordenar
-- ✅ Campos base (Nombre, Teléfono, Email, Cédula) visibles como no editables
-- ✅ Tabla appointment_form_fields creada y conectada al booking wizard
+### Settings /settings
+- ✅ General, Sedes, Tipos de cita, Notificaciones (global), Integraciones
+- ✅ Settings layout filtra tabs según rol (doctor solo ve Integraciones)
+
+### Google Calendar Integration
+- ✅ OAuth 2.0 completo por médico desde /settings/integrations
+- ✅ Evento creado en Google Calendar al agendar cita (hora Bogotá correcta)
+- ✅ Invitación enviada al paciente (sendUpdates=all)
+- ✅ Evento eliminado al cancelar cita
+- ✅ Auto-refresh de access_token
+- ✅ Rol doctor: ve solo su propio calendario en Integraciones
+- ✅ GCP: proyecto medscale-app-cal-int, usuario prueba fertesdigital@gmail.com
+
+### Data Ferttes
+- ✅ 291 leads con fechas reales de creación
+- ✅ 156 citas históricas (Dic 2025 - Mar 2026) + 78 citas Abril 2026
+- ✅ doctor_assignment_type correcto (patient_choice / auto_assigned)
 
 ### Email y notificaciones
-- ✅ Resend integrado: dominio medscale.app verificado, emails desde citas@medscale.app
-- ✅ Email confirmación al paciente: bilingüe es/en, brand kit MedScale aplicado
-- ✅ Email cancelación al paciente: se dispara desde cancelAppointment() en actions.ts
-- ✅ Email reagendamiento al paciente: se dispara desde rescheduleAppointment() en actions.ts
-- ✅ Notificaciones configurables por tipo de cita: tabla appointment_type_notifications, tab Notificaciones en modal
-- ✅ Precio informativo en booking form y email de confirmación
-- ✅ lib/email/resend.ts, lib/email/templates.ts (bookingConfirmationPatient, cancellationEmail, rescheduleEmail)
-- ✅ RESEND_API_KEY en Vercel Environment Variables (Production)
-- ✅ Envío no-bloqueante con Promise.allSettled
-
-### Calendario
-- ✅ Reagendamiento con CalendarPicker real (respeta schedules del médico)
-- ✅ Modal se expande a max-w-2xl cuando reagendamiento está abierto
-- ✅ Modal se cierra automáticamente después de reagendar
-- ✅ Tabs Calendario/Tipos de cita rediseñados como pills prominentes
-
-### CRM y datos
-- ✅ Nombre completo en tabla CRM: contact_name + contact_last_name en una línea
-- ✅ Modal de cita mejorado: reagendar colapsado por defecto, botones de acción más limpios
-- ✅ Precio visible en tabla de tipos de cita
-- ✅ Campos base visibles en tab Formulario como no editables
-
-### Cliente beta
-- ✅ Ferttes cargado (5 médicos, disponibilidades, sede)
-- ✅ Usuario admin@ferttes.com creado y funcionando
-
-### Brand Kit y Visual
-- ✅ Brand kit aplicado en sidebar (bg-foreground, tokens CSS)
-- ✅ Booking wizard rediseñado: nueva jerarquía step 1, cards de modalidad, "Primer médico disponible" como opción principal, médicos siempre visibles
-- ✅ Idioma eliminado del booking wizard (hardcodeado es-CO)
-- ✅ Responsive booking wizard móvil (flex-col en móvil, grid-cols-1 médicos, panel lateral oculto)
-- ✅ /settings/general: CRUD de nombre, color primario y logo por organización
-- ✅ Upload de logo via server action con base64 + service role (app/actions/settings.ts)
-- ✅ Bucket Supabase Storage: organizations (público)
-- ✅ saveOrgSettings() server action para guardar nombre, color y logo_url
-- ✅ Color primario aplicado en booking wizard (primaryColor reemplaza B.primary)
-- ✅ "Powered by MedScale AI" footer en booking wizard y lista de tipos de cita
-- ✅ Botón "Reservas públicas" eliminado del booking wizard
-- ✅ Header booking wizard: logo reemplaza nombre cuando logo_url existe (pendiente PNG transparente)
-
-### Settings
-- ✅ /settings con tabs: General, Sedes, Tipos de cita, Notificaciones
-- ✅ /settings/locations: CRUD completo de sedes (nombre + dirección + activa/inactiva)
-- ✅ Tipos de cita movido de /scheduling a /settings/appointment-types (redirect en /scheduling)
-- ✅ Migración: ALTER TABLE locations ADD COLUMN address TEXT
-
-### Booking y Leads
-- ✅ Leads desde /book llegan con status 'cita_valoracion_agendada' (fix en /api/book/route.ts)
-- ✅ Email de notificación interna a la clínica: se dispara al crear cita desde /api/book, usa contact_email de organizations
-- ✅ Reglas de display step 1 según configuración:
-  - Modalidad fija + 1 médico → salta step 1 completo
-  - Modalidad fija + 2+ médicos → solo grid de médicos
-  - patient_choice + 1 médico → solo toggle modalidad
-  - patient_choice + 2+ médicos → modalidad + médicos
-- ✅ Step indicator muestra 2 pasos cuando skipStep1=true
-- ✅ Auto-asignar médico cuando solo hay 1 asignado al tipo
-
-### Gestión de citas desde email
-- ✅ manage_token en tabla appointments (UUID único por cita)
-- ✅ /appointment/[token]/manage — página pública sin login
-  - Muestra detalles: médico, fecha, hora, modalidad, sede con dirección
-  - Reagendar: CalendarPicker con schedules del médico
-  - Cancelar: textarea con motivo requerido
-  - Pantalla de éxito con check SVG limpio
-- ✅ /api/appointment/manage PATCH handler (reschedule + cancel + logs + emails)
-- ✅ Email confirmación incluye botones "Reagendar cita" y "Cancelar cita" con manageUrl
-- ✅ Middleware: /appointment y /api/appointment y /api/cron en PUBLIC_ROUTES
-
-### Dominio y emails
-- ✅ Dominio app.medscale.app configurado en Vercel + GoDaddy (CNAME)
-- ✅ manageUrl apunta a https://app.medscale.app/appointment/[token]/manage
-- ✅ Email notificación clínica al crear cita: bookingNotificationClinic() en /api/book
-- ✅ Email paciente y clínica al reagendar desde /appointment/[token]/manage
-- ✅ Email paciente y clínica al cancelar desde /appointment/[token]/manage
-- ✅ Query separado para contact_email de organizations en manage route
-
-### Cron de recordatorios
-- ✅ /api/cron/reminders — cron job funcionando ({"sent":0} confirmado)
-- ✅ vercel.json: schedule "0 9 * * *" (9am UTC = 4am Bogotá, plan Hobby)
-- ✅ Migración: ALTER TABLE appointments ADD COLUMN reminder_sent_at TIMESTAMPTZ
-- ✅ CRON_SECRET=medscale-cron-2026 en Vercel Environment Variables
-- ✅ Lógica: lee appointment_type_notifications donde event_type='reminder' y enabled=true, envía email y marca reminder_sent_at
+- ✅ Resend: citas@medscale.app + passwordreset@medscale.app
+- ✅ Confirmación, cancelación, reagendamiento al paciente
+- ✅ Notificación interna a la clínica
+- ✅ Cron recordatorios: "0 9 * * *"
 
 ---
 
-## 🐛 Bugs conocidos (corregir próxima sesión)
-- ✅ CRM: estados legacy normalizados en carga (STATUS_NORMALIZE cubre inglés y español pre-migración)
-- ✅ CRM: pipeline muestra conteos correctos tras normalización
-- ✅ Migración 008: nuevo→contactado, en_procedimiento→en_tratamiento_medico, perdido→cancelo_cita
-- ✅ CRM: fuentes legacy manychat/manychat_n8n → whatsapp (migración 005 + normalización en carga)
+## 🔴 PRIORIDAD 1
+- [ ] Google Calendar bidireccional: evento en Google → bloquea slot en MedScale
+- [ ] Verificar buffer_before/after_min con citas reales
+- [ ] Logo Ferttes: PNG transparente + subir desde /settings/general
+- [ ] Eliminar médicos desde /doctors (con validación de citas activas)
+- [ ] Arreglar autodeploy GitHub→Vercel
 
-## 🔴 PRIORIDAD 1 — Probar y corregir en producción
-- ✅ /appointment/[token]/manage
-- ✅ Cron job recordatorios
-- ✅ Rediseño brand kit booking wizard
-- ✅ Status leads desde /book → cita_valoracion_agendada
-- ✅ Conectar dirección de sede al booking wizard paso 1 (cuando modalidad=presencial, mostrar dirección)
-- ✅ Booking wizard responsive: verificar en 375px, 390px, 414px
-- ✅ Verificar cancelar cita con motivo guarda correctamente en appointment_logs
-- ✅ Verificar reagendar cita — fecha/hora correcta en DB
-- ✅ Email de notificación a la clínica (requiere contact_email en organizations)
-- ✅ Configurar app.medscale.app en Vercel + GoDaddy
-- ✅ Actualizar manageUrl a https://app.medscale.app
-- ✅ Verificar botones "Reagendar" y "Cancelar" del email al paciente
-- [ ] Arreglar autodeploy GitHub→Vercel (webhook roto, usar npx vercel --prod mientras)
-- [ ] Tipos de cita: test_type 'valoracion-express' y 'consulta-flexible' creados
-- ✅ Logo y color personalizable por cliente (logo_url, primary_color en organizations)
-- [ ] Logo Ferttes: conseguir PNG con fondo transparente y subir desde /settings/general
-- [ ] Aplicar max_notice_days y buffer_before/after_min en el booking wizard
-- [ ] Verificar nueva cita manual desde panel admin
-- [ ] Dashboard: revisar métricas y mejorar UX de tarjetas
-
-## 🟡 PRIORIDAD 2 — UX y ajustes
-- [ ] Sidebar: diferenciación visual por rol (admin vs staff vs superadmin)
-- [ ] Conversaciones /conversations: ver chats por lead
-- [ ] Conectar webhook n8n de ManyChat → tabla conversations
-- [ ] Login: agregar link "Olvidé mi contraseña" con forgot password flow de Supabase Auth
-- [ ] Login: agregar link "Crear cuenta" o flujo de onboarding para nuevos usuarios
-- [ ] Settings > Notificaciones: campo para configurar emails de notificación internos de la clínica (a quién llega el email cuando entra una cita nueva, se reagenda o cancela). Default: contact_email de organizations. Puede ser múltiple (ej: admin + recepción + médico). Tabla sugerida: organization_notification_emails o campo JSON en organizations.
+## 🟡 PRIORIDAD 2
+- [ ] Página registro nuevo usuario anclada a planes
+- [ ] Confirmación email con código al registrarse
+- [ ] Conversaciones /conversations: ver chats por lead + webhook n8n
+- [ ] Middleware que bloquea rutas según rol (Sprint 3 roles)
+- [ ] Agenda del médico: pre-seleccionar su disponibilidad en /doctors/availability
 
 ## 🟢 PRIORIDAD 3 — Superadmin
-- [ ] CRUD completo de organizaciones desde /admin
-- [ ] Crear y gestionar usuarios por organización
-- [ ] Ver métricas globales por organización
+- [ ] Dashboard superadmin filtrable por cliente
+- [ ] CRUD organizaciones desde /admin
+- [ ] Gestión usuarios por organización
+- [ ] Definir qué datos puede/no puede ver superadmin (acordado: no datos de pacientes)
 
-## 🔵 Fase 2 (post primer cliente pagando)
-- [ ] Google Calendar sync por médico (OAuth por médico)
-- [ ] Panel de integraciones /settings/integrations
-- [ ] Dashboard modular personalizable por cliente
-- [ ] Módulo de historia clínica
-- [ ] WhatsApp integration via Meta Cloud API
+## 🔵 Fase 2
+- [ ] Google Calendar bidireccional
+- [ ] WhatsApp via Meta Cloud API
+- [ ] Módulo historia clínica
+- [ ] Motor de automatizaciones
+- [ ] Pricing enforcement
 - [ ] Reportes y analítica avanzada
-- [ ] API RESTful pública
-- [ ] Tabla de procedimientos médicos por organización
-- [ ] Vincular procedimiento al lead cuando status = en_tratamiento_medico
-- [ ] Motor de automatizaciones: triggers (lead creado, cita agendada, sin respuesta)
-  → acciones: enviar email, WhatsApp, crear tarea, asignar usuario
-- [ ] Constructor visual de flujos + integración n8n
-- [ ] CRM multi-fuente: captura desde formularios web, emails y encuestas
-- [ ] Tracking unificado de conversaciones por lead (todos los canales en una vista)
-- [ ] Automatizaciones basadas en cambios de estado del lead
 
 ---
 
@@ -238,234 +136,102 @@
 ### Arquitectura
 - **Patrón:** Monolito modular (NO microservicios)
 - **Frontend:** Next.js 15 con App Router
-- **Backend:** Supabase (PostgreSQL + Auth)
-- **Agendamiento:** 100% interno, sin Cal.com
+- **Backend:** Supabase (PostgreSQL + Auth + RLS)
 - **Deploy:** Vercel (repo público)
-
-### Email
-- Proveedor: Resend — plan free, 3000 emails/mes
-- Dominio: medscale.app (GoDaddy, auto-configurado por Resend)
-- From: citas@medscale.app
-- Templates: lib/email/templates.ts
-- Cliente singleton: lib/email/resend.ts
-- Email notificación clínica: bookingNotificationClinic() en templates.ts, se dispara desde /api/book al crear cita
-- manage route: usa query separado a organizations para contact_email (join de Supabase no devuelve columnas agregadas post-creación de tabla)
-- Emails en manage route usan await para evitar que Vercel cierre la función antes de que Resend complete
-
-### Notificaciones
-- manage_token: UUID único por cita para URLs públicas seguras sin login
-- Email templates: brandShell() función helper para consistencia visual entre templates
-- appointment_type_notifications: upsert on conflict `appointment_type_id,event_type`
-
-### Stack
-- TypeScript, React, Tailwind CSS, shadcn/ui
-- Supabase Auth + PostgreSQL + RLS
-- React Hook Form + Zod
 
 ### ⚠️ Reglas críticas de código
 
 **Next.js 15 — params es Promise:**
 ```typescript
-// ✅ Correcto
 const resolvedParams = await params
 const slug = resolvedParams['org-slug']
 ```
 
-**schedules no tiene organization_id — filtrar por doctor_id:**
-```typescript
-const doctorIds = doctors.map(d => d.id)
-supabase.from('schedules').select(...).in('doctor_id', doctorIds)
+**schedules no tiene organization_id — filtrar por doctor_id**
+
+**appointments NO tiene appointment_type_id — no incluir en selects**
+
+**Siempre usar createServiceClient() (service role) en server components y rutas públicas**
+
+**contact_email de organizations NO viene del join — query separado**
+
+**File objects no se serializan en server actions — usar base64 con FileReader**
+
+**Upload a Storage siempre con service role**
+
+**await en resend.emails.send() — sin await Vercel cierra la función**
+
+**Deploy:** `npx vercel --prod` desde la carpeta del proyecto
+
+**Cron plan Hobby:** máximo 1 vez/día, schedule "0 9 * * *"
+
+**PowerShell con corchetes en rutas — usar -LiteralPath:**
+```powershell
+Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 ```
 
-**day_of_week — el check constraint real de la DB es 0-6 (igual que JS):**
-```
-0 = Domingo, 1 = Lunes, 2 = Martes, 3 = Miércoles,
-4 = Jueves,  5 = Viernes, 6 = Sábado
-```
-El availability-editor usa esta escala directamente. No hacer conversión.
+### Roles — DB
+- Tabla: `organization_members` (organization_id, user_id, role, doctor_id)
+- roles: 'owner' | 'staff' | 'doctor'
+- Leer rol en server components: query a organization_members por user_id
+- doctors.user_id es NOT NULL — siempre incluirlo al crear médico desde invite
 
-**/api/book es ruta pública:**
-- Ya está en `PUBLIC_ROUTES` en middleware.ts
-- Excluida del redirect de usuarios autenticados (`!pathname.startsWith('/api/')`)
-- No agregar auth checks aquí — es la ruta de agendamiento externo
+### Google Calendar
+- Tokens en `doctors.google_calendar_token` (JSONB)
+- Auto-refresh cuando `expiry_date - 60000 < Date.now()`
+- Rutas públicas en middleware: /api/google/callback
+- GCP app en modo prueba — agregar emails como usuarios de prueba antes de conectar
+- scheduledAt debe usar -05:00 (Bogotá), no Z (UTC)
+- sendUpdates=all en el POST del evento para enviar invitación al paciente
 
-**appointment_form_fields — siempre filtrar:**
-```typescript
-.eq('appointment_type_id', id).eq('active', true).order('sort_order')
-```
+### Base de Datos — columnas clave
+- `appointments.doctor_assignment_type` TEXT ('patient_choice' | 'auto_assigned')
+- `appointment_types.rr_count_all` BOOLEAN (default true)
+- `appointment_types.max_notice_days`, `buffer_before_min`, `buffer_after_min`
+- `doctors.google_calendar_token` JSONB
+- `doctors.google_calendar_id` TEXT
+- `doctors.google_calendar_connected_at` TIMESTAMPTZ
+- `doctors.user_id` TEXT NOT NULL
+- `organization_members`: tabla de roles por organización
 
-**Nombres de leads:**
-- `contact_name` = primer nombre
-- `contact_last_name` = apellido (columna nueva, nullable)
-- Mostrar: `${contact_name}${contact_last_name ? ' ' + contact_last_name : ''}`
+### Modos de asignación
+| UI label | assignment_mode | rr_count_all |
+|---|---|---|
+| El paciente decide | one_on_one | true |
+| Flexible | hybrid | true |
+| Rotación — carga total | round_robin_proportional | true |
+| Rotación — solo automáticas | round_robin_proportional | false |
 
-**Deploy:** autodeploy GitHub→Vercel puede romperse. Usar `npx vercel --prod` desde la carpeta del proyecto como alternativa confiable.
+### Pricing
+| Plan | Precio/mes | Límites |
+|---|---|---|
+| Free | $0 | 1 médico, 50 leads, 20 citas/mes |
+| Starter | $29 | 3 médicos, 100 citas/mes |
+| Growth | $79 | 8 médicos, ilimitado |
+| Scale | $149 | Ilimitado + API |
 
-**Cron Vercel plan Hobby:** máximo 1 vez al día. Schedule actual: "0 9 * * *". Para crons más frecuentes usar cron-job.org o upgrade a Pro.
+Ferttes: plan Growth (beta, sin restricciones)
 
-**organizations — select siempre incluir contact_email:**
-```typescript
-.select('id, name, contact_email')
-```
-Necesario para disparar el email de notificación a la clínica desde /api/book.
+---
 
-**manage route — siempre await en resend.emails.send():**
-Sin `await`, Vercel cierra la función antes de que el email salga. Aplicar en todos los envíos de manage route.
+## 🤖 Workflow de Claude Code
 
-**contact_email de organizations NO viene del join:**
-```typescript
-const { data: orgData } = await admin
-  .from('organizations')
-  .select('contact_email')
-  .eq('id', apt.organization_id)
-  .single()
-```
+### Principios
+- Verificación antes de done
+- Bug fixing autónomo — ir directo a resolverlo
+- Simplicidad primero, minimal impact
+- No hacks — causa raíz siempre
+- Siempre código/HTML completo listo para copiar y pegar
+- No sugerir esperar si hay solución inmediata
 
-**File objects no se serializan en server actions:**
-Usar `FileReader` + base64 en cliente, luego `Buffer.from(base64, 'base64')` en la server action.
+### Estilo de trabajo MedScale
+- Prompts atómicos, un cambio a la vez
+- Git push al final de cada prompt
+- Verificar rutas con PowerShell antes de asumir
+- Comandos PowerShell, nunca bash Unix
+- Screenshots para verificar antes de seguir
 
-**Upload a Supabase Storage siempre con service role:**
-El cliente anon no tiene permisos de escritura en Storage. Usar `supabaseAdmin` (service role) en server actions.
-
-**saveOrgSettings() en app/actions/settings.ts:**
-Centraliza el guardado de nombre, primary_color y logo_url. Usar en lugar del cliente anon en settings/general.
-
-**Logo en booking wizard:**
-`orgLogoUrl ? <img ...> : <nombre texto>` — condición en el header del wizard.
-
-**Excepciones en schedules:**
-- `is_recurring=true`  → horario semanal recurrente (day_of_week set, specific_date null)
-- `is_recurring=false` → excepción de fecha específica (specific_date set, day_of_week null)
-  - `active=true`  → día adicional con horario
-  - `active=false` → día bloqueado sin atención
-
-### Storage
-- Bucket: organizations (público) en Supabase Storage
-- Upload: server action uploadOrgLogo() en app/actions/settings.ts
-- Ruta logos: logos/{orgId}.{ext} con upsert: true
-- Upload: base64 → Buffer.from(base64, 'base64') en server action
-
-### Integraciones activas
-- n8n: envía leads via POST /api/webhooks/lead
-- ManyChat: conversaciones via n8n (webhook pendiente de apuntar)
-- Google Calendar: Fase 2
-
-## 🗂️ Base de Datos (16 tablas + columna específica)
-organizations → id, name, slug, metadata, contact_email, created_at, updated_at
-organizations → users, locations, leads, conversations,
-appointments, doctors, schedules (+ specific_date DATE), appointment_logs,
-conversation_messages, lead_fields, lead_values,
-locations_rooms, permissions, user_permissions,
-superadmins, webhook_logs
-
-## Pendientes
-
-### Tipos de cita — features pendientes
-- [ ] Idioma por médico (granular filtering): hoy el filtro de idioma muestra todos los médicos asignados; en el futuro cada médico tendrá su propio array de idiomas y el wizard solo mostrará los que hablen el idioma seleccionado
-
-### Dashboard — mejoras pendientes
-- [ ] Filtros de año/mes (chips) no quedaron al 100% — revisar y completar
-- [ ] Agregar más métricas al funnel visual (% conversión entre pasos)
-- [ ] Selector de año en gráfica debe re-fetch data desde Supabase, no solo filtrar client-side
-- [ ] Validar que filtro global afecte correctamente funnel + gráfica + tabla médicos
-- [ ] "Citas de hoy" debe ignorar filtros siempre
-
-## Arquitectura /settings
-
-### Rutas
-- `/settings/general`            → nombre clínica, logo, colores primarios
-- `/settings/locations`          → CRUD sedes (nombre + dirección)
-- `/settings/appointment-types`  → tipos de cita (movido desde /scheduling)
-- `/settings/notifications`      → recordatorios por tipo de cita (appointment_type_notifications)
-
-### Reglas de navegación
-- **Doctores** = módulo independiente en sidebar (complejidad operativa diaria)
-- **Configuración** = se toca una vez: General, Sedes, Tipos de cita, Notificaciones
-- **Tipos de cita NO van en /scheduling** — van en /settings/appointment-types
-
-### Sedes
-- Migración pendiente: `ALTER TABLE locations ADD COLUMN IF NOT EXISTS address TEXT`
-- 1 sede en booking → muestra dirección directamente
-- 2+ sedes en booking → dropdown para elegir sede
-- Sede se muestra solo cuando modalidad = presencial
-
-### Step 1 booking wizard — reglas de display
-| Condición | Qué se muestra |
-|---|---|
-| Modalidad fija + 1 médico | Salta step 1 completo |
-| Modalidad fija + 2+ médicos | Solo grid de médicos |
-| patient_choice + 1 médico | Solo toggle presencial/virtual |
-| patient_choice + 2+ médicos | Toggle presencial/virtual + grid de médicos |
-
-## Módulo: Tipos de Cita + Booking Form
-
-### Arquitectura definida
-
-**Tipos de cita** son configurables por cliente (multi-tenant). Cada tipo tiene:
-- Nombre
-- Duración (min)
-- Modo de asignación:
-  - `one_on_one` → paciente escoge médico
-  - `round_robin_proportional` → asigna médico con menos citas del mes que tenga el slot libre
-  - `round_robin_availability` → asigna primer médico disponible
-  - `hybrid` → paciente puede escoger médico o dejar que el sistema asigne
-- Médicos asignados (array de doctor_ids)
-- Aviso mínimo (horas)
-- Link público (auto-generado desde el nombre)
-- Activo: sí/no
-
-### Regla de asignación Round Robin proporcional
-1. Filtrar médicos asignados al tipo que tengan el slot disponible (según schedules)
-2. De esos, escoger el que tenga menos citas en el mes actual
-3. Empate → el que tenga menos citas en los últimos 7 días
-4. Asignar y confirmar
-
-### Flujo del Booking Form (vista paciente — máximo 4 pasos)
-
-**Paso 1** — Escoge tipo de cita (cards)
-**Paso 2** — Preferencia de médico (SOLO si modo = hybrid Y médicos asignados >= 2)
-  - Si modo = one_on_one → va directo a escoger médico (sin pregunta)
-  - Si modo = round_robin_* → se salta este paso completamente
-  - Si médicos asignados = 1 → se salta este paso, se usa ese médico
-**Paso 3** — Escoge fecha y hora (solo slots disponibles)
-**Paso 4** — Datos del paciente (nombre, teléfono, email)
-**Confirmación** — muestra médico asignado
-
-### Plan de construcción (en orden)
-- [ ] Paso 1: Construir UI de tipos de cita en /scheduling/appointment-types (CRUD completo)
-- [ ] Paso 2: Crear tabla appointment_types en Supabase si no existe
-- [ ] Paso 3: Conectar booking form /book/[org-slug] para que consuma tipos de cita
-- [ ] Paso 4: Implementar lógica de asignación round robin en server action
-- [ ] Paso 5: Adaptar booking form para renderizar según configuración del tipo de cita
-
-### Pendiente antes de Paso 1
-- Revisar si appointment_types ya existe en Supabase
-- Revisar cómo funciona actualmente /book/[org-slug]
-
-## Estrategia de Pricing
-
-### Modelo: Por clínica (org), cobro mensual en USD
-
-| Plan | Precio/mes | Límites | Módulos incluidos |
-|---|---|---|---|
-| Free | $0 | 1 médico, 50 leads, 20 citas/mes | Solo CRM básico |
-| Starter | $29 USD | 3 médicos, leads ilimitados, 100 citas/mes | CRM + Agenda + Booking |
-| Growth | $79 USD | 8 médicos, todo ilimitado | Todo + Conversaciones + Reportes |
-| Scale | $149 USD | Médicos ilimitados | Todo + Multiubicación + API |
-
-### Reglas de enforcement (pendiente de implementar)
-- [ ] Campo `plan` en tabla `organizations` (free | starter | growth | scale)
-- [ ] Middleware que valide límites por plan antes de crear leads, citas, médicos
-- [ ] UI que muestre upgrade prompt cuando se alcanza un límite
-- [ ] Ferttes está en plan Growth (cliente beta, acceso completo sin restricciones)
-
-### Decisiones tomadas
-- Cobro por clínica, no por seat (evita fricción cultural en Colombia)
-- Moneda: USD
-- Mercado actual: Solo Colombia (próximos 6 meses)
-- Free engancha con límites reales que se sienten rápido (50 leads = ~2 semanas en clínica activa)
-
-## 📊 Métricas
-- Archivos: 35+, Componentes: 18+, Server Actions: 6+
-- Tablas BD: 16 con RLS, Clientes beta: 1 (Ferttes)
-- Rutas: /dashboard, /crm, /scheduling/calendar, /doctors, /doctors/availability, /team, /settings
+### Cliente beta
+- Ferttes (org_id: 4270c9b0-cbaa-4a94-bea7-508387a2529c)
+- admin@ferttes.com | app.medscale.app
+- 5 médicos activos, 291 leads, 234 citas históricas
