@@ -113,7 +113,7 @@ export function CalendarPicker({
 
   const [viewYear,     setViewYear]     = useState(todayYear)
   const [viewMonth,    setViewMonth]    = useState(todayMonth)
-  const [bookedSlots,  setBookedSlots]  = useState<string[]>([])
+  const [bookedSlots,  setBookedSlots]  = useState<{ start: string; end: string }[]>([])
   const [slotsLoading, setSlotsLoading] = useState(false)
 
   const duration = Number(
@@ -171,7 +171,7 @@ export function CalendarPicker({
 
   function isSlotBooked(time: string): boolean {
     if (!selectedDate || !doctorId) return false
-    return bookedSlots.some(iso => iso.startsWith(`${selectedDate}T${time}:`))
+    return bookedSlots.some(b => b.start.startsWith(`${selectedDate}T${time}:`))
   }
 
   const isPrevDisabled = viewYear === todayYear && viewMonth === todayMonth
