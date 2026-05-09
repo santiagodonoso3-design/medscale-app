@@ -26,5 +26,16 @@ export async function getBookedSlots(
     .lte('scheduled_at', endOfMonth.toISOString())
     .in('status', ['scheduled', 'confirmed'])
 
-  return (data ?? []).map((a: { scheduled_at: string }) => a.scheduled_at)
+  return (data ?? []).map((a: { scheduled_at: string }) => {
+    const d = new Date(a.scheduled_at)
+    const bogotaStr = new Intl.DateTimeFormat('en-CA', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false,
+      timeZone: 'America/Bogota',
+    }).format(d)
+    // bogotaStr format: "2026-05-15, 15:00:00" → normalize to ISO-like
+    const [datePart, timePart] = bogotaStr.split(', ')
+    return `${datePart}T${timePart}`
+  })
 }
