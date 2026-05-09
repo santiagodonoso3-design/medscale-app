@@ -540,7 +540,7 @@ export function CalendarClient({ userId }: CalendarClientProps) {
   // ── Calendar grid ──────────────────────────────────────────────────────────
 
   function renderCalendarView() {
-    const isPrevDisabled = viewYear === todayYear && viewMonth === todayMonth
+    const isPrevDisabled = false
     return (
       <div className="space-y-4">
         {/* Month nav */}
