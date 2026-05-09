@@ -41,7 +41,7 @@ export function TeamClient({ orgId, members: initialMembers, doctors, currentUse
   const [members, setMembers] = useState(initialMembers)
   const [showInvite, setShowInvite] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState<'staff' | 'doctor'>('staff')
+  const [inviteRole, setInviteRole] = useState<'owner' | 'staff' | 'doctor'>('staff')
   const [inviteDoctorId, setInviteDoctorId] = useState('')
   const [inviting, setInviting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -206,9 +206,10 @@ export function TeamClient({ orgId, members: initialMembers, doctors, currentUse
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Rol</label>
               <select
                 value={inviteRole}
-                onChange={e => setInviteRole(e.target.value as 'staff' | 'doctor')}
+                onChange={e => setInviteRole(e.target.value as 'owner' | 'staff' | 'doctor')}
                 className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
+                <option value="owner">Admin</option>
                 <option value="staff">Colaborador</option>
                 <option value="doctor">Médico</option>
               </select>
