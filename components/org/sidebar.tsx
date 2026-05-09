@@ -9,19 +9,23 @@ interface OrgSidebarProps {
   orgName?: string
   userName?: string
   userEmail?: string
+  userRole?: 'owner' | 'staff' | 'doctor' | null
 }
 
-const navItems = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'CRM', href: '/crm', icon: MessageSquare },
-  { name: 'Agenda', href: '/scheduling/calendar', icon: CalendarDays },
-  { name: 'Conversaciones', href: '/conversations', icon: MessageCircle },
-  { name: 'Doctores', href: '/doctors', icon: Stethoscope },
-  { name: 'Equipo', href: '/team', icon: Users },
-  { name: 'Configuración', href: '/settings', icon: Settings },
+const ALL_NAV_ITEMS = [
+  { name: 'Dashboard',      href: '/dashboard',           icon: LayoutDashboard, roles: ['owner', 'staff'] },
+  { name: 'CRM',            href: '/crm',                 icon: MessageSquare,   roles: ['owner', 'staff'] },
+  { name: 'Agenda',         href: '/scheduling/calendar', icon: CalendarDays,    roles: ['owner', 'staff', 'doctor'] },
+  { name: 'Conversaciones', href: '/conversations',       icon: MessageCircle,   roles: ['owner', 'staff'] },
+  { name: 'Doctores',       href: '/doctors',             icon: Stethoscope,     roles: ['owner', 'staff'] },
+  { name: 'Equipo',         href: '/team',                icon: Users,           roles: ['owner'] },
+  { name: 'Configuración',  href: '/settings',            icon: Settings,        roles: ['owner'] },
 ]
 
-export function OrgSidebar({ orgName, userName, userEmail }: OrgSidebarProps) {
+export function OrgSidebar({ orgName, userName, userEmail, userRole }: OrgSidebarProps) {
+  const navItems = ALL_NAV_ITEMS.filter(item =>
+    !userRole || item.roles.includes(userRole)
+  )
   const pathname = usePathname()
   const router = useRouter()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -81,6 +85,15 @@ export function OrgSidebar({ orgName, userName, userEmail }: OrgSidebarProps) {
           <p className="text-xs uppercase tracking-[0.24em] text-accent">Usuario</p>
           <p className="mt-2 text-sm font-semibold text-white truncate">{userName || 'Miembro del equipo'}</p>
           <p className="mt-1 text-xs text-white/50 truncate">{userEmail || 'Sin email'}</p>
+          {userRole && (
+            <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+              userRole === 'owner'  ? 'bg-accent/20 text-accent' :
+              userRole === 'doctor' ? 'bg-blue-500/20 text-blue-300' :
+              'bg-white/10 text-white/60'
+            }`}>
+              {userRole === 'owner' ? 'Admin' : userRole === 'doctor' ? 'Médico' : 'Colaborador'}
+            </span>
+          )}
         </div>
         <button
           onClick={handleLogout}
