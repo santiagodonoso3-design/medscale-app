@@ -4,13 +4,15 @@
 
 ### Auth y Deploy
 - ✅ Login en producción (Supabase Auth)
+- ✅ Sign in with Google — OAuth 2.0 con vinculación de cuentas por email
+- ✅ /auth/callback — maneja redirect de Google OAuth
 - ✅ Variables de entorno en Vercel
-- ✅ Repo público — deploys automáticos funcionando
 - ✅ Middleware protección de rutas (/book/* público)
 - ✅ "Olvidé mi contraseña" — flujo completo con email desde passwordreset@medscale.app
-- ✅ /reset-password — página para cambiar contraseña (maneja invite + recovery flows)
+- ✅ /reset-password — maneja invite + recovery flows (Suspense boundary)
 - ✅ SMTP configurado en Supabase con Resend (bypasea rate limit)
 - ✅ Email template reset password con logo MedScale y diseño branded
+- ✅ Allow manual linking habilitado en Supabase (vincula Google a cuenta existente)
 
 ### Sistema de Roles y Equipo
 - ✅ Tabla organization_members: id, organization_id, user_id, role, doctor_id, invited_by
@@ -25,7 +27,11 @@
   - Invitar usuario con rol (owner/staff/doctor)
   - Al invitar médico: crea registro en doctors automáticamente (nombre + especialidad)
   - Indicador ⚠️ Sin disponibilidad / ✓ Disponibilidad configurada por médico
-- ✅ /api/team/invite: invita via Supabase Auth + agrega a organization_members + crea doctor si aplica
+- ✅ /api/team/invite: invita via Supabase Auth + agrega a organization_members + crea doctor
+- ✅ Middleware bloqueo de rutas por rol:
+  - Doctor: solo /scheduling, /doctors, /settings/integrations → redirige a /scheduling/calendar
+  - Staff: bloqueado de /team, /settings/*, /admin → redirige a /dashboard
+  - Doctor en /dashboard → redirige a /scheduling/calendar
 - ✅ Permisos por módulo según rol:
   | Módulo | Owner | Staff | Doctor |
   |---|---|---|---|
@@ -39,24 +45,20 @@
   | Integraciones | ✅✅ | ❌❌ | ✅ solo su calendario |
 
 ### Agendamiento público /book/[org-slug]
-- ✅ Wizard: modalidad → médico → calendario visual → formulario → confirmación
-- ✅ Slots generados desde schedules de Supabase
-- ✅ Round-robin de médicos con rr_count_all configurable
-- ✅ max_notice_days aplicado en CalendarPicker (bloquea fechas futuras)
-- ✅ buffer_before_min y buffer_after_min aplicados en isSlotBooked
+- ✅ Wizard completo con round-robin, modalidad, médico, calendario, formulario
+- ✅ max_notice_days, buffer_before_min, buffer_after_min aplicados
 - ✅ Slots ocupados bloqueados (getBookedSlots retorna {start, end}[] en Bogotá)
-- ✅ Timezone fix: scheduledAt usa -05:00 en lugar de UTC
+- ✅ Timezone fix: scheduledAt usa -05:00 (Bogotá)
 
 ### Agenda /scheduling/calendar
-- ✅ Vista dual toggle: Calendario mensual / Lista
-- ✅ Lista separada en Próximas (default) / Pasadas
-- ✅ Calendario mensual: navegar a meses anteriores habilitado
-- ✅ Nueva cita manual: flujo 2 pasos (Paciente → Fecha y médico)
-- ✅ Rol doctor: ve solo sus propias citas, sin filtro de médicos
+- ✅ Vista dual: Calendario mensual / Lista (Próximas + Pasadas)
+- ✅ Navegar a meses anteriores habilitado
+- ✅ Nueva cita manual: flujo 2 pasos
+- ✅ Rol doctor: ve solo sus citas, sin dropdown de médicos
 
 ### Módulo Doctores /doctors
-- ✅ Lista de médicos con ⚠️ Sin disponibilidad + link "Configurar →" cuando días = —
-- ✅ Rol doctor: ve solo su propio perfil, sin botón Nuevo médico ni Desactivar
+- ✅ ⚠️ Sin disponibilidad + link "Configurar →" cuando días = —
+- ✅ Rol doctor: solo su perfil, sin Nuevo médico ni Desactivar
 - ✅ Disponibilidad /doctors/availability: estilo Cal.com
 
 ### CRM /crm
@@ -65,15 +67,7 @@
 - ✅ Modal: citas vinculadas, comentarios, agendamiento interno
 
 ### Dashboard /dashboard
-- ✅ Funnel: Leads → Citas totales → Asistieron → En procedimiento → Finalizados
-- ✅ Tendencia mensual: BarChart 4 barras + promedio asistencia
-- ✅ Agendamiento semanal: esta semana vs anterior vs promedio mes
-- ✅ Por médico: Citas | Asistencias | Progreso | Paciente/Auto | Procedimientos
-
-### Tipos de cita /settings/appointment-types
-- ✅ 4 modos de asignación como radio buttons con descripción
-- ✅ rr_count_all configurable por tipo
-- ✅ max_notice_days, buffer_before_min, buffer_after_min en tab Reglas
+- ✅ Funnel + tendencia mensual + agendamiento semanal + por médico
 
 ### Settings /settings
 - ✅ General, Sedes, Tipos de cita, Notificaciones (global), Integraciones
@@ -81,45 +75,39 @@
 
 ### Google Calendar Integration
 - ✅ OAuth 2.0 completo por médico desde /settings/integrations
-- ✅ Evento creado en Google Calendar al agendar cita (hora Bogotá correcta)
-- ✅ Invitación enviada al paciente (sendUpdates=all)
+- ✅ Evento creado con hora Bogotá correcta + invitación al paciente
 - ✅ Evento eliminado al cancelar cita
 - ✅ Auto-refresh de access_token
-- ✅ Rol doctor: ve solo su propio calendario en Integraciones
-- ✅ GCP: proyecto medscale-app-cal-int, usuario prueba fertesdigital@gmail.com
+- ✅ Rol doctor: ve solo su propio calendario
 
 ### Data Ferttes
-- ✅ 291 leads con fechas reales de creación
-- ✅ 156 citas históricas (Dic 2025 - Mar 2026) + 78 citas Abril 2026
-- ✅ doctor_assignment_type correcto (patient_choice / auto_assigned)
+- ✅ 291 leads + 234 citas históricas cargadas
+- ✅ doctor_assignment_type correcto
 
 ### Email y notificaciones
 - ✅ Resend: citas@medscale.app + passwordreset@medscale.app
-- ✅ Confirmación, cancelación, reagendamiento al paciente
-- ✅ Notificación interna a la clínica
+- ✅ Confirmación, cancelación, reagendamiento, notificación clínica
 - ✅ Cron recordatorios: "0 9 * * *"
 
 ---
 
 ## 🔴 PRIORIDAD 1
-- [ ] Google Calendar bidireccional: evento en Google → bloquea slot en MedScale
-- [ ] Verificar buffer_before/after_min con citas reales
-- [ ] Logo Ferttes: PNG transparente + subir desde /settings/general
 - [ ] Eliminar médicos desde /doctors (con validación de citas activas)
+- [ ] Logo Ferttes: PNG transparente + subir desde /settings/general
+- [ ] Verificar buffer_before/after_min con citas reales
 - [ ] Arreglar autodeploy GitHub→Vercel
 
 ## 🟡 PRIORIDAD 2
 - [ ] Página registro nuevo usuario anclada a planes
 - [ ] Confirmación email con código al registrarse
 - [ ] Conversaciones /conversations: ver chats por lead + webhook n8n
-- [ ] Middleware que bloquea rutas según rol (Sprint 3 roles)
 - [ ] Agenda del médico: pre-seleccionar su disponibilidad en /doctors/availability
 
 ## 🟢 PRIORIDAD 3 — Superadmin
 - [ ] Dashboard superadmin filtrable por cliente
 - [ ] CRUD organizaciones desde /admin
 - [ ] Gestión usuarios por organización
-- [ ] Definir qué datos puede/no puede ver superadmin (acordado: no datos de pacientes)
+- [ ] Superadmin: puede ver config pero NO datos de pacientes
 
 ## 🔵 Fase 2
 - [ ] Google Calendar bidireccional
@@ -170,6 +158,15 @@ const slug = resolvedParams['org-slug']
 Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 ```
 
+**Siempre dar código completo listo para copiar — nunca pedir ajustes manuales**
+
+**No sugerir esperar si hay solución inmediata disponible**
+
+### Roles — Middleware
+- Doctor permitido: /scheduling, /doctors, /settings/integrations, /api/google, /api/team
+- Staff bloqueado: /team, /settings/general, /settings/locations, /settings/appointment-types, /settings/notifications, /admin
+- Doctor en /dashboard → redirect a /scheduling/calendar
+
 ### Roles — DB
 - Tabla: `organization_members` (organization_id, user_id, role, doctor_id)
 - roles: 'owner' | 'staff' | 'doctor'
@@ -179,18 +176,22 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 ### Google Calendar
 - Tokens en `doctors.google_calendar_token` (JSONB)
 - Auto-refresh cuando `expiry_date - 60000 < Date.now()`
-- Rutas públicas en middleware: /api/google/callback
-- GCP app en modo prueba — agregar emails como usuarios de prueba antes de conectar
 - scheduledAt debe usar -05:00 (Bogotá), no Z (UTC)
-- sendUpdates=all en el POST del evento para enviar invitación al paciente
+- sendUpdates=all en el POST del evento
+- GCP proyecto: medscale-app-cal-int
+- Callback Supabase en GCP: https://tfqakdffusydutmzditz.supabase.co/auth/v1/callback
+- Callback app en GCP: https://app.medscale.app/api/google/callback
+
+### Google Auth (Sign in with Google)
+- Callback: https://app.medscale.app/auth/callback
+- Allow manual linking: habilitado en Supabase
+- GCP mismo proyecto que Calendar
 
 ### Base de Datos — columnas clave
 - `appointments.doctor_assignment_type` TEXT ('patient_choice' | 'auto_assigned')
 - `appointment_types.rr_count_all` BOOLEAN (default true)
 - `appointment_types.max_notice_days`, `buffer_before_min`, `buffer_after_min`
 - `doctors.google_calendar_token` JSONB
-- `doctors.google_calendar_id` TEXT
-- `doctors.google_calendar_connected_at` TIMESTAMPTZ
 - `doctors.user_id` TEXT NOT NULL
 - `organization_members`: tabla de roles por organización
 
