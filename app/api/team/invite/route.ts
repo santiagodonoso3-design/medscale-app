@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
         .from('doctors')
         .insert({
           organization_id: org_id,
+          user_id: inviteData.user.id,
           specialty: doctor_specialty || null,
           is_active: true,
           metadata: {
