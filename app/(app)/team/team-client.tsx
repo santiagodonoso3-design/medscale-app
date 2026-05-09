@@ -42,7 +42,8 @@ export function TeamClient({ orgId, members: initialMembers, doctors, currentUse
   const [showInvite, setShowInvite] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'owner' | 'staff' | 'doctor'>('staff')
-  const [inviteDoctorId, setInviteDoctorId] = useState('')
+  const [inviteDoctorName, setInviteDoctorName] = useState('')
+  const [inviteDoctorSpecialty, setInviteDoctorSpecialty] = useState('')
   const [inviting, setInviting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -64,7 +65,8 @@ export function TeamClient({ orgId, members: initialMembers, doctors, currentUse
         body: JSON.stringify({
           email: inviteEmail,
           role: inviteRole,
-          doctor_id: inviteRole === 'doctor' ? inviteDoctorId || null : null,
+          doctor_name: inviteRole === 'doctor' ? inviteDoctorName : null,
+          doctor_specialty: inviteRole === 'doctor' ? inviteDoctorSpecialty : null,
           org_id: orgId,
         }),
       })
@@ -75,7 +77,8 @@ export function TeamClient({ orgId, members: initialMembers, doctors, currentUse
       setShowInvite(false)
       setInviteEmail('')
       setInviteRole('staff')
-      setInviteDoctorId('')
+      setInviteDoctorName('')
+      setInviteDoctorSpecialty('')
       window.location.reload()
     } catch (e: any) {
       setError(e.message)
@@ -215,18 +218,29 @@ export function TeamClient({ orgId, members: initialMembers, doctors, currentUse
               </select>
             </div>
             {inviteRole === 'doctor' && (
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Médico vinculado</label>
-                <select
-                  value={inviteDoctorId}
-                  onChange={e => setInviteDoctorId(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Sin vincular</option>
-                  {doctors.map(d => (
-                    <option key={d.id} value={d.id}>{d.metadata?.name ?? 'Médico'}</option>
-                  ))}
-                </select>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Nombre completo del médico
+                  </label>
+                  <input
+                    value={inviteDoctorName}
+                    onChange={e => setInviteDoctorName(e.target.value)}
+                    placeholder="Dr. Juan García"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Especialidad
+                  </label>
+                  <input
+                    value={inviteDoctorSpecialty}
+                    onChange={e => setInviteDoctorSpecialty(e.target.value)}
+                    placeholder="Fertilidad, Ginecología..."
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
               </div>
             )}
             {error && <p className="text-xs text-red-600">{error}</p>}
@@ -240,7 +254,7 @@ export function TeamClient({ orgId, members: initialMembers, doctors, currentUse
                 Enviar invitación
               </button>
               <button
-                onClick={() => { setShowInvite(false); setError(null) }}
+                onClick={() => { setShowInvite(false); setError(null); setInviteDoctorName(''); setInviteDoctorSpecialty('') }}
                 className="px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-100 rounded-xl transition"
               >
                 Cancelar

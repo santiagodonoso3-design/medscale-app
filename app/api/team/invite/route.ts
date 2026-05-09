@@ -3,7 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, role, doctor_id, org_id } = await request.json()
+    const { email, role, doctor_name, doctor_specialty, org_id } = await request.json()
     if (!email || !role || !org_id) {
       return new Response(JSON.stringify({ error: 'Faltan campos requeridos' }), { status: 400 })
     }
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
         organization_id: org_id,
         user_id: inviteData.user.id,
         role,
-        doctor_id: doctor_id || null,
+        doctor_id: null,
       }, { onConflict: 'organization_id,user_id' })
 
     if (memberError) {
@@ -39,6 +39,30 @@ export async function POST(request: NextRequest) {
       id: inviteData.user.id,
       organization_id: org_id,
     }, { onConflict: 'id' })
+
+    if (role === 'doctor' && doctor_name) {
+      const { data: newDoctor } = await admin
+        .from('doctors')
+        .insert({
+          organization_id: org_id,
+          specialty: doctor_specialty || null,
+          is_active: true,
+          metadata: {
+            name: doctor_name,
+            default_duration: 60,
+          }
+        })
+        .select('id')
+        .single()
+
+      if (newDoctor) {
+        await admin
+          .from('organization_members')
+          .update({ doctor_id: newDoctor.id })
+          .eq('user_id', inviteData.user.id)
+          .eq('organization_id', org_id)
+      }
+    }
 
     return new Response(JSON.stringify({ success: true }), { status: 200 })
   } catch (e: any) {
