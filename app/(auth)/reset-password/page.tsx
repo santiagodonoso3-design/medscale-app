@@ -1,5 +1,5 @@
 'use client'
-import { Suspense, useState } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
@@ -12,6 +12,36 @@ function ResetPasswordForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
+
+  useEffect(() => {
+    const hash = window.location.hash
+    const token_hash = searchParams.get('token_hash')
+    const type = searchParams.get('type')
+
+    // Handle invitation flow: #access_token=...
+    if (hash && hash.includes('access_token')) {
+      const params = new URLSearchParams(hash.slice(1))
+      const accessToken = params.get('access_token')
+      const refreshToken = params.get('refresh_token')
+      const tokenType = params.get('type')
+
+      if (accessToken && (tokenType === 'invite' || tokenType === 'recovery')) {
+        const supabase = createClient()
+        supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken ?? '',
+        }).then(({ error }) => {
+          if (error) setError('El enlace es inválido o ha expirado.')
+        })
+      }
+    } else if (token_hash && type === 'recovery') {
+      const supabase = createClient()
+      supabase.auth.verifyOtp({ token_hash, type: 'recovery' })
+        .then(({ error }) => {
+          if (error) setError('El enlace es inválido o ha expirado.')
+        })
+    }
+  }, [searchParams])
 
   async function handleReset() {
     if (!password || password.length < 6) {
@@ -26,10 +56,13 @@ function ResetPasswordForm() {
     setError(null)
     const supabase = createClient()
 
+    const isInviteFlow = typeof window !== 'undefined' &&
+      window.location.hash.includes('access_token')
+
     const token_hash = searchParams.get('token_hash')
     const type = searchParams.get('type')
 
-    if (token_hash && type === 'recovery') {
+    if (!isInviteFlow && token_hash && type === 'recovery') {
       const { error: verifyError } = await supabase.auth.verifyOtp({
         token_hash,
         type: 'recovery'
