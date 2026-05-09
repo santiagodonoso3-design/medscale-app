@@ -1,5 +1,5 @@
 'use client'
-import { Suspense, useState, useEffect } from 'react'
+import { Suspense, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
@@ -13,18 +13,6 @@ function ResetPasswordForm() {
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
 
-  useEffect(() => {
-    const token_hash = searchParams.get('token_hash')
-    const type = searchParams.get('type')
-    if (token_hash && type === 'recovery') {
-      const supabase = createClient()
-      supabase.auth.verifyOtp({ token_hash, type: 'recovery' })
-        .then(({ error }) => {
-          if (error) setError('El enlace es inválido o ha expirado.')
-        })
-    }
-  }, [searchParams])
-
   async function handleReset() {
     if (!password || password.length < 6) {
       setError('La contraseña debe tener al menos 6 caracteres.')
@@ -37,9 +25,25 @@ function ResetPasswordForm() {
     setLoading(true)
     setError(null)
     const supabase = createClient()
+
+    const token_hash = searchParams.get('token_hash')
+    const type = searchParams.get('type')
+
+    if (token_hash && type === 'recovery') {
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        token_hash,
+        type: 'recovery'
+      })
+      if (verifyError) {
+        setError('El enlace es inválido o ha expirado.')
+        setLoading(false)
+        return
+      }
+    }
+
     const { error } = await supabase.auth.updateUser({ password })
     if (error) {
-      setError('Error al actualizar la contraseña. El enlace puede haber expirado.')
+      setError('Error al actualizar la contraseña.')
     } else {
       setDone(true)
       setTimeout(() => router.push('/dashboard'), 2000)
