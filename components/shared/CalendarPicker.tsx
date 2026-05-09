@@ -49,6 +49,8 @@ export interface CalendarPickerProps {
   doctorId: string
   durationOverride?: number
   minNoticeHours?: number
+  bufferBeforeMin?: number
+  bufferAfterMin?: number
   texts: CalendarPickerTexts
 }
 
@@ -104,6 +106,8 @@ export function CalendarPicker({
   onSelect,
   doctorId,
   minNoticeHours = 0,
+  bufferBeforeMin,
+  bufferAfterMin,
   texts,
 }: CalendarPickerProps) {
   const today          = todayBogota()
