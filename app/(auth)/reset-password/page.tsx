@@ -46,7 +46,9 @@ function ResetPasswordForm() {
       setError('Error al actualizar la contraseña.')
     } else {
       setDone(true)
-      setTimeout(() => router.push('/dashboard'), 2000)
+      const supabase2 = createClient()
+      await supabase2.auth.signOut()
+      setTimeout(() => router.push('/login'), 2000)
     }
     setLoading(false)
   }
