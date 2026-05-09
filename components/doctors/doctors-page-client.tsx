@@ -187,7 +187,16 @@ export function DoctorsPageClient() {
                     <td className="px-6 py-4 text-slate-600">
                       {(doc.metadata?.default_duration as number) ?? 30} min
                     </td>
-                    <td className="px-6 py-4 text-xs text-slate-600">{getDays(doc.id)}</td>
+                    <td className="px-6 py-4 text-xs text-slate-600">
+                      {getDays(doc.id) === '—' ? (
+                        <span className="inline-flex items-center gap-1">
+                          <span className="text-amber-500 font-medium">⚠️ Sin disponibilidad</span>
+                          <a href="/doctors/availability" className="text-xs text-blue-500 hover:underline ml-1">
+                            Configurar →
+                          </a>
+                        </span>
+                      ) : getDays(doc.id)}
+                    </td>
                     <td className="px-6 py-4">
                       <span className={[
                         'inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold',

@@ -34,9 +34,10 @@ interface TeamClientProps {
   members: Member[]
   doctors: Doctor[]
   currentUserId: string
+  doctorsWithSchedules: string[]
 }
 
-export function TeamClient({ orgId, members: initialMembers, doctors, currentUserId }: TeamClientProps) {
+export function TeamClient({ orgId, members: initialMembers, doctors, currentUserId, doctorsWithSchedules }: TeamClientProps) {
   const supabase = createClient()
   const [members, setMembers] = useState(initialMembers)
   const [showInvite, setShowInvite] = useState(false)
@@ -149,6 +150,17 @@ export function TeamClient({ orgId, members: initialMembers, doctors, currentUse
                     <p className="text-xs text-slate-400 mt-0.5">
                       {doctors.find(d => d.id === member.doctor_id)?.metadata?.name ?? '—'}
                     </p>
+                  )}
+                  {member.role === 'doctor' && member.doctor_id && (
+                    !doctorsWithSchedules.includes(member.doctor_id) ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-medium mt-0.5">
+                        ⚠️ Sin disponibilidad configurada
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium mt-0.5">
+                        ✓ Disponibilidad configurada
+                      </span>
+                    )
                   )}
                 </td>
                 <td className="px-6 py-4">

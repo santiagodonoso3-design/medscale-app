@@ -41,6 +41,22 @@ export default async function TeamPage() {
     .eq('organization_id', profile.organization_id)
     .eq('is_active', true)
 
+  const doctorMemberIds = (members ?? [])
+    .filter(m => m.doctor_id)
+    .map(m => m.doctor_id)
+
+  const { data: schedulesData } = doctorMemberIds.length
+    ? await admin
+        .from('schedules')
+        .select('doctor_id')
+        .eq('is_recurring', true)
+        .in('doctor_id', doctorMemberIds)
+    : { data: [] }
+
+  const doctorsWithSchedules = [...new Set(
+    (schedulesData ?? []).map((s: any) => s.doctor_id)
+  )] as string[]
+
   return (
     <TeamClient
       orgId={profile.organization_id}
@@ -50,6 +66,7 @@ export default async function TeamPage() {
       }))}
       doctors={doctors ?? []}
       currentUserId={user.id}
+      doctorsWithSchedules={doctorsWithSchedules}
     />
   )
 }
