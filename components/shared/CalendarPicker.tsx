@@ -171,7 +171,27 @@ export function CalendarPicker({
 
   function isSlotBooked(time: string): boolean {
     if (!selectedDate || !doctorId) return false
-    return bookedSlots.some(b => b.start.startsWith(`${selectedDate}T${time}:`))
+    const bufferBefore = bufferBeforeMin ?? 0
+    const bufferAfter = bufferAfterMin ?? 0
+
+    // Work with minutes since midnight to avoid timezone issues
+    const [slotH, slotM] = time.split(':').map(Number)
+    const slotStartMin = slotH * 60 + slotM
+    const slotEndMin = slotStartMin + duration
+
+    return bookedSlots.some(({ start, end }) => {
+      // start and end are already in Bogota format: "2026-05-14T13:00:00"
+      const startDate = start.slice(0, 10)
+      if (startDate !== selectedDate) return false
+
+      const [aptH, aptM] = start.slice(11, 16).split(':').map(Number)
+      const [endH, endM] = end.slice(11, 16).split(':').map(Number)
+
+      const aptStartMin = aptH * 60 + aptM - bufferBefore
+      const aptEndMin = endH * 60 + endM + bufferAfter
+
+      return slotStartMin < aptEndMin && slotEndMin > aptStartMin
+    })
   }
 
   const isPrevDisabled = viewYear === todayYear && viewMonth === todayMonth
