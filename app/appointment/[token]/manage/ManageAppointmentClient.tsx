@@ -78,7 +78,7 @@ function MiniCal({ doctorId, schedules, duration, selectedDate, selectedTime, on
   const today = todayStr()
   const [viewYear,  setViewYear]  = useState(Number(today.slice(0, 4)))
   const [viewMonth, setViewMonth] = useState(Number(today.slice(5, 7)) - 1)
-  const [booked,    setBooked]    = useState<string[]>([])
+  const [booked,    setBooked]    = useState<{ start: string; end: string }[]>([])
 
   useEffect(() => {
     if (!doctorId) return
@@ -162,7 +162,7 @@ function MiniCal({ doctorId, schedules, duration, selectedDate, selectedTime, on
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 240, overflowY: 'auto' }}>
               {slots.map(t => {
-                const isBooked = booked.some(b => b.startsWith(`${selectedDate}T${t}:`))
+                const isBooked = booked.some(b => b.start.startsWith(`${selectedDate}T${t}:`))
                 const isSel    = t === selectedTime
                 return (
                   <button key={t} disabled={isBooked} onClick={() => onSelect(selectedDate, t)}
