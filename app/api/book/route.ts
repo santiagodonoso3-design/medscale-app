@@ -260,7 +260,7 @@ export async function POST(request: Request) {
     }
 
     // Create appointment
-    const scheduledAt = new Date(`${date}T${time}:00.000Z`)
+    const scheduledAt = new Date(`${date}T${time}:00-05:00`)
     const endDate     = new Date(scheduledAt.getTime() + duration * 60000)
 
     const { data: appointment, error: appointmentError } = await supabase
