@@ -7,6 +7,23 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const PUBLIC_ROUTES = ['/login', '/reset-password', '/auth/callback', '/invite', '/setup', '/api/webhooks', '/api/dev', '/api/book', '/api/appointment', '/api/cron', '/api/google', '/book', '/appointment']
 const SUPERADMIN_ROUTES = ['/admin']
 
+const DOCTOR_ALLOWED_ROUTES = [
+  '/scheduling',
+  '/doctors',
+  '/settings/integrations',
+  '/api/google',
+  '/api/team',
+]
+
+const STAFF_BLOCKED_ROUTES = [
+  '/team',
+  '/settings/general',
+  '/settings/locations',
+  '/settings/appointment-types',
+  '/settings/notifications',
+  '/admin',
+]
+
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({
     request: {
@@ -85,6 +102,38 @@ export async function middleware(request: NextRequest) {
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard'
       return NextResponse.redirect(url)
+    }
+  }
+
+  // Role-based route protection
+  if (user && !isPublicRoute && !isSuperadminRoute) {
+    // Only check role for app routes (not API routes)
+    if (!pathname.startsWith('/api/') && !pathname.startsWith('/book') && !pathname.startsWith('/appointment')) {
+      const { data: member } = await supabase
+        .from('organization_members')
+        .select('role')
+        .eq('user_id', user.id)
+        .single()
+
+      const role = member?.role
+
+      if (role === 'doctor') {
+        const allowed = DOCTOR_ALLOWED_ROUTES.some(r => pathname.startsWith(r))
+        if (!allowed) {
+          const url = request.nextUrl.clone()
+          url.pathname = '/scheduling/calendar'
+          return NextResponse.redirect(url)
+        }
+      }
+
+      if (role === 'staff') {
+        const blocked = STAFF_BLOCKED_ROUTES.some(r => pathname.startsWith(r))
+        if (blocked) {
+          const url = request.nextUrl.clone()
+          url.pathname = '/dashboard'
+          return NextResponse.redirect(url)
+        }
+      }
     }
   }
 
