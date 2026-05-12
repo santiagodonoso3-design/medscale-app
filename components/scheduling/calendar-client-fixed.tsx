@@ -821,7 +821,7 @@ export function CalendarClient({ userId, doctorId }: CalendarClientProps) {
 
   return (
     <>
-      <div className="flex flex-col h-screen">
+      <div className="flex flex-col h-full">
         {/* Controls */}
         <div className="shrink-0 flex flex-col border-b border-slate-100 bg-white">
           <div className="flex items-center gap-2 px-4 py-2">
