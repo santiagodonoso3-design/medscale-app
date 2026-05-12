@@ -98,7 +98,7 @@
 - [ ] Arreglar autodeploy GitHub→Vercel
 
 ## 🟡 PRIORIDAD 2
-- [ ] Página registro nuevo usuario anclada a planes
+- [x] Página registro nuevo usuario anclada a planes (`/register` + `/api/register/complete`)
 - [ ] Onboarding wizard post-registro
 - [ ] Confirmación email con código al registrarse
 - [ ] Conversaciones /conversations
@@ -128,6 +128,8 @@
 - Campo `plan` en tabla `organizations` (TEXT: free/starter/growth/scale)
 - Link "Regístrate" desde `/login`
 - TODO: conectar Stripe para cobro real
+- ⚠️ Google OAuth en registro NO crea organización — solo funciona con email+password por ahora
+- TODO Fase 2: guardar plan en localStorage antes de OAuth, procesarlo en /auth/callback
 
 ### Onboarding wizard — 🔴 P2
 - Flujo post-registro guiado paso a paso. Sin esto el dashboard queda vacío.
