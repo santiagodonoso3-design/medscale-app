@@ -31,14 +31,16 @@ export default async function AppShell({ children }: { children: ReactNode }) {
   const userFullName = [userRecord?.first_name, userRecord?.last_name].filter(Boolean).join(' ') || 'Usuario del equipo'
 
   return (
-    <div className="flex min-h-screen bg-white">
-      <OrgSidebar
-        orgName={organization?.name || 'Medscale AI'}
-        userName={userFullName}
-        userEmail={user?.email || undefined}
-        userRole={(memberRecord?.role as 'owner' | 'staff' | 'doctor') ?? null}
-      />
-      <main className="flex-1 min-w-0 overflow-x-hidden bg-white">{children}</main>
+    <div className="min-h-screen bg-background">
+      <div className="flex min-h-screen">
+        <OrgSidebar
+          orgName={organization?.name || 'Medscale AI'}
+          userName={userFullName}
+          userEmail={user?.email || undefined}
+          userRole={(memberRecord?.role as 'owner' | 'staff' | 'doctor') ?? null}
+        />
+        <main className="flex-1 min-w-0 overflow-x-hidden">{children}</main>
+      </div>
     </div>
   )
 }
