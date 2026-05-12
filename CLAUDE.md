@@ -92,15 +92,16 @@
 ---
 
 ## 🔴 PRIORIDAD 1
-- [ ] Eliminar médicos desde /doctors (con validación de citas activas)
+- [x] Eliminar médicos desde /doctors (con validación de citas activas + menú ⋯)
 - [ ] Logo Ferttes: PNG transparente + subir desde /settings/general
 - [ ] Verificar buffer_before/after_min con citas reales
 - [ ] Arreglar autodeploy GitHub→Vercel
 
 ## 🟡 PRIORIDAD 2
 - [ ] Página registro nuevo usuario anclada a planes
+- [ ] Onboarding wizard post-registro
 - [ ] Confirmación email con código al registrarse
-- [ ] Conversaciones /conversations: ver chats por lead + webhook n8n
+- [ ] Conversaciones /conversations
 - [ ] Agenda del médico: pre-seleccionar su disponibilidad en /doctors/availability
 
 ## 🟢 PRIORIDAD 3 — Superadmin
@@ -114,8 +115,58 @@
 - [ ] WhatsApp via Meta Cloud API
 - [ ] Módulo historia clínica
 - [ ] Motor de automatizaciones
-- [ ] Pricing enforcement
+- [ ] Stripe billing + pricing enforcement
 - [ ] Reportes y analítica avanzada
+
+---
+
+## 📋 Detalle de lo que falta construir
+
+### Registro + Planes (`/register`) — 🔴 P2
+- Página `/register` con wizard 2 pasos: elegir plan → formulario (clínica, email, pass, teléfono)
+- API `/api/register/complete`: crea organización + organization_members con rol owner
+- Campo `plan` en tabla `organizations` (TEXT: free/starter/growth/scale)
+- Link "Regístrate" desde `/login`
+- TODO: conectar Stripe para cobro real
+
+### Onboarding wizard — 🔴 P2
+- Flujo post-registro guiado paso a paso. Sin esto el dashboard queda vacío.
+- Paso 1: Datos clínica (nombre, dirección, teléfono, logo)
+- Paso 2: Crear primer médico (nombre, especialidad, duración)
+- Paso 3: Configurar tipo de cita (nombre, duración, modalidad, modo asignación)
+- Paso 4: Configurar disponibilidad del médico (días, horas)
+- Paso 5: "Tu link está listo" → muestra URL de booking + botón copiar
+- Flag `onboarding_completed` en organizations para redirigir al wizard o dashboard
+- Cada paso guarda en DB al avanzar, no al final (permite retomar si abandona)
+
+### Logo upload — 🔴 P1
+- Componente upload en `/settings/general` o dentro del onboarding
+- Subir imagen a Supabase Storage (bucket `logos`, service role)
+- Guardar URL en `organizations.logo_url`
+- File → base64 con FileReader (File objects no se serializan en server actions)
+- Mostrar logo en sidebar, booking público y emails
+
+### Conversaciones `/conversations` — 🟡 P2
+- UI estilo WhatsApp Web: lista de leads a la izquierda, chat a la derecha
+- Tabla `messages` (lead_id, direction, content, channel, timestamp)
+- Webhook n8n para recibir mensajes entrantes de WhatsApp
+- Fase 2: integración directa con Meta Cloud API (sin n8n)
+
+### Stripe billing — 🔵 Fase 2
+- Checkout session al elegir plan pago en registro
+- Webhook Stripe para confirmar pago → activar plan en organizations
+- Portal de billing para que el owner gestione suscripción
+- Enforcement de límites por plan (médicos, leads, citas/mes)
+- Lógica upgrade/downgrade
+
+### Disponibilidad (parcial) — 🟡 P2
+- Pre-seleccionar disponibilidad del médico logueado en `/doctors/availability` con rol doctor
+- Verificar que buffer_before_min y buffer_after_min bloquean slots con citas reales en producción
+
+### Autodeploy GitHub→Vercel — 🔴 P1
+- Conectar repo `santiagodonoso3-design/medscale-app` a Vercel
+- No es código — es configuración en dashboard de Vercel: importar repo, variables de entorno, branch main
+- Hoy cada deploy es manual con `npx vercel --prod`
 
 ---
 
