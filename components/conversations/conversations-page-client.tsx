@@ -488,7 +488,7 @@ function ConversationsView({ organizationId }: { organizationId: string }) {
   })
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden" style={{ height: 'calc(100vh - 120px)' }}>
+    <div className="flex h-screen bg-white">
       <div className="flex h-full">
 
         {/* ── LEFT COLUMN ── */}
