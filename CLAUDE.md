@@ -89,6 +89,19 @@
 - ✅ Confirmación, cancelación, reagendamiento, notificación clínica
 - ✅ Cron recordatorios: "0 9 * * *"
 
+### Conversaciones /conversations
+- ✅ Tabla messages con RLS (organization_id, lead_id, channel, direction, content)
+- ✅ API /api/conversations/webhook — recibe mensajes desde n8n
+- ✅ UI estilo WhatsApp: lista agrupada por lead + chat con burbujas
+- ✅ Filtros por canal: Todos / WhatsApp / Instagram / Facebook
+- ✅ Badge de canal (WA verde, IG rosa, FB azul)
+- ✅ Búsqueda por nombre/teléfono
+- ✅ Marca mensajes como leídos al abrir
+- ✅ "Ver en CRM →" abre el lead directo con query param
+- ✅ Banner "Las respuestas se envían automáticamente por el agente AI"
+- ✅ Responsive: alterna lista/chat en móvil
+- ✅ n8n configurado: nodo Webhook Medscale APP en flujos WA, IG, FB
+
 ---
 
 ## 🔴 PRIORIDAD 1
@@ -101,7 +114,6 @@
 - [x] Página registro nuevo usuario anclada a planes (`/register` + `/api/register/complete`)
 - [ ] Onboarding wizard post-registro
 - [ ] Confirmación email con código al registrarse
-- [ ] Conversaciones /conversations
 - [ ] Agenda del médico: pre-seleccionar su disponibilidad en /doctors/availability
 - [ ] Sidebar sticky: fijar sidebar izquierdo al hacer scroll (position sticky/fixed)
 
@@ -148,12 +160,6 @@
 - Guardar URL en `organizations.logo_url`
 - File → base64 con FileReader (File objects no se serializan en server actions)
 - Mostrar logo en sidebar, booking público y emails
-
-### Conversaciones `/conversations` — 🟡 P2
-- UI estilo WhatsApp Web: lista de leads a la izquierda, chat a la derecha
-- Tabla `messages` (lead_id, direction, content, channel, timestamp)
-- Webhook n8n para recibir mensajes entrantes de WhatsApp
-- Fase 2: integración directa con Meta Cloud API (sin n8n)
 
 ### Stripe billing — 🔵 Fase 2
 - Checkout session al elegir plan pago en registro
@@ -212,6 +218,10 @@ const slug = resolvedParams['org-slug']
 Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 ```
 
+**Tabla messages — channel CHECK constraint: 'whatsapp' | 'instagram' | 'facebook' | 'web'**
+
+**WEBHOOK_SECRET en Vercel — usar en header x-webhook-secret para todos los webhooks**
+
 **Siempre dar código completo listo para copiar — nunca pedir ajustes manuales**
 
 **No sugerir esperar si hay solución inmediata disponible**
@@ -248,6 +258,7 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 - `doctors.google_calendar_token` JSONB
 - `doctors.user_id` TEXT NOT NULL
 - `organization_members`: tabla de roles por organización
+- `messages`: organization_id, lead_id, channel, direction, content, sender_name, sender_phone, is_read, created_at
 
 ### Modos de asignación
 | UI label | assignment_mode | rr_count_all |
