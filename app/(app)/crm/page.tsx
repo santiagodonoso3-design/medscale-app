@@ -182,7 +182,7 @@ function SortTh({
   return (
     <th
       onClick={() => onSort(field)}
-      className={`cursor-pointer select-none px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-600 transition ${className}`}
+      className={`cursor-pointer select-none px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-600 transition ${className}`}
     >
       <span className="inline-flex items-center gap-1">
         {label}
@@ -574,78 +574,70 @@ export default function CrmPage() {
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col gap-5 h-[calc(100vh-48px)]">
+    <div className="flex flex-col h-[calc(100vh-48px)]">
 
       {/* Header */}
-      <div className="shrink-0 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">CRM / Leads</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Leads desde agendamiento online y redes sociales.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
-            <button onClick={() => setView('list')} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${view === 'list' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800'}`}>
-              <List className="h-4 w-4" /> Lista
+      <div className="shrink-0 flex items-center justify-between px-2 py-2 border-b border-slate-100">
+        <h1 className="text-base font-semibold text-slate-900">
+          CRM / Leads <span className="text-xs font-normal text-slate-400 ml-1">· {filteredLeads.length} leads</span>
+        </h1>
+        <div className="flex items-center gap-1.5">
+          <div className="flex rounded-lg border border-slate-200 bg-white p-0.5">
+            <button onClick={() => setView('list')} className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition ${view === 'list' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800'}`}>
+              <List className="h-3.5 w-3.5" /> Lista
             </button>
-            <button onClick={() => setView('kanban')} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${view === 'kanban' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800'}`}>
-              <LayoutGrid className="h-4 w-4" /> Kanban
+            <button onClick={() => setView('kanban')} className={`flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition ${view === 'kanban' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800'}`}>
+              <LayoutGrid className="h-3.5 w-3.5" /> Kanban
             </button>
           </div>
-          <button
-            onClick={downloadLeadTemplate}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-600 shadow-sm hover:bg-slate-50 transition"
-          >
-            <FileDown className="h-4 w-4" /> Template
+          <button onClick={downloadLeadTemplate} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
+            <FileDown className="h-3.5 w-3.5" /> Template
           </button>
-          <button
-            onClick={() => setIsImportModalOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-600 shadow-sm hover:bg-slate-50 transition"
-          >
-            <Upload className="h-4 w-4" /> Importar
+          <button onClick={() => setIsImportModalOpen(true)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
+            <Upload className="h-3.5 w-3.5" /> Importar
           </button>
-          <button onClick={() => setIsModalOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition">
-            <Plus className="h-4 w-4" /> Crear lead
+          <button onClick={() => setIsModalOpen(true)} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition">
+            <Plus className="h-3.5 w-3.5" /> Crear lead
           </button>
         </div>
       </div>
 
-      {/* Pipeline */}
-      <div className="shrink-0 grid grid-cols-3 gap-3 sm:grid-cols-6">
+      {/* Pipeline pills */}
+      <div className="shrink-0 flex items-center gap-1.5 px-2 py-1.5 border-b border-slate-100 flex-wrap">
         {STATUS_PIPELINE.map(stage => {
           const count = leads.filter(l => l.status === stage.value).length
           const isActive = statusFilter === stage.value
           return (
             <button key={stage.value} onClick={() => setStatusFilter(isActive ? 'all' : stage.value)}
-              className={['rounded-2xl border p-4 text-left transition', isActive ? (PIPELINE_ACCENT[stage.value] ?? 'border-blue-300 bg-blue-50') : 'border-slate-200 bg-white hover:bg-slate-50'].join(' ')}>
-              <p className="text-2xl font-bold text-slate-900">{count}</p>
-              <p className="mt-1 text-xs font-medium text-slate-500 leading-tight">{stage.label}</p>
+              className={['inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition', isActive ? (PIPELINE_ACCENT[stage.value] ?? 'border border-blue-300 bg-blue-50 text-blue-700') : 'bg-slate-100 text-slate-600 hover:bg-slate-200'].join(' ')}>
+              <span className="font-semibold text-slate-900">{count}</span>
+              {stage.label}
             </button>
           )
         })}
       </div>
 
-      {/* Table card */}
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-0">
+      {/* Table area */}
+      <div className="flex flex-col flex-1 min-h-0 bg-white">
         {/* Filters */}
-        <div className="shrink-0 flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center">
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <div className="shrink-0 flex items-center gap-2 border-b border-slate-100 px-2 py-1.5">
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="all">Todos los estados</option>
             {STATUS_PIPELINE.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
-          <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
             {SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Nombre, teléfono, cédula o email..."
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
-          <p className="shrink-0 text-sm text-slate-500">{filteredLeads.length} leads</p>
         </div>
 
         {/* Bulk-action bar */}
         {selectedIds.size > 0 && (
-          <div className="shrink-0 flex flex-wrap items-center gap-2 border-b border-slate-100 bg-blue-50 px-5 py-2.5">
+          <div className="shrink-0 flex flex-wrap items-center gap-2 border-b border-slate-100 bg-blue-50 px-2 py-1.5">
             <span className="shrink-0 text-sm font-medium text-blue-700">
               {selectedIds.size} lead{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
             </span>
@@ -695,9 +687,9 @@ export default function CrmPage() {
             style={{ scrollbarGutter: 'stable' }}
           >
             <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="w-10 px-3 py-3">
+              <thead className="sticky top-0 bg-white z-10">
+                <tr className="border-b border-slate-200">
+                  <th className="w-10 px-3 py-2">
                     <input
                       ref={selectAllRef}
                       type="checkbox"
@@ -709,30 +701,30 @@ export default function CrmPage() {
                       }}
                     />
                   </th>
-                  <SortTh field="contact_name" label="Nombre"  sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-left" />
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Cédula</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Teléfono</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Email</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Fuente</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Citas</th>
-                  <SortTh field="status"     label="Estado"      sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-left" />
+                  <SortTh field="contact_name" label="Nombre"  sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-left min-w-[140px]" />
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 min-w-[100px]">Cédula</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 min-w-[120px]">Teléfono</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 min-w-[180px]">Email</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 min-w-[100px]">Fuente</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 w-16">Citas</th>
+                  <SortTh field="status"     label="Estado"      sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-left min-w-[120px]" />
                   <SortTh field="created_at" label="Creado"      sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
                   <SortTh field="updated_at" label="Actualizado" sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Notas</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Notas</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
-                  <tr><td colSpan={11} className="px-5 py-12 text-center text-slate-400">
+                  <tr><td colSpan={11} className="px-3 py-12 text-center text-slate-400">
                     <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Cargando...</span>
                   </td></tr>
                 ) : filteredLeads.length === 0 ? (
-                  <tr><td colSpan={11} className="px-5 py-12 text-center text-slate-400">No hay leads con los filtros seleccionados.</td></tr>
+                  <tr><td colSpan={11} className="px-3 py-12 text-center text-slate-400">No hay leads con los filtros seleccionados.</td></tr>
                 ) : filteredLeads.map(lead => {
                   const aptCount = aptCounts[lead.id] ?? 0
                   return (
-                    <tr key={lead.id} onClick={() => openLeadDetail(lead)} className="cursor-pointer hover:bg-slate-50 transition-colors">
-                      <td className="w-10 px-3 py-3.5" onClick={e => e.stopPropagation()}>
+                    <tr key={lead.id} onClick={() => openLeadDetail(lead)} className="cursor-pointer hover:bg-slate-50/50 transition-colors">
+                      <td className="w-10 px-3 py-2" onClick={e => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           className="rounded border-slate-300 accent-blue-600"
@@ -744,13 +736,13 @@ export default function CrmPage() {
                           })}
                         />
                       </td>
-                      <td className="px-5 py-3.5 font-medium text-slate-900">{lead.contact_name}{lead.contact_last_name ? ' ' + lead.contact_last_name : ''}{!lead.contact_name && !lead.contact_last_name && 'Sin nombre'}</td>
-                      <td className="px-5 py-3.5 text-xs text-slate-500">{lead.contact_cedula || '—'}</td>
-                      <td className="px-5 py-3.5 text-slate-600">{lead.contact_phone || '—'}</td>
-                      <td className="px-5 py-3.5 text-slate-600">{lead.contact_email || '—'}</td>
+                      <td className="px-3 py-2 font-medium text-slate-900 min-w-[140px]">{lead.contact_name}{lead.contact_last_name ? ' ' + lead.contact_last_name : ''}{!lead.contact_name && !lead.contact_last_name && 'Sin nombre'}</td>
+                      <td className="px-3 py-2 text-xs text-slate-500 min-w-[100px]">{lead.contact_cedula || '—'}</td>
+                      <td className="px-3 py-2 text-xs text-slate-600 min-w-[120px]">{lead.contact_phone || '—'}</td>
+                      <td className="px-3 py-2 text-xs text-slate-600 min-w-[180px]">{lead.contact_email || '—'}</td>
 
                       {/* Fuente inline */}
-                      <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
+                      <td className="px-3 py-2 min-w-[100px]" onClick={e => e.stopPropagation()}>
                         <button onClick={e => openPopover(e, setSourcePopover, sourcePopover?.leadId, lead.id, () => setSourcePopover(null))}
                           className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 transition hover:ring-2 hover:ring-offset-1 hover:ring-slate-300">
                           {SOURCE_LABELS[lead.source ?? ''] ?? (lead.source || 'Otra')}
@@ -759,14 +751,14 @@ export default function CrmPage() {
                       </td>
 
                       {/* Citas */}
-                      <td className="px-5 py-3.5">
+                      <td className="px-3 py-2 w-16">
                         {aptCount === 0
                           ? <span className="text-xs text-slate-400">—</span>
-                          : <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-100 px-1.5 text-xs font-bold text-blue-700">{aptCount}</span>}
+                          : <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-100 px-1.5 text-xs font-bold text-blue-700">{aptCount}</span>}
                       </td>
 
                       {/* Estado inline */}
-                      <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
+                      <td className="px-3 py-2 min-w-[120px]" onClick={e => e.stopPropagation()}>
                         <button onClick={e => openPopover(e, setStatusPopover, statusPopover?.leadId, lead.id, () => setStatusPopover(null))}
                           className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold transition hover:ring-2 hover:ring-offset-1 hover:ring-slate-300 ${STATUS_COLORS[lead.status] ?? 'bg-slate-100 text-slate-600'}`}>
                           {statusLabel(lead.status)}
@@ -774,9 +766,9 @@ export default function CrmPage() {
                         </button>
                       </td>
 
-                      <td className="px-5 py-3.5 text-right text-xs text-slate-400">{fmtDate(lead.created_at)}</td>
-                      <td className="px-5 py-3.5 text-right text-xs text-slate-400">{fmtDate(lead.updated_at)}</td>
-                      <td className="px-5 py-3.5 max-w-[180px]">
+                      <td className="px-3 py-2 text-right text-xs text-slate-400">{fmtDate(lead.created_at)}</td>
+                      <td className="px-3 py-2 text-right text-xs text-slate-400">{fmtDate(lead.updated_at)}</td>
+                      <td className="px-3 py-2 max-w-[180px]">
                         {lead.notes
                           ? <span className="block truncate text-xs text-slate-400" title={lead.notes}>
                               {lead.notes.length > 40 ? lead.notes.slice(0, 40) + '…' : lead.notes}
