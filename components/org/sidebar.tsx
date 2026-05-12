@@ -44,7 +44,7 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole }: OrgSideba
   }
 
   return (
-    <aside className="flex h-full min-h-screen w-72 flex-col bg-foreground text-primary-foreground">
+    <aside className="sticky top-0 flex h-screen w-72 flex-col self-start overflow-y-auto bg-foreground text-primary-foreground">
       <div className="border-b border-primary/30 px-6 py-6">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-accent text-white">
