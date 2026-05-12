@@ -95,7 +95,7 @@
 - [x] Eliminar médicos desde /doctors (con validación de citas activas + menú ⋯)
 - [ ] Logo Ferttes: PNG transparente + subir desde /settings/general
 - [ ] Verificar buffer_before/after_min con citas reales
-- [ ] Arreglar autodeploy GitHub→Vercel
+- [x] Autodeploy GitHub→Vercel configurado
 
 ## 🟡 PRIORIDAD 2
 - [x] Página registro nuevo usuario anclada a planes (`/register` + `/api/register/complete`)
