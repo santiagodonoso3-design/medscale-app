@@ -163,6 +163,11 @@ export default function LoginPage() {
             </button>
           </form>
 
+          <p className="mt-6 text-center text-sm text-gray-500">
+            ¿No tienes cuenta?{' '}
+            <a href="/register" className="text-blue-600 hover:text-blue-700 font-medium">Regístrate gratis</a>
+          </p>
+
           {showForgot && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
               <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6 w-full max-w-sm">
