@@ -19,7 +19,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
   }
 
   return (
-    <div className="flex gap-6 min-h-[calc(100vh-6rem)]">
+    <div className="p-6 xl:p-10 flex gap-6 min-h-screen">
       <SettingsNav isDoctor={isDoctor} />
       <main className="flex-1 min-w-0">
         <div className="rounded-3xl border bg-white shadow-sm p-8" style={{ borderColor: '#C8D8E4' }}>

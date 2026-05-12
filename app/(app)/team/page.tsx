@@ -58,6 +58,7 @@ export default async function TeamPage() {
   )] as string[]
 
   return (
+    <div className="p-6 xl:p-10">
     <TeamClient
       orgId={profile.organization_id}
       members={(members ?? []).map(m => ({
@@ -68,5 +69,6 @@ export default async function TeamPage() {
       currentUserId={user.id}
       doctorsWithSchedules={doctorsWithSchedules}
     />
+    </div>
   )
 }

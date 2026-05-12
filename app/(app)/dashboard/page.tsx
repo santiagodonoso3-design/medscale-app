@@ -38,11 +38,17 @@ export default async function DashboardPage() {
 
   if (!rawData) {
     return (
-      <div className="rounded-3xl border border-red-200 bg-red-50 p-8">
-        <p className="text-sm text-red-700">Error cargando el dashboard.</p>
+      <div className="p-6 xl:p-10">
+        <div className="rounded-3xl border border-red-200 bg-red-50 p-8">
+          <p className="text-sm text-red-700">Error cargando el dashboard.</p>
+        </div>
       </div>
     )
   }
 
-  return <DashboardClient initialData={rawData} availableYears={availableYears} />
+  return (
+    <div className="p-6 xl:p-10">
+      <DashboardClient initialData={rawData} availableYears={availableYears} />
+    </div>
+  )
 }

@@ -23,5 +23,9 @@ export default async function DoctorsPage() {
     }
   }
 
-  return <DoctorsPageClient isDoctor={isDoctor} userDoctorId={userDoctorId} />
+  return (
+    <div className="p-6 xl:p-10">
+      <DoctorsPageClient isDoctor={isDoctor} userDoctorId={userDoctorId} />
+    </div>
+  )
 }

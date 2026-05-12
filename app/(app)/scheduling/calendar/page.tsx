@@ -19,5 +19,9 @@ export default async function CalendarPage() {
     }
   }
 
-  return <CalendarClient userId={user?.id ?? null} doctorId={doctorId} />
+  return (
+    <div className="p-6 xl:p-10">
+      <CalendarClient userId={user?.id ?? null} doctorId={doctorId} />
+    </div>
+  )
 }
