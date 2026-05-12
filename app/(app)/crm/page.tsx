@@ -1,7 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { CreateLeadModal } from '@/components/crm/create-lead-modal'
 import { BookAppointmentModal } from '@/components/crm/book-appointment-modal'
@@ -268,7 +267,7 @@ function KanbanView({
 
 // ── CrmPage ───────────────────────────────────────────────────────────────────
 
-function CrmPageInner() {
+export default function CrmPage() {
   const [leads,          setLeads]          = useState<Lead[]>([])
   const [isLoading,      setIsLoading]      = useState(true)
   const [isModalOpen,    setIsModalOpen]    = useState(false)
@@ -430,20 +429,6 @@ function CrmPageInner() {
     setTimeout(() => setSuccessToast(null), 3500)
   }
 
-
-  const searchParams = useSearchParams()
-  const [autoOpened, setAutoOpened] = useState(false)
-
-  useEffect(() => {
-    const leadIdParam = searchParams.get('lead')
-    if (leadIdParam && leads.length > 0 && !autoOpened) {
-      const found = leads.find(l => l.id === leadIdParam)
-      if (found) {
-        openLeadDetail(found)
-        setAutoOpened(true)
-      }
-    }
-  }, [leads])
 
   // ── Lead detail ──────────────────────────────────────────────────────────────
 
@@ -1127,10 +1112,3 @@ function CrmPageInner() {
   )
 }
 
-export default function CrmPage() {
-  return (
-    <Suspense>
-      <CrmPageInner />
-    </Suspense>
-  )
-}
