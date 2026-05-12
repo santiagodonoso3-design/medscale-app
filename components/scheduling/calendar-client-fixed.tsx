@@ -821,95 +821,91 @@ export function CalendarClient({ userId, doctorId }: CalendarClientProps) {
 
   return (
     <>
-      <div className="space-y-4">
-        {/* Controls: filters + toggle + new appointment */}
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-            <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              {/* Left: toggle prominente + filtros */}
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center flex-1 min-w-0">
-                {/* View toggle */}
-                <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm shrink-0">
-                  <button
-                    onClick={() => setViewMode('list')}
-                    className={['flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition',
-                      viewMode === 'list' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'].join(' ')}
-                  >
-                    <List className="h-4 w-4" /> Lista
-                  </button>
-                  <button
-                    onClick={() => setViewMode('calendar')}
-                    className={['flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition',
-                      viewMode === 'calendar' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'].join(' ')}
-                  >
-                    <CalendarDays className="h-4 w-4" /> Calendario
-                  </button>
-                </div>
-
-                {!doctorId && (
-                  <select
-                    value={filterDoctor}
-                    onChange={e => setFilterDoctor(e.target.value)}
-                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Todos los médicos</option>
-                    {doctors.map(d => (
-                      <option key={d.id} value={d.id}>{d.metadata?.name || 'Médico'}</option>
-                    ))}
-                  </select>
-                )}
-                {!doctorId && (
-                  <div className="relative flex-1 min-w-0">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <input
-                      value={search}
-                      onChange={e => setSearch(e.target.value)}
-                      placeholder="Buscar paciente..."
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Right: nueva cita */}
+      <div className="flex flex-col h-screen">
+        {/* Controls */}
+        <div className="shrink-0 flex flex-col border-b border-slate-100 bg-white">
+          <div className="flex items-center gap-2 px-4 py-2">
+            {/* View toggle */}
+            <div className="flex items-center rounded-lg border border-slate-200 bg-white p-0.5 shrink-0">
               <button
-                onClick={() => setShowCreate(prev => !prev)}
-                className={['inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold shadow-sm transition shrink-0',
-                  showCreate ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-emerald-600 text-white hover:bg-emerald-700'].join(' ')}
+                onClick={() => setViewMode('list')}
+                className={['flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition',
+                  viewMode === 'list' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800'].join(' ')}
               >
-                <Plus className="h-4 w-4 shrink-0" />
-                {showCreate ? 'Cerrar' : 'Nueva cita'}
+                <List className="h-3.5 w-3.5" /> Lista
+              </button>
+              <button
+                onClick={() => setViewMode('calendar')}
+                className={['flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition',
+                  viewMode === 'calendar' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800'].join(' ')}
+              >
+                <CalendarDays className="h-3.5 w-3.5" /> Calendario
               </button>
             </div>
 
-            {/* Date range pills — solo en vista lista pasada */}
-            {viewMode === 'list' && timeView === 'past' && (
-              <div className="flex gap-1.5 flex-wrap">
-                {([
-                  { value: 'hoy',    label: 'Hoy' },
-                  { value: 'semana', label: 'Esta semana' },
-                  { value: 'mes',    label: 'Este mes' },
-                  { value: 'todos',  label: 'Todos' },
-                ] as const).map(r => (
-                  <button
-                    key={r.value}
-                    onClick={() => setListRange(r.value)}
-                    className={['rounded-full px-3 py-1 text-xs font-medium transition',
-                      listRange === r.value
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'].join(' ')}
-                  >
-                    {r.label}
-                  </button>
+            {!doctorId && (
+              <select
+                value={filterDoctor}
+                onChange={e => setFilterDoctor(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todos los médicos</option>
+                {doctors.map(d => (
+                  <option key={d.id} value={d.id}>{d.metadata?.name || 'Médico'}</option>
                 ))}
+              </select>
+            )}
+            {!doctorId && (
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Buscar paciente..."
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
             )}
+
+            <div className="flex-1" />
+
+            <button
+              onClick={() => setShowCreate(prev => !prev)}
+              className={['inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition shrink-0',
+                showCreate ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-emerald-600 text-white hover:bg-emerald-700'].join(' ')}
+            >
+              <Plus className="h-3.5 w-3.5 shrink-0" />
+              {showCreate ? 'Cerrar' : 'Nueva cita'}
+            </button>
           </div>
+
+          {/* Date range pills — solo en vista lista pasada */}
+          {viewMode === 'list' && timeView === 'past' && (
+            <div className="flex gap-1.5 flex-wrap px-4 pb-2">
+              {([
+                { value: 'hoy',    label: 'Hoy' },
+                { value: 'semana', label: 'Esta semana' },
+                { value: 'mes',    label: 'Este mes' },
+                { value: 'todos',  label: 'Todos' },
+              ] as const).map(r => (
+                <button
+                  key={r.value}
+                  onClick={() => setListRange(r.value)}
+                  className={['rounded-full px-3 py-1 text-xs font-medium transition',
+                    listRange === r.value
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'].join(' ')}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Create form */}
         {showCreate && (
-          <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="shrink-0 border-b border-slate-200 bg-white overflow-hidden">
             {/* Header con steps */}
             <div className="flex border-b border-slate-100">
               <button
@@ -1125,7 +1121,7 @@ export function CalendarClient({ userId, doctorId }: CalendarClientProps) {
         )}
 
         {/* Main view */}
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 bg-white">
           {loading && viewMode === 'calendar' ? (
             <div className="flex items-center justify-center gap-2 py-16 text-slate-400">
               <Loader2 className="h-4 w-4 animate-spin" />
