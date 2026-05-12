@@ -20,7 +20,6 @@ const ALL_NAV_ITEMS = [
   { name: 'Doctores',       href: '/doctors',             icon: Stethoscope,     roles: ['owner', 'staff', 'doctor'] },
   { name: 'Equipo',         href: '/team',                icon: Users,           roles: ['owner'] },
   { name: 'Configuración',  href: '/settings',            icon: Settings,        roles: ['owner'] },
-  { name: 'Integraciones',  href: '/settings/integrations', icon: Settings,      roles: ['owner', 'doctor'] },
 ]
 
 export function OrgSidebar({ orgName, userName, userEmail, userRole }: OrgSidebarProps) {
