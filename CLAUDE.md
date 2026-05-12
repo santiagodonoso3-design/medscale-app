@@ -117,6 +117,8 @@
 - [ ] Agenda del médico: pre-seleccionar su disponibilidad en /doctors/availability
 - [ ] Sidebar sticky: fijar sidebar izquierdo al hacer scroll (position sticky/fixed)
 - [ ] Página /account o /settings/profile (cambiar nombre, contraseña, foto)
+- [ ] Quitar "Integraciones" como item separado del sidebar (ya está dentro de Configuración)
+- [ ] Sidebar colapsable: botón para ocultar/mostrar sidebar y ganar espacio
 
 ## 🟢 PRIORIDAD 3 — Superadmin
 - [ ] Dashboard superadmin filtrable por cliente
