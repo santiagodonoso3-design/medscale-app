@@ -116,6 +116,7 @@
 - [ ] Confirmación email con código al registrarse
 - [ ] Agenda del médico: pre-seleccionar su disponibilidad en /doctors/availability
 - [ ] Sidebar sticky: fijar sidebar izquierdo al hacer scroll (position sticky/fixed)
+- [ ] Página /account o /settings/profile (cambiar nombre, contraseña, foto)
 
 ## 🟢 PRIORIDAD 3 — Superadmin
 - [ ] Dashboard superadmin filtrable por cliente
