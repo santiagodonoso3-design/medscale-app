@@ -256,7 +256,7 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null }: Doc
                         {openMenuId === doc.id && (
                           <>
                             <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
-                            <div className="absolute right-0 top-8 z-20 w-44 rounded-2xl border border-slate-100 bg-white shadow-lg py-1.5">
+                            <div className="absolute right-0 bottom-8 z-20 w-44 rounded-2xl border border-slate-100 bg-white shadow-lg py-1.5">
                               <button
                                 onClick={() => { openEdit(doc); setOpenMenuId(null) }}
                                 className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
