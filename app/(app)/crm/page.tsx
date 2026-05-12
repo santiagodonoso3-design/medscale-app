@@ -210,8 +210,7 @@ function KanbanView({
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
 
   return (
-    <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)] pb-2" style={{ scrollbarGutter: 'stable' }}>
-      <div className="flex gap-3" style={{ minWidth: '960px' }}>
+    <div className="flex gap-3 pb-2" style={{ minWidth: '960px' }}>
         {STATUS_PIPELINE.map(stage => {
           const colLeads = leads.filter(l => l.status === stage.value)
           const isOver   = dragOverCol === stage.value
@@ -261,7 +260,6 @@ function KanbanView({
           )
         })}
       </div>
-    </div>
   )
 }
 
@@ -576,10 +574,10 @@ export default function CrmPage() {
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-5 h-[calc(100vh-48px)]">
 
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="shrink-0 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-900">CRM / Leads</h1>
           <p className="text-sm text-slate-500 mt-0.5">Leads desde agendamiento online y redes sociales.</p>
@@ -612,7 +610,7 @@ export default function CrmPage() {
       </div>
 
       {/* Pipeline */}
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+      <div className="shrink-0 grid grid-cols-3 gap-3 sm:grid-cols-6">
         {STATUS_PIPELINE.map(stage => {
           const count = leads.filter(l => l.status === stage.value).length
           const isActive = statusFilter === stage.value
@@ -627,9 +625,9 @@ export default function CrmPage() {
       </div>
 
       {/* Table card */}
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm flex flex-col flex-1 min-h-0">
         {/* Filters */}
-        <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center">
+        <div className="shrink-0 flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center">
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="all">Todos los estados</option>
             {STATUS_PIPELINE.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -647,7 +645,7 @@ export default function CrmPage() {
 
         {/* Bulk-action bar */}
         {selectedIds.size > 0 && (
-          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-blue-50 px-5 py-2.5">
+          <div className="shrink-0 flex flex-wrap items-center gap-2 border-b border-slate-100 bg-blue-50 px-5 py-2.5">
             <span className="shrink-0 text-sm font-medium text-blue-700">
               {selectedIds.size} lead{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
             </span>
@@ -692,12 +690,11 @@ export default function CrmPage() {
 
         {/* List view */}
         {view === 'list' && (
-          <div className="relative">
           <div
-            className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)]"
+            className="flex-1 min-h-0 overflow-x-auto overflow-y-auto"
             style={{ scrollbarGutter: 'stable' }}
           >
-            <table className="min-w-full text-sm" style={{ position: 'relative' }}>
+            <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100">
                   <th className="w-10 px-3 py-3">
@@ -792,12 +789,11 @@ export default function CrmPage() {
               </tbody>
             </table>
           </div>
-          </div>
         )}
 
         {/* Kanban view */}
         {view === 'kanban' && (
-          <div className="p-4">
+          <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto p-4" style={{ scrollbarGutter: 'stable' }}>
             {isLoading
               ? <div className="flex items-center justify-center py-12 text-slate-400"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando...</div>
               : <KanbanView leads={filteredLeads} aptCounts={aptCounts} onStatusChange={handleInlineStatusChange} onOpenLead={openLeadDetail} />}
