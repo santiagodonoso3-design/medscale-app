@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, X, Loader2, Pencil, MoreHorizontal } from 'lucide-react'
 
@@ -41,6 +41,25 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null }: Doc
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+  const [openMenuDoc, setOpenMenuDoc] = useState<DoctorRow | null>(null)
+
+  function toggleMenu(doc: DoctorRow, e: React.MouseEvent<HTMLButtonElement>) {
+    if (openMenuId === doc.id) {
+      setOpenMenuId(null)
+      setOpenMenuDoc(null)
+      return
+    }
+    const rect = e.currentTarget.getBoundingClientRect()
+    const menuHeight = 140
+    const spaceBelow = window.innerHeight - rect.bottom
+    setMenuPos({
+      top: spaceBelow > menuHeight ? rect.bottom + 4 : rect.top - menuHeight - 4,
+      left: rect.right - 176,
+    })
+    setOpenMenuId(doc.id)
+    setOpenMenuDoc(doc)
+  }
 
   const supabase = createClient()
 
@@ -246,48 +265,13 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null }: Doc
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="relative flex justify-end">
+                      <div className="flex justify-end">
                         <button
-                          onClick={() => setOpenMenuId(openMenuId === doc.id ? null : doc.id)}
+                          onClick={e => toggleMenu(doc, e)}
                           className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
                         >
                           <MoreHorizontal className="h-4 w-4" />
                         </button>
-                        {openMenuId === doc.id && (
-                          <>
-                            <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
-                            <div className="absolute right-0 bottom-8 z-20 w-44 rounded-2xl border border-slate-100 bg-white shadow-lg py-1.5">
-                              <button
-                                onClick={() => { openEdit(doc); setOpenMenuId(null) }}
-                                className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
-                              >
-                                <Pencil className="h-3.5 w-3.5 text-slate-400" />
-                                Editar
-                              </button>
-                              {!isDoctor && (
-                                <button
-                                  onClick={() => { toggleActive(doc.id, doc.is_active); setOpenMenuId(null) }}
-                                  className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
-                                >
-                                  <span className={`h-3.5 w-3.5 rounded-full border-2 ${doc.is_active ? 'border-amber-400' : 'border-emerald-400'}`} />
-                                  {doc.is_active ? 'Desactivar' : 'Activar'}
-                                </button>
-                              )}
-                              {!isDoctor && (
-                                <>
-                                  <div className="my-1 border-t border-slate-100" />
-                                  <button
-                                    onClick={() => { setDeleteConfirmId(doc.id); setDeleteError(null); setOpenMenuId(null) }}
-                                    className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition"
-                                  >
-                                    <X className="h-3.5 w-3.5" />
-                                    Eliminar
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -297,6 +281,46 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null }: Doc
           )}
         </div>
       </div>
+
+      {/* ── Doctor action menu (fixed portal) ───────────────────────── */}
+      {openMenuId && openMenuDoc && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => { setOpenMenuId(null); setOpenMenuDoc(null) }} />
+          <div
+            className="fixed z-50 w-44 rounded-2xl border border-slate-100 bg-white shadow-lg py-1.5"
+            style={{ top: menuPos.top, left: menuPos.left }}
+          >
+            <button
+              onClick={() => { openEdit(openMenuDoc); setOpenMenuId(null); setOpenMenuDoc(null) }}
+              className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
+            >
+              <Pencil className="h-3.5 w-3.5 text-slate-400" />
+              Editar
+            </button>
+            {!isDoctor && (
+              <button
+                onClick={() => { toggleActive(openMenuDoc.id, openMenuDoc.is_active); setOpenMenuId(null); setOpenMenuDoc(null) }}
+                className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
+              >
+                <span className={`h-3.5 w-3.5 rounded-full border-2 ${openMenuDoc.is_active ? 'border-amber-400' : 'border-emerald-400'}`} />
+                {openMenuDoc.is_active ? 'Desactivar' : 'Activar'}
+              </button>
+            )}
+            {!isDoctor && (
+              <>
+                <div className="my-1 border-t border-slate-100" />
+                <button
+                  onClick={() => { setDeleteConfirmId(openMenuDoc.id); setDeleteError(null); setOpenMenuId(null); setOpenMenuDoc(null) }}
+                  className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Eliminar
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
 
       {/* ── Delete confirm modal ──────────────────────────────────────── */}
       {deleteConfirmId && (
