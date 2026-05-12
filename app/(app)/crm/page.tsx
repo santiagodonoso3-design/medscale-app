@@ -7,7 +7,7 @@ import { BookAppointmentModal } from '@/components/crm/book-appointment-modal'
 import {
   Plus, Loader2, Search, X, Save, List, LayoutGrid,
   ChevronDown, CalendarPlus, ChevronUp, ChevronsUpDown, Send,
-  FileDown, Upload, Trash2,
+  FileDown, Upload, Trash2, ChevronRight,
 } from 'lucide-react'
 import { ImportLeadsModal, downloadLeadTemplate } from '@/components/crm/import-leads-modal'
 import { deleteLeads } from '@/app/(app)/crm/actions/deleteLeads'
@@ -307,6 +307,8 @@ export default function CrmPage() {
   const [deleting,      setDeleting]      = useState(false)
   const [bulkWorking,   setBulkWorking]   = useState(false)
   const selectAllRef = useRef<HTMLInputElement>(null)
+  const tableScrollRef = useRef<HTMLDivElement>(null)
+  const [showScrollHint, setShowScrollHint] = useState(true)
 
   // comments
   const [leadComments,    setLeadComments]    = useState<LeadComment[]>([])
@@ -693,7 +695,14 @@ export default function CrmPage() {
         {/* List view */}
         {view === 'list' && (
           <div className="relative">
-            <div className="overflow-x-auto">
+            <div
+              ref={tableScrollRef}
+              className="overflow-x-auto"
+              onScroll={e => {
+                const el = e.currentTarget
+                setShowScrollHint(el.scrollLeft + el.clientWidth < el.scrollWidth - 10)
+              }}
+            >
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100">
@@ -789,7 +798,12 @@ export default function CrmPage() {
               </tbody>
             </table>
           </div>
-            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-r from-transparent to-white" />
+            {showScrollHint && (
+              <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 flex items-center justify-end pr-1"
+                style={{ background: 'linear-gradient(to right, rgba(255,255,255,0), rgba(148,163,184,0.15) 40%, rgba(148,163,184,0.25))' }}>
+                <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+              </div>
+            )}
           </div>
         )}
 

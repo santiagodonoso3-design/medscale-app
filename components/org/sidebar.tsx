@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, MessageSquare, CalendarDays, Settings, LogOut, Stethoscope, Users, MessageCircle, ChevronUp } from 'lucide-react'
+import { LayoutDashboard, MessageSquare, CalendarDays, Settings, LogOut, Stethoscope, Users, MessageCircle, ChevronUp, User } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 
@@ -82,44 +82,45 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole }: OrgSideba
         })}
       </nav>
 
-      <div className="border-t border-primary/30 px-4 py-4">
-        <div className="relative">
-          {menuOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-              <div className="absolute bottom-full left-0 w-full mb-1 z-20 rounded-xl border border-slate-200 bg-white shadow-lg py-1">
-                <button
-                  onClick={handleLogout}
-                  disabled={isLoggingOut}
-                  className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition disabled:opacity-50"
-                >
-                  <LogOut className="h-4 w-4" />
-                  {isLoggingOut ? 'Cerrando sesión...' : 'Cerrar sesión'}
-                </button>
+      <div className="relative border-t border-primary/30">
+        {menuOpen && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+            <div className="absolute bottom-full left-0 w-full z-20 rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden mb-1">
+              {/* Info section — non-clickable */}
+              <div className="px-4 py-3 border-b border-slate-100">
+                <p className="text-sm font-semibold text-slate-900 truncate">{userName || 'Miembro del equipo'}</p>
+                <p className="text-xs text-slate-400 truncate mt-0.5">{userEmail || 'Sin email'}</p>
+                {userRole && (
+                  <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                    userRole === 'owner'  ? 'bg-blue-100 text-blue-700' :
+                    userRole === 'doctor' ? 'bg-purple-100 text-purple-700' :
+                    'bg-slate-100 text-slate-500'
+                  }`}>
+                    {userRole === 'owner' ? 'Admin' : userRole === 'doctor' ? 'Médico' : 'Colaborador'}
+                  </span>
+                )}
               </div>
-            </>
-          )}
-          <button
-            onClick={() => setMenuOpen(o => !o)}
-            className="flex w-full items-center gap-3 rounded-2xl bg-primary/20 p-4 text-left transition hover:bg-primary/30"
-          >
-            <div className="flex-1 min-w-0">
-              <p className="text-xs uppercase tracking-[0.24em] text-accent">Usuario</p>
-              <p className="mt-1 text-sm font-semibold text-white truncate">{userName || 'Miembro del equipo'}</p>
-              <p className="mt-0.5 text-xs text-white/50 truncate">{userEmail || 'Sin email'}</p>
-              {userRole && (
-                <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                  userRole === 'owner'  ? 'bg-accent/20 text-accent' :
-                  userRole === 'doctor' ? 'bg-blue-500/20 text-blue-300' :
-                  'bg-white/10 text-white/60'
-                }`}>
-                  {userRole === 'owner' ? 'Admin' : userRole === 'doctor' ? 'Médico' : 'Colaborador'}
-                </span>
-              )}
+              {/* Logout */}
+              <button
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition disabled:opacity-50"
+              >
+                <LogOut className="h-4 w-4" />
+                {isLoggingOut ? 'Cerrando sesión...' : 'Cerrar sesión'}
+              </button>
             </div>
-            <ChevronUp className={`h-3 w-3 text-white/40 shrink-0 transition-transform ${menuOpen ? '' : 'rotate-180'}`} />
-          </button>
-        </div>
+          </>
+        )}
+        <button
+          onClick={() => setMenuOpen(o => !o)}
+          className="flex w-full items-center gap-2 px-4 py-3 text-sm text-white/60 hover:bg-primary/20 hover:text-white transition"
+        >
+          <User className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Mi cuenta</span>
+          <ChevronUp className={`h-3 w-3 shrink-0 transition-transform ${menuOpen ? '' : 'rotate-180'}`} />
+        </button>
       </div>
     </aside>
   )
