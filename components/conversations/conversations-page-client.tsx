@@ -57,6 +57,11 @@ function channelBadge(channel: string) {
       <span className="rounded-full bg-pink-100 px-1.5 py-0.5 text-[10px] font-semibold text-pink-700">IG</span>
     )
   }
+  if (channel === 'facebook') {
+    return (
+      <span className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: '#e7f0fd', color: '#1877F2' }}>FB</span>
+    )
+  }
   return null
 }
 
@@ -72,7 +77,7 @@ export function ConversationsPageClient({ organizationId }: ConversationsPageCli
   const [loading, setLoading] = useState(true)
 
   const [search, setSearch] = useState('')
-  const [channelFilter, setChannelFilter] = useState<'all' | 'whatsapp' | 'instagram'>('all')
+  const [channelFilter, setChannelFilter] = useState<'all' | 'whatsapp' | 'instagram' | 'facebook'>('all')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [showChat, setShowChat] = useState(false)
 
@@ -205,7 +210,7 @@ export function ConversationsPageClient({ organizationId }: ConversationsPageCli
             </div>
             {/* Channel filter */}
             <div className="flex gap-1.5 mt-2.5">
-              {(['all', 'whatsapp', 'instagram'] as const).map(ch => (
+              {(['all', 'whatsapp', 'instagram', 'facebook'] as const).map(ch => (
                 <button
                   key={ch}
                   onClick={() => setChannelFilter(ch)}
@@ -216,7 +221,7 @@ export function ConversationsPageClient({ organizationId }: ConversationsPageCli
                       : 'bg-slate-100 text-slate-500 hover:bg-slate-200',
                   ].join(' ')}
                 >
-                  {ch === 'all' ? 'Todos' : ch === 'whatsapp' ? 'WhatsApp' : 'Instagram'}
+                  {ch === 'all' ? 'Todos' : ch === 'whatsapp' ? 'WhatsApp' : ch === 'instagram' ? 'Instagram' : 'Facebook'}
                 </button>
               ))}
             </div>
