@@ -692,7 +692,8 @@ export default function CrmPage() {
 
         {/* List view */}
         {view === 'list' && (
-          <div className="overflow-x-auto">
+          <div className="relative">
+            <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100">
@@ -787,6 +788,8 @@ export default function CrmPage() {
                 })}
               </tbody>
             </table>
+          </div>
+            <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-r from-transparent to-white" />
           </div>
         )}
 
