@@ -331,6 +331,19 @@ export default function CrmPage() {
     init()
   }, [])
 
+  const [autoOpenLeadId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null
+    const url = new URL(window.location.href)
+    return url.searchParams.get('lead')
+  })
+
+  useEffect(() => {
+    if (autoOpenLeadId && leads.length > 0) {
+      const found = leads.find(l => l.id === autoOpenLeadId)
+      if (found) openLeadDetail(found)
+    }
+  }, [leads, autoOpenLeadId])
+
   // ── Data loading ─────────────────────────────────────────────────────────────
 
   const loadLeads = async () => {
