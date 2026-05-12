@@ -692,8 +692,12 @@ export default function CrmPage() {
 
         {/* List view */}
         {view === 'list' && (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+          <div className="relative">
+          <div
+            className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)]"
+            style={{ scrollbarGutter: 'stable' }}
+          >
+            <table className="min-w-full text-sm" style={{ position: 'relative' }}>
               <thead>
                 <tr className="border-b border-slate-100">
                   <th className="w-10 px-3 py-3">
@@ -787,6 +791,7 @@ export default function CrmPage() {
                 })}
               </tbody>
             </table>
+          </div>
           </div>
         )}
 
