@@ -36,6 +36,10 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null }: Doc
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [deleteChecking, setDeleteChecking] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
   const supabase = createClient()
 
   const fetchData = async () => {
@@ -126,6 +130,27 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null }: Doc
 
   const toggleActive = async (id: string, current: boolean) => {
     await supabase.from('doctors').update({ is_active: !current }).eq('id', id)
+    await fetchData()
+  }
+
+  const handleDelete = async (doctorId: string) => {
+    setDeleteChecking(true)
+    setDeleteError(null)
+    const { count } = await supabase
+      .from('appointments')
+      .select('id', { count: 'exact', head: true })
+      .eq('doctor_id', doctorId)
+      .in('status', ['scheduled', 'confirmed'])
+    if (count && count > 0) {
+      setDeleteError(`No se puede eliminar: tiene ${count} cita(s) activa(s).`)
+      setDeleteChecking(false)
+      return
+    }
+    await supabase.from('schedules').delete().eq('doctor_id', doctorId)
+    await supabase.from('organization_members').delete().eq('doctor_id', doctorId)
+    await supabase.from('doctors').delete().eq('id', doctorId)
+    setDeleteConfirmId(null)
+    setDeleteChecking(false)
     await fetchData()
   }
 
@@ -240,6 +265,14 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null }: Doc
                             {doc.is_active ? 'Desactivar' : 'Activar'}
                           </button>
                         )}
+                        {!isDoctor && (
+                          <button
+                            onClick={() => { setDeleteConfirmId(doc.id); setDeleteError(null) }}
+                            className="rounded-lg px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 hover:bg-red-100 transition"
+                          >
+                            Eliminar
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -249,6 +282,34 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null }: Doc
           )}
         </div>
       </div>
+
+      {/* ── Delete confirm modal ──────────────────────────────────────── */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setDeleteConfirmId(null); setDeleteError(null) }} />
+          <div className="relative z-10 w-full max-w-sm rounded-3xl bg-white shadow-2xl p-6 space-y-4">
+            <h2 className="text-base font-semibold text-slate-900">¿Eliminar médico?</h2>
+            <p className="text-sm text-slate-500">Esta acción eliminará el médico, su disponibilidad y su acceso al sistema. No se puede deshacer.</p>
+            {deleteError && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{deleteError}</p>}
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => { setDeleteConfirmId(null); setDeleteError(null) }}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirmId)}
+                disabled={deleteChecking}
+                className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition disabled:opacity-50"
+              >
+                {deleteChecking && <Loader2 className="h-4 w-4 animate-spin" />}
+                Sí, eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Doctor modal ──────────────────────────────────────────────── */}
       {modalOpen && (
