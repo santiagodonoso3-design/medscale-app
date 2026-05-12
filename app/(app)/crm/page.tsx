@@ -210,7 +210,7 @@ function KanbanView({
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
 
   return (
-    <div className="overflow-x-auto pb-2">
+    <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-300px)] pb-2" style={{ scrollbarGutter: 'stable' }}>
       <div className="flex gap-3" style={{ minWidth: '960px' }}>
         {STATUS_PIPELINE.map(stage => {
           const colLeads = leads.filter(l => l.status === stage.value)
