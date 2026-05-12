@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { CreateLeadModal } from '@/components/crm/create-lead-modal'
 import { BookAppointmentModal } from '@/components/crm/book-appointment-modal'
@@ -429,6 +430,16 @@ export default function CrmPage() {
     setTimeout(() => setSuccessToast(null), 3500)
   }
 
+
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    const leadIdParam = searchParams.get('lead')
+    if (leadIdParam && leads.length > 0 && !selectedLead) {
+      const found = leads.find(l => l.id === leadIdParam)
+      if (found) openLeadDetail(found)
+    }
+  }, [leads, searchParams])
 
   // ── Lead detail ──────────────────────────────────────────────────────────────
 
