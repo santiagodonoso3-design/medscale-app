@@ -159,7 +159,7 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null }: Doc
 
   return (
     <>
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-visible">
         {/* Table header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div>
@@ -180,7 +180,7 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null }: Doc
         </div>
 
         {/* Table body */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-visible">
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-16 text-slate-400">
               <Loader2 className="h-4 w-4 animate-spin" />
