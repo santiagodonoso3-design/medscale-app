@@ -10,5 +10,17 @@ export default async function ConversationsPage() {
     .select('organization_id')
     .eq('id', user?.id)
     .single()
-  return <ConversationsPageClient organizationId={userRecord?.organization_id ?? ''} />
+  const { data: org } = await admin
+    .from('organizations')
+    .select('ai_agent_enabled, name, contact_email')
+    .eq('id', userRecord?.organization_id)
+    .single()
+  return (
+    <ConversationsPageClient
+      organizationId={userRecord?.organization_id ?? ''}
+      aiAgentEnabled={org?.ai_agent_enabled ?? false}
+      orgName={org?.name ?? ''}
+      orgEmail={org?.contact_email ?? ''}
+    />
+  )
 }
