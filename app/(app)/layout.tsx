@@ -39,7 +39,7 @@ export default async function AppShell({ children }: { children: ReactNode }) {
           userEmail={user?.email || undefined}
           userRole={(memberRecord?.role as 'owner' | 'staff' | 'doctor') ?? null}
         />
-        <main className="flex-1 p-6 xl:p-10">{children}</main>
+        <main className="flex-1 min-w-0 overflow-x-hidden p-6 xl:p-10">{children}</main>
       </div>
     </div>
   )
