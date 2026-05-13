@@ -59,17 +59,7 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole }: OrgSideba
   }
 
   return (
-    <aside className={`relative sticky top-0 flex h-screen shrink-0 flex-col overflow-y-auto bg-foreground text-primary-foreground transition-all duration-200 ${collapsed ? 'w-14' : 'w-56'}`}>
-
-      {/* Toggle button */}
-      <button
-        onClick={toggleCollapsed}
-        className="absolute -right-3 top-16 z-50 flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md hover:bg-slate-50 transition"
-      >
-        {collapsed
-          ? <ChevronRight className="h-3.5 w-3.5 text-slate-500" />
-          : <ChevronLeft className="h-3.5 w-3.5 text-slate-500" />}
-      </button>
+    <aside className={`sticky top-0 flex h-screen shrink-0 flex-col overflow-y-auto bg-foreground text-primary-foreground transition-all duration-200 ${collapsed ? 'w-14' : 'w-56'}`}>
 
       {/* Logo */}
       <div className={`border-b border-primary/30 py-5 ${collapsed ? 'px-2 flex justify-center' : 'px-5'}`}>
@@ -84,6 +74,17 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole }: OrgSideba
             </div>
           )}
         </div>
+      </div>
+
+      {/* Toggle button */}
+      <div className="flex items-center justify-between px-4 py-2">
+        {!collapsed && <span className="text-xs text-white/40">MENÚ</span>}
+        <button
+          onClick={toggleCollapsed}
+          className={`p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition ${collapsed ? 'mx-auto' : 'ml-auto'}`}
+        >
+          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+        </button>
       </div>
 
       {/* Nav */}
