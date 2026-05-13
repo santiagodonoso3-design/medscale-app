@@ -114,9 +114,6 @@ export async function getDashboardRawData(year: number, orgId: string): Promise<
         .eq('organization_id', orgId),
     ])
 
-    console.log('[dashboard] year:', year, 'fromDate:', fromDate, 'toDate:', toDate)
-    console.log('[dashboard] apts count:', apts?.length, 'error:', _aptError?.message ?? null)
-    console.log('[dashboard] sample apt:', apts?.[0] ?? null)
 
     const appointments: RawAppointment[] = (apts ?? []).map((a: any) => ({
       id: a.id,
@@ -127,12 +124,6 @@ export async function getDashboardRawData(year: number, orgId: string): Promise<
       doctor_assignment_type: a.doctor_assignment_type ?? null,
       ym: toBogotaYM(a.scheduled_at),
     }))
-
-    const sampleYMs = appointments.slice(0, 5).map(a => a.ym)
-    console.log('[dashboard] sample YMs:', sampleYMs, 'selectedYear:', year)
-    console.log('[dashboard] first 3 apts:', appointments.slice(0, 3).map(a => ({
-      scheduled_at: a.scheduled_at, ym: a.ym,
-    })))
 
     const yearLeads: RawLead[] = (yearLeadsRaw ?? []).map((l: any) => ({
       id: l.id, status: l.status, created_at: l.created_at,

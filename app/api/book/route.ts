@@ -47,7 +47,6 @@ export async function POST(request: Request) {
       custom_fields?: Record<string, string>
     }
 
-    console.log('[/api/book] body:', { org_slug, appointment_type_id, doctor_id, date, time, patient_first_name })
 
     if (!org_slug || !date || !time || !patient_first_name || !phone) {
       return jsonResponse({ success: false, error: 'Faltan campos requeridos' }, 400)
@@ -94,7 +93,6 @@ export async function POST(request: Request) {
             assignmentMode = (apptType.assignment_mode as string) ?? 'round_robin_proportional'
             typeDoctorIds  = (apptType.doctor_ids as string[]) ?? []
             rrCountAll     = (apptType.rr_count_all ?? true) as boolean
-            console.log('[/api/book] type config:', { assignmentMode, typeDoctorIds })
           }
         }
 
@@ -107,7 +105,6 @@ export async function POST(request: Request) {
           candidateIds = (allDoctors ?? []).map((d: any) => d.id as string)
         }
 
-        console.log('[/api/book] candidateIds:', candidateIds)
 
         if (candidateIds.length === 0) {
           return jsonResponse({ success: false, error: 'No hay médicos disponibles' }, 400)
@@ -116,7 +113,6 @@ export async function POST(request: Request) {
         // 3a. Filter to doctors whose schedule covers the requested slot
         // day_of_week in DB: 0=Sun..6=Sat — same as JS getDay() (per CLAUDE.md)
         const dayOfWeek = new Date(date + 'T12:00:00').getDay()
-        console.log('[/api/book] dayOfWeek:', dayOfWeek, 'time:', time)
 
         const { data: schedules, error: schedError } = await supabase
           .from('schedules')
@@ -125,7 +121,6 @@ export async function POST(request: Request) {
           .eq('day_of_week', dayOfWeek)
 
         if (schedError) console.error('[/api/book] schedules fetch error:', schedError)
-        console.log('[/api/book] schedules found:', (schedules ?? []).length)
 
         const availableIds: string[] = [...new Set(
           (schedules ?? [])
@@ -133,7 +128,6 @@ export async function POST(request: Request) {
             .map((s: any) => s.doctor_id as string)
         )]
 
-        console.log('[/api/book] availableIds after schedule filter:', availableIds)
 
         if (availableIds.length === 0) {
           // Fallback: use any candidate instead of refusing the booking
@@ -215,7 +209,6 @@ export async function POST(request: Request) {
         ? 'patient_choice'
         : 'auto_assigned'
 
-    console.log('[/api/book] selectedDoctorId:', selectedDoctorId, 'assignment:', doctorAssignmentType)
 
     // Get location + doctor metadata in parallel
     const [{ data: locations, error: locError }, { data: doctorData, error: docMetaError }] = await Promise.all([
@@ -285,7 +278,6 @@ export async function POST(request: Request) {
       return jsonResponse({ success: false, error: appointmentError?.message || 'Error creando cita' }, 500)
     }
 
-    console.log('[/api/book] success — lead:', lead.id, 'appointment:', appointment.id)
 
     // ── Create Google Calendar event (non-blocking) ───────────────────────────
     if (selectedDoctorId) {
@@ -341,7 +333,6 @@ export async function POST(request: Request) {
       }
 
       if (email) {
-        console.log('[email] attempting to send to:', email)
         const results = await Promise.allSettled([
           resend.emails.send({
             from:    'citas@medscale.app',
@@ -350,7 +341,6 @@ export async function POST(request: Request) {
             html:    bookingConfirmationPatient(emailParams),
           }),
         ])
-        console.log('[email] results:', JSON.stringify(results))
         results.forEach(r => { if (r.status === 'rejected') console.error('[email] failed:', r.reason) })
       }
 

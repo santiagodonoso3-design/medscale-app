@@ -56,7 +56,6 @@ export async function GET(request: Request) {
   }
 
   if (!notifications || notifications.length === 0) {
-    console.log('[reminders] No active reminder notifications configured')
     return Response.json({ sent: 0 })
   }
 
@@ -130,7 +129,6 @@ export async function GET(request: Request) {
           .eq('id', appt.id)
 
         totalSent++
-        console.log(`[reminders] Sent reminder to ${email} for appointment ${appt.id}`)
       })
     )
 
@@ -140,6 +138,5 @@ export async function GET(request: Request) {
     }
   }
 
-  console.log(`[reminders] Done — ${totalSent} reminder(s) sent`)
   return Response.json({ sent: totalSent })
 }
