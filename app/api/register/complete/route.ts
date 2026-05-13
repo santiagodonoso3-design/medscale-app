@@ -41,5 +41,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: memberError.message }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, redirect: '/onboarding' })
 }

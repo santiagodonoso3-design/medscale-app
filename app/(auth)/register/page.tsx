@@ -126,7 +126,8 @@ export default function RegisterPage() {
       return
     }
 
-    router.push('/dashboard')
+    const body = await res.json().catch(() => ({}))
+    router.push(body.redirect ?? '/dashboard')
     router.refresh()
   }
 
