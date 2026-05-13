@@ -6,14 +6,13 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, Check } from 'lucide-react'
+import { Loader2, CheckCircle2 } from 'lucide-react'
 
 const PLANS = [
   {
     id: 'free',
     name: 'Free',
     price: '$0',
-    period: '/mes',
     features: ['1 médico', '50 leads', '20 citas/mes'],
     badge: null,
   },
@@ -21,24 +20,21 @@ const PLANS = [
     id: 'starter',
     name: 'Starter',
     price: '$29',
-    period: '/mes',
-    features: ['3 médicos', '100 citas/mes'],
+    features: ['3 médicos', '100 citas/mes', 'Recordatorios automáticos'],
     badge: null,
   },
   {
     id: 'growth',
     name: 'Growth',
     price: '$79',
-    period: '/mes',
-    features: ['8 médicos', 'Citas ilimitadas'],
+    features: ['8 médicos', 'Citas ilimitadas', 'CRM completo', 'Conversaciones'],
     badge: 'Recomendado',
   },
   {
     id: 'scale',
     name: 'Scale',
     price: '$149',
-    period: '/mes',
-    features: ['Médicos ilimitados', 'API access'],
+    features: ['Médicos ilimitados', 'API access', 'Soporte prioritario'],
     badge: null,
   },
 ] as const
@@ -53,6 +49,15 @@ const registerSchema = z.object({
 
 type RegisterForm = z.infer<typeof registerSchema>
 
+const BENEFITS = [
+  'Agenda online 24/7 — tus pacientes agendan solos',
+  'Cero citas perdidas — confirmaciones y recordatorios automáticos',
+  'CRM médico — toda la info de tus pacientes en un solo lugar',
+]
+
+const inputCls = 'w-full h-11 px-3 border border-[#C8D8E4] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#215F73] focus:border-transparent transition bg-white'
+const labelCls = 'block text-sm font-medium text-[#0D2B3E] mb-1'
+
 export default function RegisterPage() {
   const router = useRouter()
   const [step, setStep] = useState<1 | 2>(1)
@@ -63,9 +68,7 @@ export default function RegisterPage() {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<RegisterForm>({
-    resolver: zodResolver(registerSchema),
-  })
+  } = useForm<RegisterForm>({ resolver: zodResolver(registerSchema) })
 
   function selectPlan(plan: PlanId) {
     setSelectedPlan(plan)
@@ -76,9 +79,7 @@ export default function RegisterPage() {
     const supabase = createClient()
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo: 'https://app.medscale.app/auth/callback',
-      },
+      options: { redirectTo: 'https://app.medscale.app/auth/callback' },
     })
   }
 
@@ -89,32 +90,18 @@ export default function RegisterPage() {
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
-      options: {
-        data: {
-          clinic_name: data.clinic_name,
-        },
-      },
+      options: { data: { clinic_name: data.clinic_name } },
     })
 
-    if (authError) {
-      setServerError(authError.message)
-      return
-    }
+    if (authError) { setServerError(authError.message); return }
 
     const userId = authData.user?.id
-    if (!userId) {
-      setServerError('No se pudo crear la cuenta. Intenta de nuevo.')
-      return
-    }
+    if (!userId) { setServerError('No se pudo crear la cuenta. Intenta de nuevo.'); return }
 
     const res = await fetch('/api/register/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        plan: selectedPlan,
-        clinic_name: data.clinic_name,
-        user_id: userId,
-      }),
+      body: JSON.stringify({ plan: selectedPlan, clinic_name: data.clinic_name, user_id: userId }),
     })
 
     if (!res.ok) {
@@ -128,190 +115,213 @@ export default function RegisterPage() {
     router.refresh()
   }
 
+  const planData = PLANS.find(p => p.id === selectedPlan)
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
-      <div className="w-full max-w-3xl">
+    <div className="min-h-screen bg-[#EBF0F6]">
 
-        {/* Step indicator */}
-        <div className="flex items-center justify-center gap-3 mb-8">
-          {[1, 2].map(n => (
-            <div key={n} className="flex items-center gap-3">
-              <div className={[
-                'h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold transition',
-                step > n
-                  ? 'bg-blue-600 text-white'
-                  : step === n
-                    ? 'bg-blue-600 text-white ring-4 ring-blue-100'
-                    : 'bg-gray-200 text-gray-500',
-              ].join(' ')}>
-                {step > n ? <Check className="h-3.5 w-3.5" /> : n}
-              </div>
-              <span className={[
-                'text-sm font-medium',
-                step >= n ? 'text-gray-900' : 'text-gray-400',
-              ].join(' ')}>
-                {n === 1 ? 'Elige tu plan' : 'Crea tu cuenta'}
-              </span>
-              {n < 2 && <div className="w-8 h-px bg-gray-300 mx-1" />}
-            </div>
-          ))}
-        </div>
-
-        {/* ── STEP 1: Plan selection ── */}
-        {step === 1 && (
-          <div>
-            <div className="text-center mb-8">
-              <h1 className="text-2xl font-bold text-gray-900">Medscale AI</h1>
-              <p className="text-sm text-gray-500 mt-1">Elige el plan que mejor se adapta a tu clínica</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {PLANS.map(plan => (
-                <button
-                  key={plan.id}
-                  onClick={() => selectPlan(plan.id)}
-                  className={[
-                    'relative flex flex-col items-start rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:shadow-md',
-                    selectedPlan === plan.id
-                      ? 'ring-2 ring-blue-600 border-blue-600'
-                      : 'border-gray-200 hover:border-blue-300',
-                  ].join(' ')}
-                >
-                  {plan.badge && (
-                    <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-blue-600 px-2.5 py-0.5 text-xs font-semibold text-white whitespace-nowrap">
-                      {plan.badge}
-                    </span>
-                  )}
-                  <span className="text-sm font-semibold text-gray-900">{plan.name}</span>
-                  <div className="mt-1 mb-3">
-                    <span className="text-2xl font-bold text-gray-900">{plan.price}</span>
-                    <span className="text-xs text-gray-500">{plan.period}</span>
-                  </div>
-                  <ul className="space-y-1.5">
-                    {plan.features.map(f => (
-                      <li key={f} className="flex items-start gap-1.5 text-xs text-gray-600">
-                        <Check className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                </button>
-              ))}
-            </div>
+      {/* ── STEP 1: Plan selection ── */}
+      {step === 1 && (
+        <div className="min-h-screen flex flex-col items-center justify-center px-4 py-16">
+          {/* Logo */}
+          <div className="mb-10 text-center">
+            <p className="text-xl font-bold tracking-tight text-[#0D2B3E]">MEDSCALE AI</p>
+            <p className="text-xs tracking-widest text-[#4A6B7A] mt-0.5">FOR HEALTHCARE GROWTH</p>
           </div>
-        )}
 
-        {/* ── STEP 2: Create account ── */}
-        {step === 2 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 max-w-md mx-auto">
-            <div className="mb-6">
+          {/* Headline */}
+          <div className="text-center mb-10">
+            <h1 className="text-3xl font-bold text-[#0D2B3E] leading-tight">
+              El sistema de crecimiento<br />
+              para tu <span className="text-[#5A9DB5]">consultorio</span>
+            </h1>
+            <p className="text-[#4A6B7A] mt-3">Elige el plan que necesitas. Cambia cuando quieras.</p>
+          </div>
+
+          {/* Plan cards */}
+          <div className="w-full max-w-5xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {PLANS.map(plan => (
+              <div
+                key={plan.id}
+                className={`relative flex flex-col bg-white rounded-2xl p-6 transition cursor-pointer hover:shadow-lg ${
+                  plan.badge
+                    ? 'border-2 border-[#215F73] shadow-md'
+                    : 'border border-[#C8D8E4] hover:border-[#215F73]'
+                }`}
+                onClick={() => selectPlan(plan.id)}
+              >
+                {plan.badge && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#215F73] text-white text-xs font-semibold px-3 py-1 rounded-full whitespace-nowrap">
+                    {plan.badge}
+                  </span>
+                )}
+
+                <p className="text-sm font-semibold text-[#0D2B3E]">{plan.name}</p>
+                <div className="mt-1 mb-4">
+                  <span className="text-3xl font-bold text-[#0D2B3E]">{plan.price}</span>
+                  <span className="text-sm text-[#4A6B7A]">/mes</span>
+                </div>
+
+                <ul className="space-y-2 flex-1 mb-5">
+                  {plan.features.map(f => (
+                    <li key={f} className="flex items-start gap-2 text-sm text-[#4A6B7A]">
+                      <span className="text-[#215F73] mt-0.5">✓</span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+
+                <button
+                  className="w-full bg-[#215F73] hover:bg-[#1a4d5e] text-white text-sm font-semibold py-2.5 rounded-xl transition"
+                >
+                  Seleccionar
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-8 text-sm text-[#4A6B7A]">
+            ¿Ya tienes cuenta?{' '}
+            <a href="/login" className="text-[#215F73] font-semibold hover:underline">Inicia sesión</a>
+          </p>
+        </div>
+      )}
+
+      {/* ── STEP 2: Create account ── */}
+      {step === 2 && (
+        <div className="min-h-screen flex flex-col items-center justify-center px-4 py-16">
+          {/* Logo */}
+          <div className="mb-8 text-center">
+            <p className="text-xl font-bold tracking-tight text-[#0D2B3E]">MEDSCALE AI</p>
+            <p className="text-xs tracking-widest text-[#4A6B7A] mt-0.5">FOR HEALTHCARE GROWTH</p>
+          </div>
+
+          <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+            {/* Left column — pitch */}
+            <div className="flex flex-col justify-center">
+              <h2 className="text-2xl font-bold text-[#0D2B3E] leading-snug">
+                Comienza con el plan{' '}
+                <span className="text-[#5A9DB5] capitalize">{planData?.name}</span>
+              </h2>
+              <p className="text-3xl font-bold text-[#215F73] mt-1 mb-6">
+                {planData?.price}<span className="text-base font-normal text-[#4A6B7A]">/mes</span>
+              </p>
+
+              <ul className="space-y-4 mb-8">
+                {BENEFITS.map(b => (
+                  <li key={b} className="flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-[#215F73] shrink-0 mt-0.5" />
+                    <span className="text-[#0D2B3E] text-sm leading-relaxed">{b}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <p className="text-sm text-[#4A6B7A] italic mb-6">
+                Únete a consultorios que ya crecen con MedScale AI
+              </p>
+
               <button
                 onClick={() => setStep(1)}
-                className="text-xs text-gray-400 hover:text-gray-600 transition mb-4"
+                className="text-sm text-[#4A6B7A] hover:text-[#215F73] transition self-start"
               >
-                ← Volver a planes
+                ← Cambiar plan
               </button>
-              <h1 className="text-2xl font-bold text-gray-900">Medscale AI</h1>
-              <p className="text-sm text-gray-500 mt-1">Crea tu cuenta — plan <span className="font-medium capitalize text-blue-600">{selectedPlan}</span></p>
             </div>
 
-            <button
-              type="button"
-              onClick={handleGoogleSignup}
-              className="w-full flex items-center justify-center gap-3 border border-gray-300 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition mb-4"
-            >
-              <svg viewBox="0 0 48 48" className="w-5 h-5">
-                <path fill="#4285F4" d="M44 24c0-1.3-.1-2.5-.3-3.7H24v7h11.3c-.5 2.6-2 4.8-4.2 6.3v5.2h6.8C41.5 35.4 44 30.1 44 24z"/>
-                <path fill="#34A853" d="M24 44c5.6 0 10.3-1.9 13.7-5.1l-6.8-5.2c-1.9 1.3-4.3 2-6.9 2-5.3 0-9.8-3.6-11.4-8.4H5.6v5.4C9 39.4 16 44 24 44z"/>
-                <path fill="#FBBC05" d="M12.6 27.3c-.4-1.3-.7-2.6-.7-4s.2-2.7.7-4v-5.4H5.6C4.1 17 3 20.4 3 24s1.1 7 3.6 10.1l7-5.8z"/>
-                <path fill="#EA4335" d="M24 10.6c3 0 5.7 1 7.8 3l5.8-5.8C34.3 4.5 29.6 2 24 2 16 2 9 6.6 5.6 13.9l7 5.4C14.2 14.2 18.7 10.6 24 10.6z"/>
-              </svg>
-              Continuar con Google
-            </button>
+            {/* Right column — form */}
+            <div className="bg-white rounded-2xl shadow-lg p-8">
+              <h3 className="text-xl font-bold text-[#0D2B3E]">Crea tu cuenta</h3>
+              <p className="text-sm text-[#4A6B7A] mt-1 mb-6">
+                Configura tu consultorio en menos de 2 minutos
+              </p>
 
-            <div className="relative mb-4">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200" />
-              </div>
-              <div className="relative flex justify-center text-xs">
-                <span className="bg-white px-2 text-gray-400">o continúa con email</span>
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-              <div>
-                <label htmlFor="clinic_name" className="block text-sm font-medium text-gray-700 mb-1">
-                  Nombre de la clínica
-                </label>
-                <input
-                  id="clinic_name"
-                  type="text"
-                  placeholder="Ej: Clínica Santa María"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                  {...register('clinic_name')}
-                />
-                {errors.clinic_name && (
-                  <p className="mt-1 text-xs text-red-600">{errors.clinic_name.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="tu@email.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                  {...register('email')}
-                />
-                {errors.email && (
-                  <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                  Contraseña
-                </label>
-                <input
-                  id="password"
-                  type="password"
-                  autoComplete="new-password"
-                  placeholder="••••••••"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                  {...register('password')}
-                />
-                {errors.password && (
-                  <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>
-                )}
-              </div>
-
-              {serverError && (
-                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
-                  <p className="text-sm text-red-700">{serverError}</p>
-                </div>
-              )}
-
+              {/* Google OAuth */}
               <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium text-sm py-2.5 rounded-lg transition"
+                type="button"
+                onClick={handleGoogleSignup}
+                className="w-full flex items-center justify-center gap-3 border border-[#C8D8E4] rounded-xl h-11 text-sm font-medium text-[#0D2B3E] hover:bg-[#EBF0F6] transition mb-4"
               >
-                {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isSubmitting ? 'Creando cuenta...' : 'Crear cuenta'}
+                <svg viewBox="0 0 48 48" className="w-5 h-5">
+                  <path fill="#4285F4" d="M44 24c0-1.3-.1-2.5-.3-3.7H24v7h11.3c-.5 2.6-2 4.8-4.2 6.3v5.2h6.8C41.5 35.4 44 30.1 44 24z"/>
+                  <path fill="#34A853" d="M24 44c5.6 0 10.3-1.9 13.7-5.1l-6.8-5.2c-1.9 1.3-4.3 2-6.9 2-5.3 0-9.8-3.6-11.4-8.4H5.6v5.4C9 39.4 16 44 24 44z"/>
+                  <path fill="#FBBC05" d="M12.6 27.3c-.4-1.3-.7-2.6-.7-4s.2-2.7.7-4v-5.4H5.6C4.1 17 3 20.4 3 24s1.1 7 3.6 10.1l7-5.8z"/>
+                  <path fill="#EA4335" d="M24 10.6c3 0 5.7 1 7.8 3l5.8-5.8C34.3 4.5 29.6 2 24 2 16 2 9 6.6 5.6 13.9l7 5.4C14.2 14.2 18.7 10.6 24 10.6z"/>
+                </svg>
+                Continuar con Google
               </button>
-            </form>
 
-            <p className="mt-6 text-center text-sm text-gray-500">
-              ¿Ya tienes cuenta?{' '}
-              <a href="/login" className="text-blue-600 hover:text-blue-700 font-medium">Inicia sesión</a>
-            </p>
+              {/* Divider */}
+              <div className="relative mb-4">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-[#C8D8E4]" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-white px-2 text-[#4A6B7A]">o continúa con email</span>
+                </div>
+              </div>
+
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+                <div>
+                  <label htmlFor="clinic_name" className={labelCls}>Nombre del consultorio</label>
+                  <input
+                    id="clinic_name"
+                    type="text"
+                    placeholder="Ej: Clínica Santa María"
+                    className={inputCls}
+                    {...register('clinic_name')}
+                  />
+                  {errors.clinic_name && <p className="mt-1 text-xs text-red-500">{errors.clinic_name.message}</p>}
+                </div>
+
+                <div>
+                  <label htmlFor="email" className={labelCls}>Email</label>
+                  <input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    placeholder="tu@email.com"
+                    className={inputCls}
+                    {...register('email')}
+                  />
+                  {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email.message}</p>}
+                </div>
+
+                <div>
+                  <label htmlFor="password" className={labelCls}>Contraseña</label>
+                  <input
+                    id="password"
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder="••••••••"
+                    className={inputCls}
+                    {...register('password')}
+                  />
+                  {errors.password && <p className="mt-1 text-xs text-red-500">{errors.password.message}</p>}
+                </div>
+
+                {serverError && (
+                  <p className="text-sm text-red-500">{serverError}</p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full h-12 flex items-center justify-center gap-2 bg-[#215F73] hover:bg-[#1a4d5e] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition"
+                >
+                  {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isSubmitting ? 'Creando cuenta...' : 'Crear cuenta'}
+                </button>
+              </form>
+
+              <p className="mt-5 text-center text-sm text-[#4A6B7A]">
+                ¿Ya tienes cuenta?{' '}
+                <a href="/login" className="text-[#215F73] font-semibold hover:underline">Inicia sesión</a>
+              </p>
+            </div>
           </div>
-        )}
-
-      </div>
+        </div>
+      )}
     </div>
   )
 }
