@@ -569,6 +569,14 @@ export default function CrmPage() {
     first_name: string; last_name: string; phone: string; email: string; source: string; notes: string
   }) => {
     if (!organizationId) return { success: false, error: 'Organización no encontrada' }
+    const checkRes = await fetch('/api/plans/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orgId: organizationId, resource: 'leads' }),
+    }).then(r => r.json())
+    if (!checkRes.allowed) {
+      return { success: false, error: checkRes.error ?? `Has alcanzado el límite de ${checkRes.limit} leads en tu plan ${checkRes.plan}. Actualiza tu plan para continuar.` }
+    }
     const { error } = await supabase.from('leads').insert({
       organization_id: organizationId,
       contact_name: payload.first_name, contact_last_name: payload.last_name || null,

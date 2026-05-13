@@ -138,6 +138,16 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null, orgId
       const { error } = await supabase.from('doctors').update(payload).eq('id', editingId)
       if (error) { setFormError(error.message); setSaving(false); return }
     } else {
+      const checkRes = await fetch('/api/plans/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId, resource: 'doctors' }),
+      }).then(r => r.json())
+      if (!checkRes.allowed) {
+        setFormError(checkRes.error ?? `Has alcanzado el límite de ${checkRes.limit} médicos en tu plan ${checkRes.plan}. Actualiza tu plan para continuar.`)
+        setSaving(false)
+        return
+      }
       const { data: auth } = await supabase.auth.getUser()
       const { error } = await supabase.from('doctors').insert({
         user_id: auth.user?.id,

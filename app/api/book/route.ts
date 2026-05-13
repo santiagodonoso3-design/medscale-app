@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resend } from '@/lib/email/resend'
 import { bookingConfirmationPatient, bookingNotificationDoctor, bookingNotificationClinic } from '@/lib/email/templates'
 import { createGoogleCalendarEvent } from '@/lib/google/calendar'
+import { checkPlanLimit, limitErrorMessage } from '@/lib/plans'
 
 const supabasePublic = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -250,6 +251,12 @@ export async function POST(request: Request) {
     if (leadError || !lead) {
       console.error('[/api/book] lead insert error:', leadError)
       return jsonResponse({ success: false, error: leadError?.message || 'Error creando lead' }, 500)
+    }
+
+    // Check appointment limit before creating
+    const apptCheck = await checkPlanLimit(org.id, 'appointments')
+    if (!apptCheck.allowed) {
+      return jsonResponse({ success: false, error: limitErrorMessage(apptCheck, 'citas este mes') }, 403)
     }
 
     // Create appointment
