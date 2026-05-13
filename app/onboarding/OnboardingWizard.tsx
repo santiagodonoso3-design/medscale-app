@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 const STEPS = [
@@ -73,7 +73,29 @@ export function OnboardingWizard({ orgId, orgName, userEmail, userId }: Props) {
   const [step3, setStep3] = useState<Step3Data>(defaultStep3)
   const [step3Error, setStep3Error] = useState<string | null>(null)
 
+  const [slug, setSlug] = useState<string | null>(null)
+  const [step4Loading, setStep4Loading] = useState(false)
+  const [step4Error, setStep4Error] = useState<string | null>(null)
+
   const totalSteps = STEPS.length
+
+  useEffect(() => {
+    if (currentStep !== 4) return
+    setStep4Loading(true)
+    setStep4Error(null)
+    fetch('/api/onboarding/step4', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orgId, doctorId }),
+    })
+      .then((r) => r.json())
+      .then((body) => {
+        if (body.slug) setSlug(body.slug)
+        else setStep4Error(body.error ?? 'Error al generar el link.')
+      })
+      .catch(() => setStep4Error('Error de red.'))
+      .finally(() => setStep4Loading(false))
+  }, [currentStep]) // eslint-disable-line react-hooks/exhaustive-deps
   const progress = (currentStep / totalSteps) * 100
 
   async function handleNext() {
@@ -199,7 +221,15 @@ export function OnboardingWizard({ orgId, orgName, userEmail, userId }: Props) {
             {currentStep === 1 && <Step1Form data={step1} setData={setStep1} error={step1Error} />}
             {currentStep === 2 && <Step2Form data={step2} setData={setStep2} error={step2Error} />}
             {currentStep === 3 && <Step3Form data={step3} setData={setStep3} error={step3Error} />}
-            {currentStep === 4 && <StepFinal />}
+            {currentStep === 4 && (
+              <StepFinal
+                slug={slug}
+                loading={step4Loading}
+                error={step4Error}
+                finishing={finishing}
+                onFinish={handleFinish}
+              />
+            )}
           </div>
         </div>
 
@@ -213,21 +243,13 @@ export function OnboardingWizard({ orgId, orgName, userEmail, userId }: Props) {
             Anterior
           </button>
 
-          {currentStep < totalSteps ? (
+          {currentStep < totalSteps && (
             <button
               onClick={handleNext}
               disabled={saving}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
             >
               {saving ? 'Guardando...' : 'Siguiente'}
-            </button>
-          ) : (
-            <button
-              onClick={handleFinish}
-              disabled={finishing}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-            >
-              {finishing ? 'Guardando...' : 'Ir al dashboard'}
             </button>
           )}
         </div>
@@ -366,11 +388,75 @@ function Step3Form({ data, setData, error }: {
 
 // ── Step 4 ────────────────────────────────────────────────────────────────────
 
-function StepFinal() {
+function StepFinal({
+  slug,
+  loading,
+  error,
+  finishing,
+  onFinish,
+}: {
+  slug: string | null
+  loading: boolean
+  error: string | null
+  finishing: boolean
+  onFinish: () => void
+}) {
+  const [copied, setCopied] = useState(false)
+  const bookingUrl = slug ? `https://app.medscale.app/book/${slug}` : null
+
+  function handleCopy() {
+    if (!bookingUrl) return
+    navigator.clipboard.writeText(bookingUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   return (
-    <div className="space-y-2">
-      <p className="text-gray-600">Tu link de agendamiento ya está listo para compartir con tus pacientes.</p>
-      <p className="text-sm text-gray-400 italic">Contenido del paso 4 — próximamente.</p>
+    <div className="flex flex-col items-center text-center gap-6 py-4">
+      {/* Check icon */}
+      <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+        <span className="text-green-600 text-3xl font-bold">✓</span>
+      </div>
+
+      <div>
+        <h2 className="text-xl font-semibold text-gray-900">¡Tu clínica está lista!</h2>
+        <p className="text-sm text-gray-500 mt-1">Ya puedes recibir citas de tus pacientes</p>
+      </div>
+
+      {/* Link box */}
+      {loading && (
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <svg className="animate-spin h-4 w-4 text-blue-600" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+          </svg>
+          Generando tu link...
+        </div>
+      )}
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      {bookingUrl && (
+        <div className="w-full">
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+            <span className="flex-1 text-sm text-gray-700 text-left truncate">{bookingUrl}</span>
+            <button
+              onClick={handleCopy}
+              className="shrink-0 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+            >
+              {copied ? '¡Copiado!' : 'Copiar link'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={onFinish}
+        disabled={finishing}
+        className="w-full px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+      >
+        {finishing ? 'Guardando...' : 'Ir al dashboard'}
+      </button>
     </div>
   )
 }
