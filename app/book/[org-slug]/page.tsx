@@ -55,12 +55,11 @@ export default async function BookPage({ params }: BookPageProps) {
       <div className="mx-auto max-w-lg space-y-6">
 
         {/* Header */}
-        <div className="rounded-3xl bg-white px-8 py-7 shadow-sm text-center">
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Agendamiento online</p>
-          {(organization as any).logo_url && (
-            <img src={(organization as any).logo_url} alt={organization.name} className="h-12 w-auto object-contain mx-auto mb-2" />
+        <div className="rounded-3xl bg-white px-8 py-10 shadow-sm text-center">
+          {organization.logo_url && (
+            <img src={organization.logo_url} alt={organization.name} className="h-20 w-auto object-contain mx-auto mb-4" />
           )}
-          <h1 className="mt-1 text-2xl font-bold text-slate-900">{organization.name}</h1>
+          <h1 className="text-2xl font-bold" style={{ color: organization.primary_color || '#0D2B3E' }}>{organization.name}</h1>
           <p className="mt-1 text-sm text-slate-500">Selecciona el tipo de cita</p>
         </div>
 
@@ -114,7 +113,7 @@ export default async function BookPage({ params }: BookPageProps) {
           className="inline-flex items-center gap-1.5 text-xs font-medium transition hover:opacity-80"
           style={{ color: '#94a3b8' }}
         >
-          <span>Agendamiento con</span>
+          <span>Powered by</span>
           <span className="font-bold tracking-tight" style={{ color: '#215F73' }}>MedScale AI</span>
         </a>
       </div>
