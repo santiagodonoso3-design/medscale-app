@@ -871,17 +871,40 @@ export default function BookingWizard({
   return (
     <>
     <div className="mx-auto max-w-4xl">
-      <div className="rounded-2xl sm:rounded-3xl shadow-sm p-5 sm:p-8" style={{ background: '#fff', border: `1px solid ${B.border}` }}>
+      <div className="rounded-2xl sm:rounded-3xl shadow-sm p-5 sm:p-6" style={{ background: '#fff', border: `1px solid ${B.border}` }}>
 
         {/* Header */}
-        <div className="text-center mb-6 sm:mb-8">
-          {orgLogoUrl && (
-            <img src={orgLogoUrl} alt={orgName} className="h-20 w-auto object-contain mx-auto mb-3" />
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            {orgLogoUrl && (
+              <img src={orgLogoUrl} alt={orgName} className="h-12 w-auto object-contain" />
+            )}
+            <h1 className="text-xl font-bold" style={{ color: B.fg }}>{orgName}</h1>
+          </div>
+          {currentStep < 4 && (
+            <div className="flex items-center">
+              {INDICATOR_LABELS.map((label, idx) => {
+                const pos    = idx + 1
+                const active = pos <= Math.min(visualPos, totalSteps)
+                return (
+                  <div key={label} className="flex items-center">
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors"
+                        style={{ background: active ? primaryColor : '#e5e7eb', color: active ? '#fff' : B.muted }}>
+                        {pos}
+                      </div>
+                      <span className="hidden sm:block text-[11px] font-medium" style={{ color: active ? primaryColor : B.muted }}>{label}</span>
+                    </div>
+                    {idx < INDICATOR_LABELS.length - 1 && (
+                      <div className="w-6 sm:w-10 h-0.5 mx-1 sm:mx-2 mb-4 transition-colors"
+                        style={{ background: pos < visualPos ? B.accent : '#e5e7eb' }} />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           )}
-          <h1 className="text-2xl font-bold" style={{ color: B.fg }}>{orgName}</h1>
         </div>
-
-        {currentStep < 4 && renderStepIndicator()}
 
         <div className="min-h-[420px]">
           {currentStep === 1 && renderStep1()}
