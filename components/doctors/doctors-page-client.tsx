@@ -150,6 +150,7 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null, orgId
       }
       const { data: auth } = await supabase.auth.getUser()
       const { error } = await supabase.from('doctors').insert({
+        organization_id: orgId,
         user_id: auth.user?.id,
         ...payload,
       })
