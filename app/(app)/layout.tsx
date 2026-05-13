@@ -11,7 +11,7 @@ export default async function AppShell({ children }: { children: ReactNode }) {
   const admin = createServiceClient()
   const { data: organization } = await admin
     .from('organizations')
-    .select('name, logo_url')
+    .select('name, logo_url, sidebar_theme')
     .eq('id', session.orgId)
     .single()
 
@@ -24,6 +24,7 @@ export default async function AppShell({ children }: { children: ReactNode }) {
           userEmail={session.user.email || undefined}
           userRole={session.role}
           logoUrl={organization?.logo_url || null}
+          sidebarTheme={organization?.sidebar_theme || 'dark'}
         />
         <main className="flex-1 min-w-0 overflow-x-hidden">{children}</main>
       </div>

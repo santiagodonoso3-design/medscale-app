@@ -14,6 +14,7 @@ interface OrgSidebarProps {
   userEmail?: string
   userRole?: 'owner' | 'staff' | 'doctor' | null
   logoUrl?: string | null
+  sidebarTheme?: 'dark' | 'light'
 }
 
 const ALL_NAV_ITEMS = [
@@ -26,7 +27,7 @@ const ALL_NAV_ITEMS = [
   { name: 'Configuración',  href: '/settings',            icon: Settings,        roles: ['owner'] },
 ]
 
-export function OrgSidebar({ orgName, userName, userEmail, userRole, logoUrl }: OrgSidebarProps) {
+export function OrgSidebar({ orgName, userName, userEmail, userRole, logoUrl, sidebarTheme }: OrgSidebarProps) {
   const navItems = ALL_NAV_ITEMS.filter(item =>
     !userRole || item.roles.includes(userRole)
   )
@@ -36,6 +37,21 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole, logoUrl }: 
   const [menuOpen, setMenuOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const supabase = createClient()
+
+  const isDark = sidebarTheme !== 'light'
+  const theme = {
+    bg:         isDark ? 'bg-foreground'                    : 'bg-[#F3F7FA]',
+    text:       isDark ? 'text-white'                       : 'text-[#0D2B3E]',
+    textMuted:  isDark ? 'text-white/60'                    : 'text-[#4A6B7A]',
+    textLabel:  isDark ? 'text-white/40'                    : 'text-[#4A6B7A]/60',
+    activeItem: isDark ? 'bg-primary text-white shadow-sm'  : 'bg-[#215F73] text-white shadow-sm',
+    hoverItem:  isDark ? 'hover:bg-primary/20 hover:text-white' : 'hover:bg-[#215F73]/10 hover:text-[#0D2B3E]',
+    border:     isDark ? 'border-primary/30'                : 'border-[#C8D8E4]',
+    accentText: isDark ? 'text-accent'                      : 'text-[#215F73]',
+    iconBg:     isDark ? 'bg-accent text-white'             : 'bg-[#215F73]/10 text-[#215F73]',
+    toggleBtn:  isDark ? 'text-white/40 hover:text-white hover:bg-white/10' : 'text-[#4A6B7A] hover:text-[#0D2B3E] hover:bg-[#215F73]/10',
+    accountBtn: isDark ? 'border-white/10 text-white/60 hover:bg-white/10' : 'border-[#C8D8E4] text-[#4A6B7A] hover:bg-[#215F73]/10',
+  }
 
   useEffect(() => {
     const stored = localStorage.getItem('sidebar-collapsed')
@@ -60,22 +76,22 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole, logoUrl }: 
   }
 
   return (
-    <aside className={`sticky top-0 flex h-screen shrink-0 flex-col overflow-y-auto bg-foreground text-primary-foreground transition-all duration-200 ${collapsed ? 'w-14' : 'w-56'}`}>
+    <aside className={`sticky top-0 flex h-screen shrink-0 flex-col overflow-y-auto transition-all duration-200 ${theme.bg} ${theme.text} ${collapsed ? 'w-14' : 'w-56'}`}>
 
       {/* Logo */}
-      <div className={`border-b border-primary/30 py-5 ${collapsed ? 'px-2 flex justify-center' : 'px-5'}`}>
+      <div className={`border-b ${theme.border} py-5 ${collapsed ? 'px-2 flex justify-center' : 'px-5'}`}>
         <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
           {logoUrl ? (
             <img src={logoUrl} alt="Logo" className="h-9 w-9 shrink-0 rounded-xl object-contain" />
           ) : (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white">
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${theme.iconBg}`}>
               <LayoutDashboard className="h-4 w-4" />
             </div>
           )}
           {!collapsed && (
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Medscale AI</p>
-              <h1 className="text-sm font-bold tracking-tight text-white truncate">{orgName || 'Mi clínica'}</h1>
+              <p className={`text-[10px] font-semibold uppercase tracking-[0.2em] ${theme.accentText}`}>Medscale AI</p>
+              <h1 className={`text-sm font-bold tracking-tight truncate ${theme.text}`}>{orgName || 'Mi clínica'}</h1>
             </div>
           )}
         </div>
@@ -83,10 +99,10 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole, logoUrl }: 
 
       {/* Toggle button */}
       <div className="flex items-center justify-between px-4 py-2">
-        {!collapsed && <span className="text-xs text-white/40">MENÚ</span>}
+        {!collapsed && <span className={`text-xs ${theme.textLabel}`}>MENÚ</span>}
         <button
           onClick={toggleCollapsed}
-          className={`p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition ${collapsed ? 'mx-auto' : 'ml-auto'}`}
+          className={`p-1.5 rounded-lg transition ${theme.toggleBtn} ${collapsed ? 'mx-auto' : 'ml-auto'}`}
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
@@ -108,14 +124,14 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole, logoUrl }: 
                   collapsed ? 'justify-center px-0' : 'gap-3 px-3'
                 } ${
                   isActive
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'text-white/60 hover:bg-primary/20 hover:text-white'
+                    ? theme.activeItem
+                    : `${theme.textMuted} ${theme.hoverItem}`
                 }`}
               >
                 <Icon className="h-4.5 w-4.5 shrink-0" style={{ width: '18px', height: '18px' }} />
                 {!collapsed && <span>{item.name}</span>}
               </Link>
-              {/* Tooltip when collapsed */}
+              {/* Tooltip when collapsed — always dark */}
               {collapsed && (
                 <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs text-white opacity-0 transition group-hover:opacity-100">
                   {item.name}
@@ -159,7 +175,7 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole, logoUrl }: 
         <div className="group relative">
           <button
             onClick={() => setMenuOpen(o => !o)}
-            className={`flex w-full items-center border-t border-white/10 py-3 text-sm text-white/60 hover:bg-white/10 transition ${
+            className={`flex w-full items-center border-t py-3 text-sm transition ${theme.accountBtn} ${
               collapsed ? 'justify-center px-0' : 'gap-2 px-4'
             }`}
           >
