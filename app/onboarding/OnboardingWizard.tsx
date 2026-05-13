@@ -2,8 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 
 const STEPS = [
   { number: 1, title: 'Datos de tu clínica' },
@@ -77,30 +75,37 @@ export function OnboardingWizard({ organizationId, organizationName }: Props) {
         </div>
 
         {/* Step content */}
-        <Card className="shadow-sm">
-          <CardContent className="p-8">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="p-8">
             <StepContent step={currentStep} organizationName={organizationName} />
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Navigation */}
         <div className="flex justify-between mt-6">
-          <Button
-            variant="outline"
+          <button
             onClick={() => setCurrentStep((s) => s - 1)}
             disabled={currentStep === 1}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Anterior
-          </Button>
+          </button>
 
           {currentStep < totalSteps ? (
-            <Button onClick={() => setCurrentStep((s) => s + 1)}>
+            <button
+              onClick={() => setCurrentStep((s) => s + 1)}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+            >
               Siguiente
-            </Button>
+            </button>
           ) : (
-            <Button onClick={handleFinish} disabled={finishing}>
+            <button
+              onClick={handleFinish}
+              disabled={finishing}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            >
               {finishing ? 'Guardando...' : 'Ir al dashboard'}
-            </Button>
+            </button>
           )}
         </div>
       </div>
