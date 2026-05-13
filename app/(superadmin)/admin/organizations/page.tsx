@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   getAllOrganizations,
   createOrganization,
@@ -9,11 +10,13 @@ import {
   type Organization,
 } from './actions'
 import { OrganizationFormModal } from '@/components/admin/create-org-modal'
-import { Building2, Plus, Loader2, Pencil, Trash2 } from 'lucide-react'
+import { Building2, Plus, Loader2, Pencil, Trash2, LogIn } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { startImpersonation } from '@/lib/admin/impersonate'
 
 export default function OrganizationsPage() {
+  const router = useRouter()
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -70,6 +73,15 @@ export default function OrganizationsPage() {
       console.error(err)
     } finally {
       setActiveActionId(null)
+    }
+  }
+
+  const handleImpersonate = async (orgId: string) => {
+    const result = await startImpersonation(orgId)
+    if (result.success) {
+      router.push('/dashboard')
+    } else {
+      setError(result.error || 'Error al impersonar')
     }
   }
 
@@ -233,6 +245,14 @@ export default function OrganizationsPage() {
                           <Trash2 className="h-4 w-4" />
                         )}
                         Eliminar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleImpersonate(org.id)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 hover:bg-blue-100 transition-colors"
+                      >
+                        <LogIn className="h-4 w-4" />
+                        Entrar
                       </button>
                     </td>
                   </tr>
