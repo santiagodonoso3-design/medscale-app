@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 export interface Organization {
@@ -9,40 +9,36 @@ export interface Organization {
   slug: string
   plan: 'free' | 'starter' | 'growth' | 'scale'
   is_active: boolean
+  ai_agent_enabled: boolean
   user_count: number
   created_at: string
 }
 
 export async function getAllOrganizations(): Promise<Organization[] | null> {
-  const supabase = await createClient()
+  const admin = createServiceClient()
 
   try {
-    const { data: orgs, error } = await supabase
+    const { data: orgs, error } = await admin
       .from('organizations')
-      .select('id, name, slug, metadata, created_at')
+      .select('id, name, slug, plan, is_active, ai_agent_enabled, created_at')
       .order('created_at', { ascending: false })
 
-    if (error) {
-      console.error('Error fetching organizations:', error)
-      return null
-    }
+    if (error) return null
 
-    // Get user counts per organization
     const organizationsWithData = await Promise.all(
       (orgs || []).map(async (org) => {
-        const { count } = await supabase
-          .from('users')
+        const { count } = await admin
+          .from('organization_members')
           .select('id', { count: 'exact', head: true })
           .eq('organization_id', org.id)
-
-        const metadata = org.metadata as Record<string, any> || {}
 
         return {
           id: org.id,
           name: org.name,
           slug: org.slug,
-          plan: (metadata.plan || 'starter') as 'free' | 'starter' | 'growth' | 'scale',
-          is_active: metadata.is_active !== false,
+          plan: (org.plan || 'free') as 'free' | 'starter' | 'growth' | 'scale',
+          is_active: org.is_active !== false,
+          ai_agent_enabled: org.ai_agent_enabled === true,
           user_count: count || 0,
           created_at: org.created_at,
         }
@@ -50,8 +46,7 @@ export async function getAllOrganizations(): Promise<Organization[] | null> {
     )
 
     return organizationsWithData
-  } catch (error) {
-    console.error('Error in getAllOrganizations:', error)
+  } catch {
     return null
   }
 }
@@ -61,48 +56,34 @@ export async function createOrganization(
   slug: string,
   plan: 'free' | 'starter' | 'growth' | 'scale'
 ): Promise<{ success: boolean; error?: string; organization?: Organization }> {
-  const supabase = await createClient()
+  const admin = createServiceClient()
 
   try {
-    // Check if slug already exists
-    const { data: existing } = await supabase
+    const { data: existing } = await admin
       .from('organizations')
       .select('id')
       .eq('slug', slug)
       .single()
 
-    if (existing) {
-      return { success: false, error: 'El slug ya está en uso' }
-    }
+    if (existing) return { success: false, error: 'El slug ya está en uso' }
 
-    // Create organization
-    const { data: newOrg, error } = await supabase
+    const { data: newOrg, error } = await admin
       .from('organizations')
-      .insert({
-        name,
-        slug,
-        metadata: {
-          plan,
-          is_active: true,
-          created_by: 'superadmin',
-        },
-      })
-      .select('id, name, slug, metadata, created_at')
+      .insert({ name, slug, plan, is_active: true, ai_agent_enabled: false })
+      .select('id, name, slug, plan, is_active, ai_agent_enabled, created_at')
       .single()
 
     if (error || !newOrg) {
-      console.error('Error creating organization:', error)
       return { success: false, error: error?.message || 'Error creando organización' }
     }
-
-    const metadata = newOrg.metadata as Record<string, any> || {}
 
     const organization: Organization = {
       id: newOrg.id,
       name: newOrg.name,
       slug: newOrg.slug,
-      plan: (metadata.plan || 'starter') as 'free' | 'starter' | 'growth' | 'scale',
-      is_active: metadata.is_active !== false,
+      plan: (newOrg.plan || 'free') as 'free' | 'starter' | 'growth' | 'scale',
+      is_active: newOrg.is_active !== false,
+      ai_agent_enabled: newOrg.ai_agent_enabled === true,
       user_count: 0,
       created_at: newOrg.created_at,
     }
@@ -111,8 +92,7 @@ export async function createOrganization(
     revalidatePath('/admin')
 
     return { success: true, organization }
-  } catch (error) {
-    console.error('Error in createOrganization:', error)
+  } catch {
     return { success: false, error: 'Error interno del servidor' }
   }
 }
@@ -122,34 +102,24 @@ export async function updateOrganization(
   name: string,
   slug: string,
   plan: 'free' | 'starter' | 'growth' | 'scale',
-  is_active: boolean
+  is_active: boolean,
+  ai_agent_enabled: boolean
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
+  const admin = createServiceClient()
 
   try {
-    const { error } = await supabase
+    const { error } = await admin
       .from('organizations')
-      .update({
-        name,
-        slug,
-        metadata: {
-          plan,
-          is_active,
-        },
-      })
+      .update({ name, slug, plan, is_active, ai_agent_enabled })
       .eq('id', id)
 
-    if (error) {
-      console.error('Error updating organization:', error)
-      return { success: false, error: error.message }
-    }
+    if (error) return { success: false, error: error.message }
 
     revalidatePath('/admin/organizations')
     revalidatePath('/admin')
 
     return { success: true }
-  } catch (error) {
-    console.error('Error in updateOrganization:', error)
+  } catch {
     return { success: false, error: 'Error interno del servidor' }
   }
 }
@@ -157,25 +127,21 @@ export async function updateOrganization(
 export async function deleteOrganization(
   id: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
+  const admin = createServiceClient()
 
   try {
-    const { error } = await supabase
+    const { error } = await admin
       .from('organizations')
       .delete()
       .eq('id', id)
 
-    if (error) {
-      console.error('Error deleting organization:', error)
-      return { success: false, error: error.message }
-    }
+    if (error) return { success: false, error: error.message }
 
     revalidatePath('/admin/organizations')
     revalidatePath('/admin')
 
     return { success: true }
-  } catch (error) {
-    console.error('Error in deleteOrganization:', error)
+  } catch {
     return { success: false, error: 'Error interno del servidor' }
   }
 }

@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 
 export interface DashboardMetrics {
   totalOrganizations: number
@@ -19,51 +19,41 @@ export interface DashboardMetrics {
 }
 
 export async function getDashboardMetrics(): Promise<DashboardMetrics | null> {
-  const supabase = await createClient()
+  const admin = createServiceClient()
 
   try {
-    // Get total organizations
-    const { count: orgCount } = await supabase
-      .from('organizations')
-      .select('id', { count: 'exact', head: true })
+    const [
+      { count: orgCount },
+      { count: userCount },
+      { count: leadCount },
+      { count: appointmentCount },
+      { data: recentOrgs },
+    ] = await Promise.all([
+      admin.from('organizations').select('id', { count: 'exact', head: true }),
+      admin.from('organization_members').select('id', { count: 'exact', head: true }),
+      admin.from('leads').select('id', { count: 'exact', head: true }),
+      admin.from('appointments').select('id', { count: 'exact', head: true }),
+      admin.from('organizations')
+        .select('id, name, slug, plan, is_active, created_at')
+        .order('created_at', { ascending: false })
+        .limit(5),
+    ])
 
-    // Get total users
-    const { count: userCount } = await supabase
-      .from('users')
-      .select('id', { count: 'exact', head: true })
-
-    // Get total leads
-    const { count: leadCount } = await supabase
-      .from('leads')
-      .select('id', { count: 'exact', head: true })
-
-    // Get total appointments
-    const { count: appointmentCount } = await supabase
-      .from('appointments')
-      .select('id', { count: 'exact', head: true })
-
-    // Get recent organizations
-    const { data: recentOrgs } = await supabase
-      .from('organizations')
-      .select('id, name, slug, metadata, created_at')
-      .order('created_at', { ascending: false })
-      .limit(5)
-
-    // Get user counts per organization
     const organizationsWithUsers = await Promise.all(
       (recentOrgs || []).map(async (org) => {
-        const { count } = await supabase
-          .from('users')
+        const { count } = await admin
+          .from('organization_members')
           .select('id', { count: 'exact', head: true })
           .eq('organization_id', org.id)
 
-        const metadata = org.metadata as Record<string, any> || {}
-
         return {
-          ...org,
-          plan: metadata.plan || 'starter',
-          is_active: metadata.is_active !== false,
+          id: org.id,
+          name: org.name,
+          slug: org.slug,
+          plan: org.plan || 'free',
+          is_active: org.is_active !== false,
           user_count: count || 0,
+          created_at: org.created_at,
         }
       })
     )
@@ -75,8 +65,7 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics | null> {
       totalAppointments: appointmentCount || 0,
       recentOrganizations: organizationsWithUsers,
     }
-  } catch (error) {
-    console.error('Error fetching dashboard metrics:', error)
+  } catch {
     return null
   }
 }

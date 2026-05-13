@@ -22,6 +22,7 @@ interface OrganizationFormModalProps {
     slug: string
     plan: Plan
     is_active: boolean
+    ai_agent_enabled: boolean
   }) => Promise<{ success: boolean; error?: string }>
   initialValues?: {
     id?: string
@@ -29,6 +30,7 @@ interface OrganizationFormModalProps {
     slug: string
     plan: Plan
     is_active: boolean
+    ai_agent_enabled: boolean
   }
 }
 
@@ -52,6 +54,7 @@ export function OrganizationFormModal({
   const [slug, setSlug] = useState(initialValues?.slug ?? '')
   const [plan, setPlan] = useState<Plan>(initialValues?.plan ?? 'free')
   const [isActive, setIsActive] = useState(initialValues?.is_active ?? true)
+  const [aiAgentEnabled, setAiAgentEnabled] = useState(initialValues?.ai_agent_enabled ?? false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -73,7 +76,7 @@ export function OrganizationFormModal({
       return
     }
 
-    const result = await onSave({ id: initialValues?.id, name, slug, plan, is_active: isActive })
+    const result = await onSave({ id: initialValues?.id, name, slug, plan, is_active: isActive, ai_agent_enabled: aiAgentEnabled })
 
     if (!result.success) {
       setError(result.error || 'Error guardando organización')
@@ -85,6 +88,7 @@ export function OrganizationFormModal({
     setSlug('')
     setPlan('free')
     setIsActive(true)
+    setAiAgentEnabled(false)
     onSuccess()
     onClose()
   }
@@ -150,17 +154,30 @@ export function OrganizationFormModal({
           </div>
 
           {mode === 'edit' && (
-            <div className="flex items-center gap-3">
-              <input
-                id="isActive"
-                type="checkbox"
-                checked={isActive}
-                onChange={(e) => setIsActive(e.target.checked)}
-                disabled={isLoading}
-                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              <label htmlFor="isActive" className="text-sm text-slate-700">Organización activa</label>
-            </div>
+            <>
+              <div className="flex items-center gap-3">
+                <input
+                  id="isActive"
+                  type="checkbox"
+                  checked={isActive}
+                  onChange={(e) => setIsActive(e.target.checked)}
+                  disabled={isLoading}
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="isActive" className="text-sm text-slate-700">Organización activa</label>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  id="aiAgent"
+                  type="checkbox"
+                  checked={aiAgentEnabled}
+                  onChange={(e) => setAiAgentEnabled(e.target.checked)}
+                  disabled={isLoading}
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="aiAgent" className="text-sm text-slate-700">Agente AI activado</label>
+              </div>
+            </>
           )}
 
           <div className="flex gap-3 pt-4">

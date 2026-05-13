@@ -79,6 +79,7 @@ export default function OrganizationsPage() {
     slug: string
     plan: 'free' | 'starter' | 'growth' | 'scale'
     is_active: boolean
+    ai_agent_enabled: boolean
   }) => {
     if (payload.id) {
       return await updateOrganization(
@@ -86,7 +87,8 @@ export default function OrganizationsPage() {
         payload.name,
         payload.slug,
         payload.plan,
-        payload.is_active
+        payload.is_active,
+        payload.ai_agent_enabled
       )
     }
 
@@ -147,6 +149,9 @@ export default function OrganizationsPage() {
                     Estado
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
+                    AI Agent
+                  </th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
                     Usuarios
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-slate-900">
@@ -194,6 +199,13 @@ export default function OrganizationsPage() {
                         }`}
                       >
                         {org.is_active ? 'Activa' : 'Inactiva'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        org.ai_agent_enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        {org.ai_agent_enabled ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">{org.user_count}</td>
