@@ -110,6 +110,19 @@ const KANBAN_HEADER: Record<string, string> = {
   finalizado:               'bg-slate-200/60',
 }
 
+const SOURCE_DOT: Record<string, { dot: string; keyword: string }> = {
+  book:         { dot: 'bg-green-500',  keyword: 'Online' },
+  booking:      { dot: 'bg-green-500',  keyword: 'Online' },
+  manual:       { dot: 'bg-slate-400',  keyword: 'Manual' },
+  instagram:    { dot: 'bg-pink-500',   keyword: 'Instagram' },
+  facebook:     { dot: 'bg-blue-600',   keyword: 'Facebook' },
+  whatsapp:     { dot: 'bg-green-600',  keyword: 'WhatsApp' },
+  manychat:     { dot: 'bg-green-600',  keyword: 'WhatsApp' },
+  manychat_n8n: { dot: 'bg-green-600',  keyword: 'WhatsApp' },
+  referido:     { dot: 'bg-purple-500', keyword: 'Referido' },
+  web:          { dot: 'bg-cyan-500',   keyword: 'Web' },
+}
+
 const SOURCE_LABELS: Record<string, string> = {
   instagram:    'Instagram',
   whatsapp:     'WhatsApp',
@@ -751,11 +764,17 @@ export default function CrmPage() {
                       <td className="px-3 py-2 text-xs text-slate-600 min-w-[180px]">{lead.contact_email || '—'}</td>
 
                       {/* Fuente inline */}
-                      <td className="px-3 py-2 min-w-[100px]" onClick={e => e.stopPropagation()}>
-                        <button onClick={e => openPopover(e, setSourcePopover, sourcePopover?.leadId, lead.id, () => setSourcePopover(null))}
-                          className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 transition hover:ring-2 hover:ring-offset-1 hover:ring-slate-300">
-                          {SOURCE_LABELS[lead.source ?? ''] ?? (lead.source || 'Otra')}
-                          <ChevronDown className="h-3 w-3 opacity-50" />
+                      <td className="px-3 py-2 max-w-[140px] whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={e => openPopover(e, setSourcePopover, sourcePopover?.leadId, lead.id, () => setSourcePopover(null))}
+                          title={SOURCE_LABELS[lead.source ?? ''] ?? (lead.source || 'Otra')}
+                          className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-100 transition"
+                        >
+                          <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${SOURCE_DOT[lead.source ?? '']?.dot ?? 'bg-slate-400'}`} />
+                          <span className="truncate max-w-[100px]">
+                            {SOURCE_DOT[lead.source ?? '']?.keyword ?? (lead.source ? lead.source.slice(0, 15) + (lead.source.length > 15 ? '…' : '') : 'Otra')}
+                          </span>
+                          <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
                         </button>
                       </td>
 
