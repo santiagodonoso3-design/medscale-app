@@ -3,6 +3,15 @@
 import { useState } from 'react'
 import { X, Loader2 } from 'lucide-react'
 
+type Plan = 'free' | 'starter' | 'growth' | 'scale'
+
+const PLAN_OPTIONS: { value: Plan; label: string }[] = [
+  { value: 'free',    label: 'Free — US$0/mes (1 médico, 50 leads, 20 citas/mes)' },
+  { value: 'starter', label: 'Starter — US$29/mes (3 médicos, 100 citas/mes)' },
+  { value: 'growth',  label: 'Growth — US$79/mes (8 médicos, ilimitado)' },
+  { value: 'scale',   label: 'Scale — US$149/mes (ilimitado + API)' },
+]
+
 interface OrganizationFormModalProps {
   isOpen: boolean
   onClose: () => void
@@ -11,14 +20,14 @@ interface OrganizationFormModalProps {
     id?: string
     name: string
     slug: string
-    plan: 'starter' | 'growth' | 'enterprise'
+    plan: Plan
     is_active: boolean
   }) => Promise<{ success: boolean; error?: string }>
   initialValues?: {
     id?: string
     name: string
     slug: string
-    plan: 'starter' | 'growth' | 'enterprise'
+    plan: Plan
     is_active: boolean
   }
 }
@@ -41,7 +50,7 @@ export function OrganizationFormModal({
 }: OrganizationFormModalProps) {
   const [name, setName] = useState(initialValues?.name ?? '')
   const [slug, setSlug] = useState(initialValues?.slug ?? '')
-  const [plan, setPlan] = useState<'starter' | 'growth' | 'enterprise'>(initialValues?.plan ?? 'starter')
+  const [plan, setPlan] = useState<Plan>(initialValues?.plan ?? 'free')
   const [isActive, setIsActive] = useState(initialValues?.is_active ?? true)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -50,10 +59,7 @@ export function OrganizationFormModal({
 
   const handleNameChange = (value: string) => {
     setName(value)
-    if (value.trim()) {
-      const generated = generateSlug(value)
-      setSlug(generated)
-    }
+    if (value.trim()) setSlug(generateSlug(value))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -67,13 +73,7 @@ export function OrganizationFormModal({
       return
     }
 
-    const result = await onSave({
-      id: initialValues?.id,
-      name,
-      slug,
-      plan,
-      is_active: isActive,
-    })
+    const result = await onSave({ id: initialValues?.id, name, slug, plan, is_active: isActive })
 
     if (!result.success) {
       setError(result.error || 'Error guardando organización')
@@ -83,7 +83,7 @@ export function OrganizationFormModal({
 
     setName('')
     setSlug('')
-    setPlan('starter')
+    setPlan('free')
     setIsActive(true)
     onSuccess()
     onClose()
@@ -94,21 +94,15 @@ export function OrganizationFormModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <h2 className="text-lg font-semibold text-slate-900">
             {mode === 'edit' ? 'Editar Organización' : 'Nueva Organización'}
           </h2>
-          <button
-            onClick={onClose}
-            disabled={isLoading}
-            className="text-slate-400 hover:text-slate-600 disabled:opacity-50"
-          >
+          <button onClick={onClose} disabled={isLoading} className="text-slate-400 hover:text-slate-600 disabled:opacity-50">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
             <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3">
@@ -117,9 +111,7 @@ export function OrganizationFormModal({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Nombre de la Organización
-            </label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Nombre de la Organización</label>
             <input
               type="text"
               value={name}
@@ -131,9 +123,7 @@ export function OrganizationFormModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Slug (Auto-generado)
-            </label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Slug (Auto-generado)</label>
             <input
               type="text"
               value={slug}
@@ -146,18 +136,16 @@ export function OrganizationFormModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Plan
-            </label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Plan</label>
             <select
               value={plan}
-              onChange={(e) => setPlan(e.target.value as 'starter' | 'growth' | 'enterprise')}
+              onChange={(e) => setPlan(e.target.value as Plan)}
               disabled={isLoading}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
             >
-              <option value="starter">Starter - Básico</option>
-              <option value="growth">Growth - Crecimiento</option>
-              <option value="enterprise">Enterprise - Empresarial</option>
+              {PLAN_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
             </select>
           </div>
 
@@ -171,13 +159,10 @@ export function OrganizationFormModal({
                 disabled={isLoading}
                 className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
               />
-              <label htmlFor="isActive" className="text-sm text-slate-700">
-                Organización activa
-              </label>
+              <label htmlFor="isActive" className="text-sm text-slate-700">Organización activa</label>
             </div>
           )}
 
-          {/* Buttons */}
           <div className="flex gap-3 pt-4">
             <button
               type="button"

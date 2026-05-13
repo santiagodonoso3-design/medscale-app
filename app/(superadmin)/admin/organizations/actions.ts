@@ -7,7 +7,7 @@ export interface Organization {
   id: string
   name: string
   slug: string
-  plan: 'starter' | 'growth' | 'enterprise'
+  plan: 'free' | 'starter' | 'growth' | 'scale'
   is_active: boolean
   user_count: number
   created_at: string
@@ -41,7 +41,7 @@ export async function getAllOrganizations(): Promise<Organization[] | null> {
           id: org.id,
           name: org.name,
           slug: org.slug,
-          plan: (metadata.plan || 'starter') as 'starter' | 'growth' | 'enterprise',
+          plan: (metadata.plan || 'starter') as 'free' | 'starter' | 'growth' | 'scale',
           is_active: metadata.is_active !== false,
           user_count: count || 0,
           created_at: org.created_at,
@@ -59,7 +59,7 @@ export async function getAllOrganizations(): Promise<Organization[] | null> {
 export async function createOrganization(
   name: string,
   slug: string,
-  plan: 'starter' | 'growth' | 'enterprise'
+  plan: 'free' | 'starter' | 'growth' | 'scale'
 ): Promise<{ success: boolean; error?: string; organization?: Organization }> {
   const supabase = await createClient()
 
@@ -101,7 +101,7 @@ export async function createOrganization(
       id: newOrg.id,
       name: newOrg.name,
       slug: newOrg.slug,
-      plan: (metadata.plan || 'starter') as 'starter' | 'growth' | 'enterprise',
+      plan: (metadata.plan || 'starter') as 'free' | 'starter' | 'growth' | 'scale',
       is_active: metadata.is_active !== false,
       user_count: 0,
       created_at: newOrg.created_at,
@@ -121,7 +121,7 @@ export async function updateOrganization(
   id: string,
   name: string,
   slug: string,
-  plan: 'starter' | 'growth' | 'enterprise',
+  plan: 'free' | 'starter' | 'growth' | 'scale',
   is_active: boolean
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()

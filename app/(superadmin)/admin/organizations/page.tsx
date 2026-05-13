@@ -77,7 +77,7 @@ export default function OrganizationsPage() {
     id?: string
     name: string
     slug: string
-    plan: 'starter' | 'growth' | 'enterprise'
+    plan: 'free' | 'starter' | 'growth' | 'scale'
     is_active: boolean
   }) => {
     if (payload.id) {
@@ -175,10 +175,14 @@ export default function OrganizationsPage() {
                       </code>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {org.plan === 'starter' && 'Starter'}
-                        {org.plan === 'growth' && 'Growth'}
-                        {org.plan === 'enterprise' && 'Enterprise'}
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
+                        org.plan === 'free'    ? 'bg-gray-100 text-gray-700' :
+                        org.plan === 'starter' ? 'bg-blue-100 text-blue-700' :
+                        org.plan === 'growth'  ? 'bg-green-100 text-green-700' :
+                        org.plan === 'scale'   ? 'bg-purple-100 text-purple-700' :
+                        'bg-slate-100 text-slate-700'
+                      }`}>
+                        {org.plan ?? '—'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
