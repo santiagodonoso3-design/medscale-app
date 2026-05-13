@@ -29,6 +29,14 @@ export default async function DashboardPage() {
 
   const orgId = member.organization_id
 
+  const { data: org } = await admin
+    .from('organizations')
+    .select('onboarding_completed')
+    .eq('id', orgId)
+    .single()
+
+  if (!org?.onboarding_completed) redirect('/onboarding')
+
   const currentYear = Number(
     new Intl.DateTimeFormat('en-CA', { year: 'numeric', timeZone: 'America/Bogota' }).format(new Date())
   )
