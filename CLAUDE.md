@@ -1,4 +1,4 @@
-# MedScale App — Estado del proyecto (9 Mayo 2026)
+# MedScale App — Estado del proyecto (12 Mayo 2026)
 
 ## ✅ Completado
 
@@ -101,37 +101,53 @@
 - ✅ Banner "Las respuestas se envían automáticamente por el agente AI"
 - ✅ Responsive: alterna lista/chat en móvil
 - ✅ n8n configurado: nodo Webhook Medscale APP en flujos WA, IG, FB
+- ✅ Formulario solicitud agente AI cuando ai_agent_enabled=false
+- ✅ API /api/conversations/request-agent — envía email con Resend
+
+### Registro /register
+- ✅ Página /register con wizard 2 pasos: elegir plan → formulario
+- ✅ API /api/register/complete: crea organización + organization_members con rol owner
+- ✅ Link "Regístrate" desde /login
+- ⚠️ Google OAuth en registro NO crea organización — solo funciona con email+password
+- TODO: rediseño profesional de la página + conectar Stripe
+
+### UX Improvements (12 Mayo 2026)
+- ✅ Sidebar sticky + "Mi cuenta" compacto con dropdown
+- ✅ Sidebar angosto (w-52) para ganar espacio
+- ✅ Sidebar colapsable con tooltips (colapsa a solo iconos)
+- ✅ Ícono CRM cambiado a ContactRound
+- ✅ Quitar "Integraciones" duplicado del sidebar
+- ✅ CRM estilo Airtable: compacto, edge-to-edge, scrollbar horizontal visible
+- ✅ Agenda edge-to-edge con header compacto
+- ✅ Conversaciones full viewport
+- ✅ Padding individual por página (main sin padding global)
+- ✅ Menú ⋯ en doctores con fixed positioning (nunca se corta)
+- ✅ Eliminar médicos con validación de citas activas
+- ✅ Autodeploy GitHub→Vercel configurado
 
 ---
 
-## 🔴 PRIORIDAD 1
-- [x] Eliminar médicos desde /doctors (con validación de citas activas + menú ⋯)
-- [ ] Logo Ferttes: PNG transparente + subir desde /settings/general
-- [ ] Verificar buffer_before/after_min con citas reales
-- [x] Autodeploy GitHub→Vercel configurado
+## 🔴 PRIORIDAD 1 — MVP Autoservicio
+- [ ] Onboarding wizard post-registro (5 pasos guiados)
+- [ ] Logo upload desde /settings/general + onboarding
+- [ ] Rediseño profesional página /register (2 columnas, pitch + plans)
+- [ ] Stripe billing con trial 14 días
 
 ## 🟡 PRIORIDAD 2
-- [x] Página registro nuevo usuario anclada a planes (`/register` + `/api/register/complete`)
-- [ ] Onboarding wizard post-registro
-- [ ] Confirmación email con código al registrarse
-- [ ] Agenda del médico: pre-seleccionar su disponibilidad en /doctors/availability
-- [ ] Sidebar sticky: fijar sidebar izquierdo al hacer scroll (position sticky/fixed)
-- [ ] Página /account o /settings/profile (cambiar nombre, contraseña, foto)
-- [ ] Quitar "Integraciones" como item separado del sidebar (ya está dentro de Configuración)
-- [ ] Sidebar colapsable: botón para ocultar/mostrar sidebar y ganar espacio
+- [ ] Verificar buffer_before/after_min con citas reales
+- [ ] Página /account o /settings/profile
+- [ ] Probar webhook n8n con mensaje real de WhatsApp/IG/FB
 
 ## 🟢 PRIORIDAD 3 — Superadmin
 - [ ] Dashboard superadmin filtrable por cliente
 - [ ] CRUD organizaciones desde /admin
 - [ ] Gestión usuarios por organización
-- [ ] Superadmin: puede ver config pero NO datos de pacientes
 
 ## 🔵 Fase 2
 - [ ] Google Calendar bidireccional
 - [ ] WhatsApp via Meta Cloud API
 - [ ] Módulo historia clínica
 - [ ] Motor de automatizaciones
-- [ ] Stripe billing + pricing enforcement
 - [ ] Reportes y analítica avanzada
 
 ---
@@ -225,6 +241,8 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 
 **WEBHOOK_SECRET en Vercel — usar en header x-webhook-secret para todos los webhooks**
 
+**Sidebar colapsable — estado en localStorage key "sidebar-collapsed"**
+
 **Siempre dar código completo listo para copiar — nunca pedir ajustes manuales**
 
 **No sugerir esperar si hay solución inmediata disponible**
@@ -262,6 +280,8 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 - `doctors.user_id` TEXT NOT NULL
 - `organization_members`: tabla de roles por organización
 - `messages`: organization_id, lead_id, channel, direction, content, sender_name, sender_phone, is_read, created_at
+- `organizations.ai_agent_enabled` BOOLEAN (default false)
+- `organizations.plan` TEXT (free/starter/growth/scale)
 
 ### Modos de asignación
 | UI label | assignment_mode | rr_count_all |
