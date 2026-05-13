@@ -71,11 +71,11 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_DOT: Record<string, { dot: string; keyword: string }> = {
   contactado:               { dot: 'bg-blue-500',    keyword: 'Contactado' },
-  cita_valoracion_agendada: { dot: 'bg-green-500',   keyword: 'Agendada' },
-  asistio_cita:             { dot: 'bg-purple-500',  keyword: 'Asistió' },
+  cita_valoracion_agendada: { dot: 'bg-violet-500',  keyword: 'Agendada' },
+  asistio_cita:             { dot: 'bg-green-500',   keyword: 'Asistió' },
   cancelo_cita:             { dot: 'bg-red-500',     keyword: 'Canceló' },
   en_tratamiento_medico:    { dot: 'bg-yellow-500',  keyword: 'En tratamiento' },
-  finalizado:               { dot: 'bg-slate-400',   keyword: 'Finalizado' },
+  finalizado:               { dot: 'bg-gray-500',    keyword: 'Finalizado' },
 }
 
 // Normalize legacy DB values (English pre-migration + Spanish pre-008 migration)
@@ -770,7 +770,6 @@ export default function CrmPage() {
                           title={SOURCE_LABELS[lead.source ?? ''] ?? (lead.source || 'Otra')}
                           className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-100 transition"
                         >
-                          <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${SOURCE_DOT[lead.source ?? '']?.dot ?? 'bg-slate-400'}`} />
                           <span className="truncate max-w-[100px]">
                             {SOURCE_DOT[lead.source ?? '']?.keyword ?? (lead.source ? lead.source.slice(0, 15) + (lead.source.length > 15 ? '…' : '') : 'Otra')}
                           </span>
