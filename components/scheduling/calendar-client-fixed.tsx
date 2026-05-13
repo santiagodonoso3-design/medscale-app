@@ -452,8 +452,8 @@ export function CalendarClient({ userId, doctorId }: CalendarClientProps) {
     setError(null)
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      const { data: profile } = await supabase.from('users').select('organization_id').eq('id', user!.id).single()
-      const orgId = profile?.organization_id
+      const { data: member } = await supabase.from('organization_members').select('organization_id').eq('user_id', user!.id).single()
+      const orgId = member?.organization_id
 
       let leadId = form.lead_id
       if (!leadId) {
