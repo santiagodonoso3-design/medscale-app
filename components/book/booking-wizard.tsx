@@ -877,7 +877,7 @@ export default function BookingWizard({
         <div className="flex items-center justify-between pb-4 mb-4" style={{ borderBottom: `1px solid ${B.border}` }}>
           <div>
             {orgLogoUrl
-              ? <img src={orgLogoUrl} alt={orgName} className="h-16 w-auto object-contain" />
+              ? <img src={orgLogoUrl} alt={orgName} className="h-20 w-auto object-contain" />
               : <h1 className="text-xl font-bold" style={{ color: B.fg }}>{orgName}</h1>
             }
           </div>
