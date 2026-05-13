@@ -138,23 +138,20 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null, orgId
       const { error } = await supabase.from('doctors').update(payload).eq('id', editingId)
       if (error) { setFormError(error.message); setSaving(false); return }
     } else {
-      const checkRes = await fetch('/api/plans/check', {
+      const { data: auth } = await supabase.auth.getUser()
+      const res = await fetch('/api/doctors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orgId, resource: 'doctors' }),
-      }).then(r => r.json())
-      if (!checkRes.allowed) {
-        setFormError(checkRes.error ?? `Has alcanzado el límite de ${checkRes.limit} médicos en tu plan ${checkRes.plan}. Actualiza tu plan para continuar.`)
-        setSaving(false)
-        return
-      }
-      const { data: auth } = await supabase.auth.getUser()
-      const { error } = await supabase.from('doctors').insert({
-        organization_id: orgId,
-        user_id: auth.user?.id,
-        ...payload,
+        body: JSON.stringify({
+          orgId,
+          userId: auth.user?.id,
+          specialty: payload.specialty,
+          metadata: payload.metadata,
+          is_active: payload.is_active,
+        }),
       })
-      if (error) { setFormError(error.message); setSaving(false); return }
+      const body = await res.json()
+      if (!res.ok) { setFormError(body.error ?? 'Error creando médico.'); setSaving(false); return }
     }
 
     setSaving(false)
