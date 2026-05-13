@@ -59,7 +59,7 @@ export async function POST(request: Request) {
         direction: 'outbound',
         content: message_out,
         sender_name: 'Agente AI',
-        sender_phone: null,
+        sender_phone: phone,
       },
     ])
 
