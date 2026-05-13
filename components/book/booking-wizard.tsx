@@ -874,13 +874,11 @@ export default function BookingWizard({
       <div className="rounded-2xl sm:rounded-3xl shadow-sm p-5 sm:p-8" style={{ background: '#fff', border: `1px solid ${B.border}` }}>
 
         {/* Header */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 sm:mb-8">
-          <div className="min-w-0">
-            {orgLogoUrl && (
-              <img src={orgLogoUrl} alt={orgName} className="h-14 w-auto object-contain mb-2" />
-            )}
-            <h1 className="text-2xl font-bold" style={{ color: B.fg }}>{orgName}</h1>
-          </div>
+        <div className="text-center mb-6 sm:mb-8">
+          {orgLogoUrl && (
+            <img src={orgLogoUrl} alt={orgName} className="h-20 w-auto object-contain mx-auto mb-3" />
+          )}
+          <h1 className="text-2xl font-bold" style={{ color: B.fg }}>{orgName}</h1>
         </div>
 
         {currentStep < 4 && renderStepIndicator()}
