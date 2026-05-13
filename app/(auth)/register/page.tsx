@@ -12,28 +12,28 @@ const PLANS = [
   {
     id: 'free',
     name: 'Free',
-    price: '$0',
+    price: 'US$0',
     features: ['1 médico', '50 leads', '20 citas/mes'],
     badge: null,
   },
   {
     id: 'starter',
     name: 'Starter',
-    price: '$29',
+    price: 'US$29',
     features: ['3 médicos', '100 citas/mes', 'Recordatorios automáticos'],
     badge: null,
   },
   {
     id: 'growth',
     name: 'Growth',
-    price: '$79',
+    price: 'US$79',
     features: ['8 médicos', 'Citas ilimitadas', 'CRM completo', 'Conversaciones'],
     badge: 'Recomendado',
   },
   {
     id: 'scale',
     name: 'Scale',
-    price: '$149',
+    price: 'US$149',
     features: ['Médicos ilimitados', 'API access', 'Soporte prioritario'],
     badge: null,
   },
@@ -190,13 +190,7 @@ export default function RegisterPage() {
       {/* ── STEP 2: Create account ── */}
       {step === 2 && (
         <div className="min-h-screen flex flex-col items-center justify-center px-4 py-16">
-          {/* Logo */}
-          <div className="mb-8 text-center">
-            <p className="text-xl font-bold tracking-tight text-[#0D2B3E]">MEDSCALE AI</p>
-            <p className="text-xs tracking-widest text-[#4A6B7A] mt-0.5">FOR HEALTHCARE GROWTH</p>
-          </div>
-
-          <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
 
             {/* Left column — pitch */}
             <div className="flex flex-col justify-center">
@@ -267,7 +261,7 @@ export default function RegisterPage() {
                   <input
                     id="clinic_name"
                     type="text"
-                    placeholder="Ej: Clínica Santa María"
+                    placeholder="Ej: Consultorio Dr. García"
                     className={inputCls}
                     {...register('clinic_name')}
                   />
