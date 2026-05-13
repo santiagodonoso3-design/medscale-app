@@ -10,25 +10,65 @@ const STEPS = [
   { number: 4, title: 'Tu link está listo' },
 ]
 
-interface Props {
-  organizationId: string
-  organizationName: string
+interface Step1Data {
+  name: string
+  city: string
+  phone: string
+  contact_email: string
 }
 
-export function OnboardingWizard({ organizationId, organizationName }: Props) {
+interface Props {
+  orgId: string
+  orgName: string
+  userEmail: string
+}
+
+export function OnboardingWizard({ orgId, orgName, userEmail }: Props) {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(1)
   const [finishing, setFinishing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [step1Error, setStep1Error] = useState<string | null>(null)
+
+  const [step1, setStep1] = useState<Step1Data>({
+    name: orgName,
+    city: '',
+    phone: '',
+    contact_email: userEmail,
+  })
 
   const totalSteps = STEPS.length
   const progress = (currentStep / totalSteps) * 100
+
+  async function handleNext() {
+    if (currentStep === 1) {
+      if (!step1.name.trim() || !step1.city.trim()) {
+        setStep1Error('Nombre y ciudad son obligatorios.')
+        return
+      }
+      setSaving(true)
+      setStep1Error(null)
+      const res = await fetch('/api/onboarding/step1', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId, ...step1 }),
+      })
+      setSaving(false)
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setStep1Error(body.error ?? 'Error al guardar.')
+        return
+      }
+    }
+    setCurrentStep((s) => s + 1)
+  }
 
   async function handleFinish() {
     setFinishing(true)
     await fetch('/api/onboarding/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ organization_id: organizationId }),
+      body: JSON.stringify({ organization_id: orgId }),
     })
     router.push('/dashboard')
   }
@@ -77,7 +117,11 @@ export function OnboardingWizard({ organizationId, organizationName }: Props) {
         {/* Step content */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
           <div className="p-8">
-            <StepContent step={currentStep} organizationName={organizationName} />
+            {currentStep === 1 ? (
+              <Step1Form data={step1} setData={setStep1} error={step1Error} />
+            ) : (
+              <StepPlaceholder step={currentStep} />
+            )}
           </div>
         </div>
 
@@ -93,10 +137,11 @@ export function OnboardingWizard({ organizationId, organizationName }: Props) {
 
           {currentStep < totalSteps ? (
             <button
-              onClick={() => setCurrentStep((s) => s + 1)}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+              onClick={handleNext}
+              disabled={saving}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
             >
-              Siguiente
+              {saving ? 'Guardando...' : 'Siguiente'}
             </button>
           ) : (
             <button
@@ -113,37 +158,86 @@ export function OnboardingWizard({ organizationId, organizationName }: Props) {
   )
 }
 
-function StepContent({ step, organizationName }: { step: number; organizationName: string }) {
-  switch (step) {
-    case 1:
-      return (
-        <div className="space-y-2">
-          <p className="text-gray-600">Aquí configurarás el nombre, dirección, teléfono y logo de <strong>{organizationName}</strong>.</p>
-          <p className="text-sm text-gray-400 italic">Contenido del paso 1 — próximamente.</p>
-        </div>
-      )
-    case 2:
-      return (
-        <div className="space-y-2">
-          <p className="text-gray-600">Agrega el primer médico de tu clínica: nombre, especialidad y duración de cita.</p>
-          <p className="text-sm text-gray-400 italic">Contenido del paso 2 — próximamente.</p>
-        </div>
-      )
-    case 3:
-      return (
-        <div className="space-y-2">
-          <p className="text-gray-600">Define los días y horarios en que el médico atiende.</p>
-          <p className="text-sm text-gray-400 italic">Contenido del paso 3 — próximamente.</p>
-        </div>
-      )
-    case 4:
-      return (
-        <div className="space-y-2">
-          <p className="text-gray-600">Tu link de agendamiento ya está listo para compartir con tus pacientes.</p>
-          <p className="text-sm text-gray-400 italic">Contenido del paso 4 — próximamente.</p>
-        </div>
-      )
-    default:
-      return null
+function Step1Form({
+  data,
+  setData,
+  error,
+}: {
+  data: Step1Data
+  setData: React.Dispatch<React.SetStateAction<Step1Data>>
+  error: string | null
+}) {
+  return (
+    <div className="space-y-5 max-w-xl">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Nombre de la clínica <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={data.name}
+          onChange={(e) => setData((d) => ({ ...d, name: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+          placeholder="Ej: Clínica Santa María"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Ciudad <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={data.city}
+          onChange={(e) => setData((d) => ({ ...d, city: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+          placeholder="Ej: Bogotá"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Teléfono
+        </label>
+        <input
+          type="tel"
+          value={data.phone}
+          onChange={(e) => setData((d) => ({ ...d, phone: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+          placeholder="+57 300 000 0000"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Email de contacto
+        </label>
+        <input
+          type="email"
+          value={data.contact_email}
+          onChange={(e) => setData((d) => ({ ...d, contact_email: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+          placeholder="contacto@clinica.com"
+        />
+      </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+    </div>
+  )
+}
+
+function StepPlaceholder({ step }: { step: number }) {
+  const content: Record<number, { text: string }> = {
+    2: { text: 'Agrega el primer médico de tu clínica: nombre, especialidad y duración de cita.' },
+    3: { text: 'Define los días y horarios en que el médico atiende.' },
+    4: { text: 'Tu link de agendamiento ya está listo para compartir con tus pacientes.' },
   }
+  const c = content[step]
+  if (!c) return null
+  return (
+    <div className="space-y-2">
+      <p className="text-gray-600">{c.text}</p>
+      <p className="text-sm text-gray-400 italic">Contenido del paso {step} — próximamente.</p>
+    </div>
+  )
 }

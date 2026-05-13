@@ -28,5 +28,11 @@ export default async function OnboardingPage() {
   if (!org) redirect('/login')
   if (org.onboarding_completed) redirect('/dashboard')
 
-  return <OnboardingWizard organizationId={org.id} organizationName={org.name} />
+  return (
+    <OnboardingWizard
+      orgId={org.id}
+      orgName={org.name}
+      userEmail={user.email ?? ''}
+    />
+  )
 }
