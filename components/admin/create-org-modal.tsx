@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Loader2 } from 'lucide-react'
 
 type Plan = 'free' | 'starter' | 'growth' | 'scale'
@@ -57,6 +57,15 @@ export function OrganizationFormModal({
   const [aiAgentEnabled, setAiAgentEnabled] = useState(initialValues?.ai_agent_enabled ?? false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setName(initialValues?.name ?? '')
+    setSlug(initialValues?.slug ?? '')
+    setPlan(initialValues?.plan ?? 'free')
+    setIsActive(initialValues?.is_active ?? true)
+    setAiAgentEnabled(initialValues?.ai_agent_enabled ?? false)
+    setError(null)
+  }, [initialValues])
 
   const mode = initialValues ? 'edit' : 'create'
 
