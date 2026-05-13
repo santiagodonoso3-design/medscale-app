@@ -17,6 +17,12 @@ interface Step1Data {
   contact_email: string
 }
 
+interface Step2Data {
+  name: string
+  specialty: string
+  duration: number
+}
+
 interface Props {
   orgId: string
   orgName: string
@@ -28,7 +34,6 @@ export function OnboardingWizard({ orgId, orgName, userEmail }: Props) {
   const [currentStep, setCurrentStep] = useState(1)
   const [finishing, setFinishing] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [step1Error, setStep1Error] = useState<string | null>(null)
 
   const [step1, setStep1] = useState<Step1Data>({
     name: orgName,
@@ -36,6 +41,15 @@ export function OnboardingWizard({ orgId, orgName, userEmail }: Props) {
     phone: '',
     contact_email: userEmail,
   })
+  const [step1Error, setStep1Error] = useState<string | null>(null)
+
+  const [step2, setStep2] = useState<Step2Data>({
+    name: '',
+    specialty: '',
+    duration: 30,
+  })
+  const [step2Error, setStep2Error] = useState<string | null>(null)
+  const [doctorId, setDoctorId] = useState<string | null>(null)
 
   const totalSteps = STEPS.length
   const progress = (currentStep / totalSteps) * 100
@@ -60,6 +74,29 @@ export function OnboardingWizard({ orgId, orgName, userEmail }: Props) {
         return
       }
     }
+
+    if (currentStep === 2) {
+      if (!step2.name.trim() || !step2.specialty.trim()) {
+        setStep2Error('Nombre y especialidad son obligatorios.')
+        return
+      }
+      setSaving(true)
+      setStep2Error(null)
+      const res = await fetch('/api/onboarding/step2', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId, ...step2 }),
+      })
+      setSaving(false)
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setStep2Error(body.error ?? 'Error al guardar.')
+        return
+      }
+      const body = await res.json()
+      setDoctorId(body.doctorId ?? null)
+    }
+
     setCurrentStep((s) => s + 1)
   }
 
@@ -117,10 +154,14 @@ export function OnboardingWizard({ orgId, orgName, userEmail }: Props) {
         {/* Step content */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
           <div className="p-8">
-            {currentStep === 1 ? (
+            {currentStep === 1 && (
               <Step1Form data={step1} setData={setStep1} error={step1Error} />
-            ) : (
-              <StepPlaceholder step={currentStep} />
+            )}
+            {currentStep === 2 && (
+              <Step2Form data={step2} setData={setStep2} error={step2Error} />
+            )}
+            {currentStep > 2 && (
+              <StepPlaceholder step={currentStep} doctorId={doctorId} />
             )}
           </div>
         </div>
@@ -226,18 +267,79 @@ function Step1Form({
   )
 }
 
-function StepPlaceholder({ step }: { step: number }) {
-  const content: Record<number, { text: string }> = {
-    2: { text: 'Agrega el primer médico de tu clínica: nombre, especialidad y duración de cita.' },
-    3: { text: 'Define los días y horarios en que el médico atiende.' },
-    4: { text: 'Tu link de agendamiento ya está listo para compartir con tus pacientes.' },
+function Step2Form({
+  data,
+  setData,
+  error,
+}: {
+  data: Step2Data
+  setData: React.Dispatch<React.SetStateAction<Step2Data>>
+  error: string | null
+}) {
+  return (
+    <div className="space-y-5 max-w-xl">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Nombre completo <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={data.name}
+          onChange={(e) => setData((d) => ({ ...d, name: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+          placeholder="Ej: Dr. Juan Pérez"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Especialidad <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={data.specialty}
+          onChange={(e) => setData((d) => ({ ...d, specialty: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+          placeholder="Ej: Medicina general"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Duración de consulta
+        </label>
+        <select
+          value={data.duration}
+          onChange={(e) => setData((d) => ({ ...d, duration: Number(e.target.value) }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition bg-white"
+        >
+          <option value={15}>15 minutos</option>
+          <option value={20}>20 minutos</option>
+          <option value={30}>30 minutos</option>
+          <option value={45}>45 minutos</option>
+          <option value={60}>60 minutos</option>
+        </select>
+      </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+    </div>
+  )
+}
+
+function StepPlaceholder({ step, doctorId }: { step: number; doctorId: string | null }) {
+  const content: Record<number, string> = {
+    3: 'Define los días y horarios en que el médico atiende.',
+    4: 'Tu link de agendamiento ya está listo para compartir con tus pacientes.',
   }
-  const c = content[step]
-  if (!c) return null
+  const text = content[step]
+  if (!text) return null
   return (
     <div className="space-y-2">
-      <p className="text-gray-600">{c.text}</p>
+      <p className="text-gray-600">{text}</p>
       <p className="text-sm text-gray-400 italic">Contenido del paso {step} — próximamente.</p>
+      {step === 3 && doctorId && (
+        <p className="text-xs text-gray-400">Doctor ID: {doctorId}</p>
+      )}
     </div>
   )
 }
