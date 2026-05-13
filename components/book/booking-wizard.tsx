@@ -875,11 +875,11 @@ export default function BookingWizard({
 
         {/* Header */}
         <div className="flex items-center justify-between pb-4 mb-4" style={{ borderBottom: `1px solid ${B.border}` }}>
-          <div className="flex flex-col gap-1">
-            {orgLogoUrl && (
-              <img src={orgLogoUrl} alt={orgName} className="h-12 w-auto object-contain" />
-            )}
-            <h1 className="text-lg font-bold" style={{ color: B.fg }}>{orgName}</h1>
+          <div>
+            {orgLogoUrl
+              ? <img src={orgLogoUrl} alt={orgName} className="h-16 w-auto object-contain" />
+              : <h1 className="text-xl font-bold" style={{ color: B.fg }}>{orgName}</h1>
+            }
           </div>
           {currentStep < 4 && (
             <div className="flex items-center">
