@@ -1,9 +1,12 @@
-﻿'use client'
+'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, MessageSquare, CalendarDays, Settings, LogOut, Stethoscope, Users, MessageCircle, User, ChevronDown } from 'lucide-react'
+import {
+  LayoutDashboard, MessageSquare, CalendarDays, Settings, LogOut,
+  Stethoscope, Users, MessageCircle, User, ChevronDown, ChevronLeft, ChevronRight,
+} from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface OrgSidebarProps {
   orgName?: string
@@ -30,7 +33,19 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole }: OrgSideba
   const router = useRouter()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
   const supabase = createClient()
+
+  useEffect(() => {
+    const stored = localStorage.getItem('sidebar-collapsed')
+    if (stored === 'true') setCollapsed(true)
+  }, [])
+
+  function toggleCollapsed() {
+    const next = !collapsed
+    setCollapsed(next)
+    localStorage.setItem('sidebar-collapsed', String(next))
+  }
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
@@ -44,20 +59,35 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole }: OrgSideba
   }
 
   return (
-    <aside className="sticky top-0 flex h-screen w-56 shrink-0 flex-col overflow-y-auto bg-foreground text-primary-foreground">
-      <div className="border-b border-primary/30 px-6 py-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-accent text-white">
-            <LayoutDashboard className="h-5 w-5" />
+    <aside className={`relative sticky top-0 flex h-screen shrink-0 flex-col overflow-y-auto bg-foreground text-primary-foreground transition-all duration-200 ${collapsed ? 'w-14' : 'w-56'}`}>
+
+      {/* Toggle button */}
+      <button
+        onClick={toggleCollapsed}
+        className="absolute -right-3 top-16 z-30 flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm hover:bg-slate-50 transition"
+      >
+        {collapsed
+          ? <ChevronRight className="h-3.5 w-3.5 text-slate-500" />
+          : <ChevronLeft className="h-3.5 w-3.5 text-slate-500" />}
+      </button>
+
+      {/* Logo */}
+      <div className={`border-b border-primary/30 py-5 ${collapsed ? 'px-2 flex justify-center' : 'px-5'}`}>
+        <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white">
+            <LayoutDashboard className="h-4 w-4" />
           </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">Medscale AI</p>
-            <h1 className="text-lg font-bold tracking-tight text-white truncate">{orgName || 'Mi clínica'}</h1>
-          </div>
+          {!collapsed && (
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Medscale AI</p>
+              <h1 className="text-sm font-bold tracking-tight text-white truncate">{orgName || 'Mi clínica'}</h1>
+            </div>
+          )}
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 px-4 py-6">
+      {/* Nav */}
+      <nav className={`flex-1 space-y-0.5 py-4 ${collapsed ? 'px-1' : 'px-3'}`}>
         {navItems.map((item) => {
           const Icon = item.icon
           const isActive =
@@ -65,22 +95,32 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole }: OrgSideba
               ? pathname.startsWith('/scheduling')
               : pathname === item.href || pathname.startsWith(item.href + '/')
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`group flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'text-white/60 hover:bg-primary/20 hover:text-white'
-              }`}
-            >
-              <Icon className="h-5 w-5" />
-              <span>{item.name}</span>
-            </Link>
+            <div key={item.href} className="group relative">
+              <Link
+                href={item.href}
+                className={`flex items-center rounded-xl py-2.5 text-sm font-medium transition-colors ${
+                  collapsed ? 'justify-center px-0' : 'gap-3 px-3'
+                } ${
+                  isActive
+                    ? 'bg-primary text-white shadow-sm'
+                    : 'text-white/60 hover:bg-primary/20 hover:text-white'
+                }`}
+              >
+                <Icon className="h-4.5 w-4.5 shrink-0" style={{ width: '18px', height: '18px' }} />
+                {!collapsed && <span>{item.name}</span>}
+              </Link>
+              {/* Tooltip when collapsed */}
+              {collapsed && (
+                <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs text-white opacity-0 transition group-hover:opacity-100">
+                  {item.name}
+                </span>
+              )}
+            </div>
           )
         })}
       </nav>
 
+      {/* Mi cuenta */}
       <div className="relative">
         {menuOpen && (
           <>
@@ -110,14 +150,27 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole }: OrgSideba
             </div>
           </>
         )}
-        <button
-          onClick={() => setMenuOpen(o => !o)}
-          className="flex w-full items-center gap-2 px-4 py-3 text-sm text-white/60 hover:bg-white/10 transition border-t border-white/10"
-        >
-          <User className="h-4 w-4 shrink-0" />
-          <span className="flex-1 text-left">Mi cuenta</span>
-          <ChevronDown className={`h-3 w-3 shrink-0 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
-        </button>
+        <div className="group relative">
+          <button
+            onClick={() => setMenuOpen(o => !o)}
+            className={`flex w-full items-center border-t border-white/10 py-3 text-sm text-white/60 hover:bg-white/10 transition ${
+              collapsed ? 'justify-center px-0' : 'gap-2 px-4'
+            }`}
+          >
+            <User className="h-4 w-4 shrink-0" />
+            {!collapsed && (
+              <>
+                <span className="flex-1 text-left">Mi cuenta</span>
+                <ChevronDown className={`h-3 w-3 shrink-0 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
+              </>
+            )}
+          </button>
+          {collapsed && (
+            <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs text-white opacity-0 transition group-hover:opacity-100">
+              Mi cuenta
+            </span>
+          )}
+        </div>
       </div>
     </aside>
   )
