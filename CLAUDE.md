@@ -178,6 +178,12 @@ app/
 - ✅ Dashboard filtra por `organization_id`
 - ✅ Doctors page filtra por `organization_id`
 - ✅ Limpieza: eliminados `guards.ts`, `layout/header.tsx`, `layout/sidebar.tsx`, `api/dev/`, `console.logs`
+- ✅ Enforcement de límites por plan (`lib/plans.ts` + `checkPlanLimit`)
+- ✅ API `/api/doctors/route.ts` con service role (reemplaza insert directo desde client)
+- ✅ API `/api/plans/check/route.ts` para checks desde client components
+- ✅ Superadmin: planes actualizados a free/starter/growth/scale con límites
+- ✅ Logo upload bucket `'logos'` en Supabase Storage (público)
+- ✅ `uploadOrgLogo` migrado a `createServiceClient()` y bucket `'logos'`
 
 ### Sistema de Roles y Equipo
 - ✅ Tabla `organization_members`: id, organization_id, user_id, role, doctor_id, invited_by
@@ -265,9 +271,13 @@ app/
 - ✅ n8n configurado: nodo Webhook Medscale APP en flujos WA, IG, FB
 
 ### Registro /register
-- ✅ Página /register con wizard 2 pasos: elegir plan → formulario (sin teléfono)
+- ✅ Rediseño profesional 2 pasos: selección de plan (4 cards) + formulario (2 columnas)
+- ✅ Brand kit aplicado: colores `#EBF0F6`, `#215F73`, `#5A9DB5`, `#0D2B3E`
+- ✅ Headline "El sistema de crecimiento para tu consultorio"
+- ✅ Precios en USD (US$0, US$29, US$79, US$149)
 - ✅ API /api/register/complete: crea organización + organization_members con rol owner
 - ✅ Redirige a /onboarding después del registro
+- ✅ Teléfono removido del formulario (solo en onboarding)
 - ⚠️ Google OAuth en registro NO crea organización — solo funciona con email+password
 
 ### UX Improvements
@@ -280,17 +290,16 @@ app/
 ---
 
 ## 🔴 PRIORIDAD 1 — MVP Autoservicio
-- [ ] Rediseño profesional página /register (2 columnas, pitch + plans)
-- [ ] Logo upload desde /settings/general + onboarding
+- [ ] Fix logo upload (se queda en "Subiendo..." — debug pendiente)
+- [ ] Mostrar logo en sidebar y booking público
 - [ ] Stripe billing con trial 14 días
 
 ## 🟡 PRIORIDAD 2
-- [ ] Tour opcional post-onboarding (tooltips en dashboard)
+- [ ] Responsive en /book/[org-slug], /login, /register, /onboarding
+- [ ] Tour opcional post-onboarding
 - [ ] Verificar buffer_before/after_min con citas reales
-- [ ] Página /account o /settings/profile
 - [ ] Probar webhook n8n con mensaje real de WhatsApp/IG/FB
 - [ ] Estandarizar respuestas API (lib/api/response.ts)
-- [ ] Responsive móvil en /book/[org-slug], /login, /register, /onboarding
 
 ## 🟢 PRIORIDAD 3 — Superadmin
 - [ ] Dashboard superadmin filtrable por cliente
@@ -357,6 +366,14 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 **No sugerir esperar si hay solución inmediata disponible**
 
 **ANTES de pushear cambios al sidebar o layout:** correr `npx next build` Y `npx next start` para verificar que no crashea en runtime
+
+**NUNCA usar `from('users')` para obtener `organization_id`** — usar `getSession()` o `getOrgIdFromUser()`
+
+**NUNCA agregar queries a DB en el middleware**
+
+**Toda query a datos de negocio DEBE incluir `.eq('organization_id', orgId)`**
+
+**Inserts de doctors deben ir por `/api/doctors` con service role, no directos desde client**
 
 ### Roles — Protección
 - Protección por rol en `layout.tsx` y páginas vía `getSession()`
@@ -434,6 +451,9 @@ Ferttes: plan Growth (beta, sin restricciones)
 - Comandos PowerShell, nunca bash Unix
 - Screenshots para verificar antes de seguir
 - ANTES de pushear cambios al sidebar o layout: build + start para verificar
+- Siempre verificar que inserts incluyan `organization_id`
+- Para crear recursos (doctors, leads), usar API routes con service role, no inserts directos desde client
+- Verificar plan limits antes de inserts de recursos limitados
 
 ### Cliente beta
 - Ferttes (org_id: 4270c9b0-cbaa-4a94-bea7-508387a2529c)
@@ -442,4 +462,5 @@ Ferttes: plan Growth (beta, sin restricciones)
 
 ### Cuenta de prueba
 - Clinica LAb 2 (org_id: 669ed7cb-3e4d-43a7-8065-cfd7ee8de47c)
-- labdepamdigital@gmail.com
+- labdepamdigital@gmail.com | plan starter
+- 3 médicos, usada para testing de onboarding y enforcement de límites
