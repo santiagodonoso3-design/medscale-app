@@ -546,6 +546,7 @@ export default function AppointmentTypesPage() {
         </div>
       ) : (
         <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100">
@@ -627,6 +628,7 @@ export default function AppointmentTypesPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
