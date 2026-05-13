@@ -874,7 +874,7 @@ export default function BookingWizard({
       <div className="rounded-2xl sm:rounded-3xl shadow-sm p-5 sm:p-6" style={{ background: '#fff', border: `1px solid ${B.border}` }}>
 
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 mb-4" style={{ borderBottom: `1px solid ${B.border}` }}>
+        <div className="flex items-center justify-between pb-4 mb-4">
           <div>
             {orgLogoUrl
               ? <img src={orgLogoUrl} alt={orgName} className="h-20 w-auto object-contain" />
