@@ -13,6 +13,7 @@ interface OrgSidebarProps {
   userName?: string
   userEmail?: string
   userRole?: 'owner' | 'staff' | 'doctor' | null
+  logoUrl?: string | null
 }
 
 const ALL_NAV_ITEMS = [
@@ -25,7 +26,7 @@ const ALL_NAV_ITEMS = [
   { name: 'Configuración',  href: '/settings',            icon: Settings,        roles: ['owner'] },
 ]
 
-export function OrgSidebar({ orgName, userName, userEmail, userRole }: OrgSidebarProps) {
+export function OrgSidebar({ orgName, userName, userEmail, userRole, logoUrl }: OrgSidebarProps) {
   const navItems = ALL_NAV_ITEMS.filter(item =>
     !userRole || item.roles.includes(userRole)
   )
@@ -64,9 +65,13 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole }: OrgSideba
       {/* Logo */}
       <div className={`border-b border-primary/30 py-5 ${collapsed ? 'px-2 flex justify-center' : 'px-5'}`}>
         <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white">
-            <LayoutDashboard className="h-4 w-4" />
-          </div>
+          {logoUrl ? (
+            <img src={logoUrl} alt="Logo" className="h-9 w-9 shrink-0 rounded-xl object-contain" />
+          ) : (
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white">
+              <LayoutDashboard className="h-4 w-4" />
+            </div>
+          )}
           {!collapsed && (
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent">Medscale AI</p>
