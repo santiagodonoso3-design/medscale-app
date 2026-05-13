@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       return jsonResponse({ success: false, error: 'Fuente no válida' }, 400)
     }
 
-    const supabase = await createServiceClient()
+    const supabase = createServiceClient()
 
     const { data: org, error: orgError } = await supabase
       .from('organizations')

@@ -3,7 +3,7 @@ import { IntegrationsContent } from './integrations-content'
 
 export default async function IntegrationsPage() {
   const supabase = await createClient()
-  const admin = await createServiceClient()
+  const admin = createServiceClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null

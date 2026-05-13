@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
     const { doctor_id } = await request.json()
     if (!doctor_id) return new Response('Missing doctor_id', { status: 400 })
 
-    const admin = await createServiceClient()
+    const admin = createServiceClient()
     await admin.from('doctors').update({
       google_calendar_token:        null,
       google_calendar_id:           null,

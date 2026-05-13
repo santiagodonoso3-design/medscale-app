@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
       return new Response(JSON.stringify({ error: 'Faltan campos requeridos' }), { status: 400 })
     }
 
-    const admin = await createServiceClient()
+    const admin = createServiceClient()
 
     // Invite user via Supabase Auth
     const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {

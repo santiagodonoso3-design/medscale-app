@@ -6,7 +6,7 @@ import { OnboardingWizard } from './OnboardingWizard'
 
 export default async function OnboardingPage() {
   const supabase = await createClient()
-  const admin = await createServiceClient()
+  const admin = createServiceClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')

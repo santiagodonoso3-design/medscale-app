@@ -18,7 +18,7 @@ export async function deleteLeads(ids: string[]): Promise<{ error?: string }> {
 
   if (!profile?.organization_id) return { error: 'Organización no encontrada' }
 
-  const admin = await createServiceClient()
+  const admin = createServiceClient()
   const { error } = await admin
     .from('leads')
     .delete()

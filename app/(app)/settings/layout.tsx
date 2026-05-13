@@ -4,7 +4,7 @@ import { SettingsNav } from './settings-nav'
 
 export default async function SettingsLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient()
-  const admin = await createServiceClient()
+  const admin = createServiceClient()
 
   const { data: { user } } = await supabase.auth.getUser()
 

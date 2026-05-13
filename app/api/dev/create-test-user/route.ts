@@ -16,7 +16,7 @@ export async function POST() {
   const email = 'admin@clinica.com'
   const password = 'test1234'
 
-  const supabase = await createServiceClient()
+  const supabase = createServiceClient()
 
   const { data: org, error: orgError } = await supabase
     .from('organizations')

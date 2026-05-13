@@ -5,7 +5,7 @@ import { TeamClient } from './team-client'
 
 export default async function TeamPage() {
   const supabase = await createClient()
-  const admin = await createServiceClient()
+  const admin = createServiceClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null

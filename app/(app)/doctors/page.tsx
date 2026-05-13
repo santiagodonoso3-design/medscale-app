@@ -3,7 +3,7 @@ import { DoctorsPageClient } from '@/components/doctors/doctors-page-client'
 
 export default async function DoctorsPage() {
   const supabase = await createClient()
-  const admin = await createServiceClient()
+  const admin = createServiceClient()
 
   const { data: { user } } = await supabase.auth.getUser()
 

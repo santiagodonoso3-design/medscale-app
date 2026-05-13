@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       return jsonResponse({ success: false, error: 'Faltan campos requeridos: org_id, phone, message_in, message_out' }, 400)
     }
 
-    const supabase = await createServiceClient()
+    const supabase = createServiceClient()
 
     const { data: leadRow } = await supabase
       .from('leads')

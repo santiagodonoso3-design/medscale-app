@@ -3,7 +3,7 @@ import { ConversationsPageClient } from '@/components/conversations/conversation
 
 export default async function ConversationsPage() {
   const supabase = await createClient()
-  const admin = await createServiceClient()
+  const admin = createServiceClient()
   const { data: { user } } = await supabase.auth.getUser()
   const { data: userRecord } = await admin
     .from('users')

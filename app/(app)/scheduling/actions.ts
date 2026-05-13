@@ -10,7 +10,7 @@ import { deleteGoogleCalendarEvent } from '@/lib/google/calendar'
 
 async function fetchAptForEmail(id: string) {
   try {
-    const admin = await createServiceClient()
+    const admin = createServiceClient()
     const { data } = await admin
       .from('appointments')
       .select('scheduled_at, lead:lead_id(contact_name, contact_last_name, contact_email), org:organization_id(name)')
@@ -47,7 +47,7 @@ export async function cancelAppointment(id: string): Promise<{ error?: string }>
   // Delete Google Calendar event if exists (non-blocking)
   Promise.allSettled([
     (async () => {
-      const admin = await createServiceClient()
+      const admin = createServiceClient()
       const { data: aptData } = await admin
         .from('appointments')
         .select('external_calendar_id, doctor_id')
@@ -128,7 +128,7 @@ export async function updateAppointmentStatus(
   if (!user) return { error: 'No autenticado' }
   const { data: profile } = await supabase.from('users').select('organization_id').eq('id', user.id).single()
   if (!profile?.organization_id) return { error: 'Organización no encontrada' }
-  const admin = await createServiceClient()
+  const admin = createServiceClient()
   const { error } = await admin
     .from('appointments')
     .update({ status })

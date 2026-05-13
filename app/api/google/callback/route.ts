@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const calData = await calRes.json()
     const calendarId = calData.id ?? 'primary'
 
-    const admin = await createServiceClient()
+    const admin = createServiceClient()
     await admin.from('doctors').update({
       google_calendar_token: {
         access_token:  tokens.access_token,

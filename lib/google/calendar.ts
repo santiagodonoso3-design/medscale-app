@@ -27,7 +27,7 @@ export async function createGoogleCalendarEvent(
 ): Promise<string | null> {
   try {
     const { createServiceClient } = await import('@/lib/supabase/server')
-    const admin = await createServiceClient()
+    const admin = createServiceClient()
 
     const { data: doctor } = await admin
       .from('doctors')
@@ -103,7 +103,7 @@ export async function deleteGoogleCalendarEvent(
 ): Promise<void> {
   try {
     const { createServiceClient } = await import('@/lib/supabase/server')
-    const admin = await createServiceClient()
+    const admin = createServiceClient()
 
     const { data: doctor } = await admin
       .from('doctors')

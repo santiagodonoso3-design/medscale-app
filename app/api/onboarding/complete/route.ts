@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const admin = await createServiceClient()
+  const admin = createServiceClient()
 
   const { error } = await admin
     .from('organizations')

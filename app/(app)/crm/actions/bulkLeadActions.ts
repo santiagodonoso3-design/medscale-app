@@ -17,7 +17,7 @@ export async function bulkUpdateLeadStatus(
   if (!ids.length) return {}
   const orgId = await getOrgId()
   if (!orgId) return { error: 'No autenticado' }
-  const admin = await createServiceClient()
+  const admin = createServiceClient()
   const { error } = await admin
     .from('leads')
     .update({ status })
@@ -33,7 +33,7 @@ export async function bulkUpdateLeadSource(
   if (!ids.length) return {}
   const orgId = await getOrgId()
   if (!orgId) return { error: 'No autenticado' }
-  const admin = await createServiceClient()
+  const admin = createServiceClient()
   const { error } = await admin
     .from('leads')
     .update({ source })

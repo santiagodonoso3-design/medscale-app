@@ -12,7 +12,7 @@ export default async function DashboardPage() {
   unstable_noStore()
 
   const supabase = await createClient()
-  const admin = await createServiceClient()
+  const admin = createServiceClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (user) {

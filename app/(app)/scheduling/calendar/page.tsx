@@ -3,7 +3,7 @@ import { CalendarClient } from '@/components/scheduling/calendar-client-fixed'
 
 export default async function CalendarPage() {
   const supabase = await createClient()
-  const admin = await createServiceClient()
+  const admin = createServiceClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   let doctorId: string | null = null
