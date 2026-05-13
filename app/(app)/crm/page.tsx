@@ -727,9 +727,9 @@ export default function CrmPage() {
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 min-w-[100px]">Cédula</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 min-w-[120px]">Teléfono</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 min-w-[180px]">Email</th>
+                  <SortTh field="status"     label="Estado"      sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-left min-w-[120px]" />
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 min-w-[100px]">Fuente</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 w-16">Citas</th>
-                  <SortTh field="status"     label="Estado"      sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-left min-w-[120px]" />
                   <SortTh field="created_at" label="Creado"      sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
                   <SortTh field="updated_at" label="Actualizado" sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Notas</th>
@@ -763,6 +763,19 @@ export default function CrmPage() {
                       <td className="px-3 py-2 text-xs text-slate-600 min-w-[120px]">{lead.contact_phone || '—'}</td>
                       <td className="px-3 py-2 text-xs text-slate-600 min-w-[180px]">{lead.contact_email || '—'}</td>
 
+                      {/* Estado inline */}
+                      <td className="px-3 py-2 max-w-[140px] whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={e => openPopover(e, setStatusPopover, statusPopover?.leadId, lead.id, () => setStatusPopover(null))}
+                          title={statusLabel(lead.status)}
+                          className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-100 transition"
+                        >
+                          <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[lead.status]?.dot ?? 'bg-slate-400'}`} />
+                          <span className="truncate max-w-[100px]">{STATUS_DOT[lead.status]?.keyword ?? statusLabel(lead.status)}</span>
+                          <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
+                        </button>
+                      </td>
+
                       {/* Fuente inline */}
                       <td className="px-3 py-2 max-w-[140px] whitespace-nowrap" onClick={e => e.stopPropagation()}>
                         <button
@@ -782,19 +795,6 @@ export default function CrmPage() {
                         {aptCount === 0
                           ? <span className="text-xs text-slate-400">—</span>
                           : <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-100 px-1.5 text-xs font-bold text-blue-700">{aptCount}</span>}
-                      </td>
-
-                      {/* Estado inline */}
-                      <td className="px-3 py-2 max-w-[140px] whitespace-nowrap" onClick={e => e.stopPropagation()}>
-                        <button
-                          onClick={e => openPopover(e, setStatusPopover, statusPopover?.leadId, lead.id, () => setStatusPopover(null))}
-                          title={statusLabel(lead.status)}
-                          className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-100 transition"
-                        >
-                          <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[lead.status]?.dot ?? 'bg-slate-400'}`} />
-                          <span className="truncate max-w-[100px]">{STATUS_DOT[lead.status]?.keyword ?? statusLabel(lead.status)}</span>
-                          <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
-                        </button>
                       </td>
 
                       <td className="px-3 py-2 text-right text-xs text-slate-400">{fmtDate(lead.created_at)}</td>
