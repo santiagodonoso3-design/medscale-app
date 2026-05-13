@@ -50,14 +50,14 @@ function IntegrationsInner({ isDoctor, userDoctorId }: IntegrationsContentProps)
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { data: profile } = await supabase
-      .from('users').select('organization_id').eq('id', user.id).single()
-    if (!profile?.organization_id) return
+    const { data: member } = await supabase
+      .from('organization_members').select('organization_id').eq('user_id', user.id).single()
+    if (!member?.organization_id) return
 
     let q = supabase
       .from('doctors')
       .select('id, metadata, google_calendar_connected_at, google_calendar_id')
-      .eq('organization_id', profile.organization_id)
+      .eq('organization_id', member.organization_id)
       .eq('is_active', true)
       .order('created_at', { ascending: true })
 

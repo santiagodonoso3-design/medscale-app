@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { getOrgIdFromUser } from '@/lib/get-org-id'
 import { revalidatePath } from 'next/cache'
 import { resend } from '@/lib/email/resend'
 import { cancellationEmail, rescheduleEmail } from '@/lib/email/templates'
@@ -126,14 +127,14 @@ export async function updateAppointmentStatus(
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' }
-  const { data: profile } = await supabase.from('users').select('organization_id').eq('id', user.id).single()
-  if (!profile?.organization_id) return { error: 'Organización no encontrada' }
+  const orgId = await getOrgIdFromUser(user.id)
+  if (!orgId) return { error: 'Organización no encontrada' }
   const admin = createServiceClient()
   const { error } = await admin
     .from('appointments')
     .update({ status })
     .eq('id', id)
-    .eq('organization_id', profile.organization_id)
+    .eq('organization_id', orgId)
   if (error) return { error: error.message }
   revalidatePath('/scheduling/calendar')
   return {}

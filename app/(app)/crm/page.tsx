@@ -320,9 +320,9 @@ export default function CrmPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       setCurrentUserId(user.id)
-      const { data: profile } = await supabase
-        .from('users').select('organization_id').eq('id', user.id).single()
-      const orgId = profile?.organization_id ?? null
+      const { data: member } = await supabase
+        .from('organization_members').select('organization_id').eq('user_id', user.id).single()
+      const orgId = member?.organization_id ?? null
       setOrganizationId(orgId)
       await loadLeads()
     }

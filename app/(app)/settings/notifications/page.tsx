@@ -60,15 +60,15 @@ export default function NotificationsPage() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const { data: profile } = await supabase
-        .from('users').select('organization_id').eq('id', user.id).single()
-      if (!profile?.organization_id) return
-      setOrgId(profile.organization_id)
+      const { data: member } = await supabase
+        .from('organization_members').select('organization_id').eq('user_id', user.id).single()
+      if (!member?.organization_id) return
+      setOrgId(member.organization_id)
 
       const { data: types } = await supabase
         .from('appointment_types')
         .select('id')
-        .eq('organization_id', profile.organization_id)
+        .eq('organization_id', member.organization_id)
         .eq('active', true)
       const ids = (types ?? []).map((t: any) => t.id)
       setTypeIds(ids)
@@ -97,7 +97,7 @@ export default function NotificationsPage() {
       const { data: org } = await supabase
         .from('organizations')
         .select('contact_email')
-        .eq('id', profile.organization_id)
+        .eq('id', member.organization_id)
         .single()
       if (org?.contact_email) setClinicEmails(org.contact_email)
 

@@ -1,6 +1,7 @@
 'use server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { createClient } from '@/lib/supabase/server'
+import { getOrgIdFromUser } from '@/lib/get-org-id'
 import { TeamClient } from './team-client'
 
 export default async function TeamPage() {
@@ -10,18 +11,13 @@ export default async function TeamPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: profile } = await admin
-    .from('users')
-    .select('organization_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.organization_id) return null
+  const orgId = await getOrgIdFromUser(user.id)
+  if (!orgId) return null
 
   const { data: members } = await admin
     .from('organization_members')
     .select('id, role, doctor_id, created_at, user_id')
-    .eq('organization_id', profile.organization_id)
+    .eq('organization_id', orgId)
     .order('created_at', { ascending: true })
 
   // Get emails from auth.users for each member
@@ -38,7 +34,7 @@ export default async function TeamPage() {
   const { data: doctors } = await admin
     .from('doctors')
     .select('id, metadata')
-    .eq('organization_id', profile.organization_id)
+    .eq('organization_id', orgId)
     .eq('is_active', true)
 
   const doctorMemberIds = (members ?? [])
@@ -60,7 +56,7 @@ export default async function TeamPage() {
   return (
     <div className="p-6 xl:p-10">
     <TeamClient
-      orgId={profile.organization_id}
+      orgId={orgId}
       members={(members ?? []).map(m => ({
         ...m,
         email: memberEmails[m.user_id] ?? '—',

@@ -1,13 +1,13 @@
 'use server'
 
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { getOrgIdFromUser } from '@/lib/get-org-id'
 
 async function getOrgId(): Promise<string | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
-  const { data } = await supabase.from('users').select('organization_id').eq('id', user.id).single()
-  return data?.organization_id ?? null
+  return getOrgIdFromUser(user.id)
 }
 
 export async function bulkUpdateLeadStatus(

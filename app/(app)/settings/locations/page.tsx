@@ -55,8 +55,8 @@ export default function LocationsPage() {
     setIsLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setIsLoading(false); return }
-    const { data: userRecord } = await supabase.from('users').select('organization_id').eq('id', user.id).single()
-    const oid = userRecord?.organization_id ?? null
+    const { data: memberRec } = await supabase.from('organization_members').select('organization_id').eq('user_id', user.id).single()
+    const oid = memberRec?.organization_id ?? null
     setOrgId(oid)
     if (oid) {
       const { data } = await supabase.from('locations').select('*').eq('organization_id', oid).order('name')

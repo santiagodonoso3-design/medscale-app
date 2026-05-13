@@ -323,24 +323,24 @@ export default function AppointmentTypesPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setIsLoading(false); return }
 
-    const { data: profile } = await supabase
-      .from('users')
+    const { data: member } = await supabase
+      .from('organization_members')
       .select('organization_id')
-      .eq('id', user.id)
+      .eq('user_id', user.id)
       .single()
 
-    if (profile?.organization_id) {
+    if (member?.organization_id) {
       const { data: orgData } = await supabase
         .from('organizations')
         .select('id, slug')
-        .eq('id', profile.organization_id)
+        .eq('id', member.organization_id)
         .single()
       if (orgData) setOrg({ id: orgData.id, slug: orgData.slug })
 
       const { data: doctorData } = await supabase
         .from('doctors')
         .select('id, metadata')
-        .eq('organization_id', profile.organization_id)
+        .eq('organization_id', member.organization_id)
         .eq('is_active', true)
       setDoctors(
         (doctorData ?? []).map((d: any) => ({
@@ -469,11 +469,11 @@ export default function AppointmentTypesPage() {
       }
     } else {
       const { data: { user } } = await supabase.auth.getUser()
-      const { data: profile } = await supabase
-        .from('users').select('organization_id').eq('id', user!.id).single()
+      const { data: member } = await supabase
+        .from('organization_members').select('organization_id').eq('user_id', user!.id).single()
       const { error } = await supabase
         .from('appointment_types')
-        .insert({ ...payload, organization_id: profile!.organization_id })
+        .insert({ ...payload, organization_id: member!.organization_id })
       if (error) { setFormError(error.message); setSaving(false); return }
     }
 

@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/server'
+import { getOrgIdFromUser } from '@/lib/get-org-id'
 import { OrgSidebar } from '@/components/org/sidebar'
 
 export default async function AppShell({ children }: { children: ReactNode }) {
@@ -9,26 +10,22 @@ export default async function AppShell({ children }: { children: ReactNode }) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const { data: userRecord } = await supabase
-    .from('users')
-    .select('organization_id, first_name, last_name')
-    .eq('id', user?.id)
-    .single()
+  const orgId = user ? await getOrgIdFromUser(user.id) : null
 
   const { data: organization } = await supabase
     .from('organizations')
     .select('name')
-    .eq('id', userRecord?.organization_id)
+    .eq('id', orgId)
     .single()
 
   const { data: memberRecord } = await supabase
     .from('organization_members')
     .select('role')
     .eq('user_id', user?.id)
-    .eq('organization_id', userRecord?.organization_id)
+    .eq('organization_id', orgId)
     .single()
 
-  const userFullName = [userRecord?.first_name, userRecord?.last_name].filter(Boolean).join(' ') || 'Usuario del equipo'
+  const userFullName = user?.email || 'Usuario del equipo'
 
   return (
     <div className="min-h-screen bg-background">
