@@ -22,9 +22,10 @@ const EMPTY_FORM = { name: '', specialty: '', duration: '30', color: '#2563eb', 
 interface DoctorsPageClientProps {
   isDoctor?: boolean
   userDoctorId?: string | null
+  orgId: string
 }
 
-export function DoctorsPageClient({ isDoctor = false, userDoctorId = null }: DoctorsPageClientProps) {
+export function DoctorsPageClient({ isDoctor = false, userDoctorId = null, orgId }: DoctorsPageClientProps) {
   const [doctors, setDoctors] = useState<DoctorRow[]>([])
   const [schedules, setSchedules] = useState<ScheduleRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -69,6 +70,7 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null }: Doc
     const { data: doctorData, error: dErr } = await supabase
       .from('doctors')
       .select('id, specialty, is_active, metadata')
+      .eq('organization_id', orgId)
       .order('created_at', { ascending: true })
     if (dErr) { setPageError(dErr.message); setLoading(false); return }
 

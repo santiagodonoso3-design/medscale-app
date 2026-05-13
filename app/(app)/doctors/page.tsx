@@ -1,4 +1,5 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { getOrgIdFromUser } from '@/lib/get-org-id'
 import { DoctorsPageClient } from '@/components/doctors/doctors-page-client'
 
 export default async function DoctorsPage() {
@@ -9,6 +10,7 @@ export default async function DoctorsPage() {
 
   let isDoctor = false
   let userDoctorId: string | null = null
+  const orgId = user ? await getOrgIdFromUser(user.id) : null
 
   if (user) {
     const { data: member } = await admin
@@ -25,7 +27,7 @@ export default async function DoctorsPage() {
 
   return (
     <div className="p-6 xl:p-10">
-      <DoctorsPageClient isDoctor={isDoctor} userDoctorId={userDoctorId} />
+      <DoctorsPageClient isDoctor={isDoctor} userDoctorId={userDoctorId} orgId={orgId ?? ''} />
     </div>
   )
 }
