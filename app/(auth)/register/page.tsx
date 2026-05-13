@@ -49,7 +49,6 @@ const registerSchema = z.object({
   clinic_name: z.string().min(2, 'Mínimo 2 caracteres'),
   email: z.string().email('Email inválido'),
   password: z.string().min(6, 'Mínimo 6 caracteres'),
-  phone: z.string().optional(),
 })
 
 type RegisterForm = z.infer<typeof registerSchema>
@@ -93,7 +92,6 @@ export default function RegisterPage() {
       options: {
         data: {
           clinic_name: data.clinic_name,
-          phone: data.phone ?? '',
         },
       },
     })
@@ -115,7 +113,6 @@ export default function RegisterPage() {
       body: JSON.stringify({
         plan: selectedPlan,
         clinic_name: data.clinic_name,
-        phone: data.phone ?? '',
         user_id: userId,
       }),
     })
@@ -289,19 +286,6 @@ export default function RegisterPage() {
                 {errors.password && (
                   <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>
                 )}
-              </div>
-
-              <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                  Teléfono <span className="text-gray-400 font-normal">(opcional)</span>
-                </label>
-                <input
-                  id="phone"
-                  type="tel"
-                  placeholder="+57 300 000 0000"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                  {...register('phone')}
-                />
               </div>
 
               {serverError && (

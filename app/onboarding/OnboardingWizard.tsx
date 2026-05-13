@@ -100,8 +100,8 @@ export function OnboardingWizard({ orgId, orgName, userEmail, userId }: Props) {
 
   async function handleNext() {
     if (currentStep === 1) {
-      if (!step1.name.trim() || !step1.city.trim()) {
-        setStep1Error('Nombre y ciudad son obligatorios.')
+      if (!step1.name.trim() || !step1.city.trim() || !step1.phone.trim()) {
+        setStep1Error('Nombre, ciudad y teléfono son obligatorios.')
         return
       }
       setSaving(true)
@@ -190,6 +190,9 @@ export function OnboardingWizard({ orgId, orgName, userEmail, userId }: Props) {
         <div className="mb-8 text-center">
           <p className="text-sm text-gray-500 mb-1">Paso {currentStep} de {totalSteps}</p>
           <h1 className="text-2xl font-semibold text-gray-900">{STEPS[currentStep - 1].title}</h1>
+          {currentStep === 3 && step2.name && (
+            <p className="text-sm text-gray-500 mt-1">Disponibilidad de Dr. {step2.name}</p>
+          )}
         </div>
 
         {/* Progress bar */}
@@ -277,7 +280,7 @@ function Step1Form({ data, setData, error }: {
           onChange={(e) => setData((d) => ({ ...d, city: e.target.value }))}
           className={inputCls} placeholder="Ej: Bogotá" />
       </Field>
-      <Field label="Teléfono">
+      <Field label="Teléfono" required>
         <input type="tel" value={data.phone}
           onChange={(e) => setData((d) => ({ ...d, phone: e.target.value }))}
           className={inputCls} placeholder="+57 300 000 0000" />
