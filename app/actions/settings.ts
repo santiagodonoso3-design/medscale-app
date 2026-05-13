@@ -51,12 +51,12 @@ export async function uploadOrgLogo(
   const buffer = Buffer.from(base64, 'base64')
 
   const { error } = await admin.storage
-    .from('logos')
+    .from('organizations')
     .upload(path, buffer, { upsert: true, contentType })
 
   if (error) return null
 
-  const { data } = admin.storage.from('logos').getPublicUrl(path)
+  const { data } = admin.storage.from('organizations').getPublicUrl(path)
   return data.publicUrl
 }
 
