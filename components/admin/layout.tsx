@@ -6,9 +6,10 @@ import { createClient } from '@/lib/supabase/client'
 
 interface AdminLayoutProps {
   children: React.ReactNode
+  allOrganizations?: { id: string; name: string; logo_url: string | null }[]
 }
 
-export function AdminLayout({ children }: AdminLayoutProps) {
+export function AdminLayout({ children, allOrganizations = [] }: AdminLayoutProps) {
   const [userEmail, setUserEmail] = useState<string>('')
   const [userName, setUserName] = useState<string>('')
   const [isLoading, setIsLoading] = useState(true)
@@ -47,10 +48,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
   return (
     <div className="flex h-screen bg-slate-50">
-      <AdminSidebar userEmail={userEmail} userName={userName} />
-      <main className="flex-1 overflow-auto">
-        {children}
-      </main>
+      <AdminSidebar userEmail={userEmail} userName={userName} allOrganizations={allOrganizations} />
+      <main className="flex-1 overflow-auto">{children}</main>
     </div>
   )
 }

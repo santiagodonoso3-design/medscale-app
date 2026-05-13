@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { AdminLayout } from '@/components/admin/layout'
 
 const SUPERADMIN_EMAILS = (process.env.SUPERADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase())
@@ -12,5 +12,12 @@ export default async function SuperAdminLayout({ children }: { children: React.R
     redirect('/dashboard')
   }
 
-  return <AdminLayout>{children}</AdminLayout>
+  const admin = createServiceClient()
+  const { data: orgs } = await admin
+    .from('organizations')
+    .select('id, name, logo_url')
+    .eq('is_active', true)
+    .order('name')
+
+  return <AdminLayout allOrganizations={orgs || []}>{children}</AdminLayout>
 }
