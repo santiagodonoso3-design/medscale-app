@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  LayoutDashboard, MessageSquare, CalendarDays, Settings, LogOut,
+  LayoutDashboard, ContactRound, CalendarDays, Settings, LogOut,
   Stethoscope, Users, MessageCircle, User, ChevronDown, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -17,7 +17,7 @@ interface OrgSidebarProps {
 
 const ALL_NAV_ITEMS = [
   { name: 'Dashboard',      href: '/dashboard',           icon: LayoutDashboard, roles: ['owner', 'staff'] },
-  { name: 'CRM',            href: '/crm',                 icon: MessageSquare,   roles: ['owner', 'staff'] },
+  { name: 'CRM',            href: '/crm',                 icon: ContactRound,    roles: ['owner', 'staff'] },
   { name: 'Agenda',         href: '/scheduling/calendar', icon: CalendarDays,    roles: ['owner', 'staff', 'doctor'] },
   { name: 'Conversaciones', href: '/conversations',       icon: MessageCircle,   roles: ['owner', 'staff'] },
   { name: 'Doctores',       href: '/doctors',             icon: Stethoscope,     roles: ['owner', 'staff', 'doctor'] },
