@@ -876,10 +876,10 @@ export default function BookingWizard({
         {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 sm:mb-8">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: B.muted }}>
-              Reservar cita
-            </p>
-            <h1 className="text-2xl font-bold mt-1" style={{ color: B.fg }}>{orgName}</h1>
+            {orgLogoUrl && (
+              <img src={orgLogoUrl} alt={orgName} className="h-14 w-auto object-contain mb-2" />
+            )}
+            <h1 className="text-2xl font-bold" style={{ color: B.fg }}>{orgName}</h1>
           </div>
         </div>
 
@@ -927,7 +927,7 @@ export default function BookingWizard({
         className="inline-flex items-center gap-1.5 text-xs font-medium transition hover:opacity-80"
         style={{ color: '#94a3b8' }}
       >
-        <span>Agendamiento con</span>
+        <span>Powered by</span>
         <span className="font-bold tracking-tight" style={{ color: '#215F73' }}>MedScale AI</span>
       </a>
     </div>
