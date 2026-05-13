@@ -208,9 +208,11 @@ function BarTooltip({ active, payload, label }: any) {
 export function DashboardClient({
   initialData,
   availableYears,
+  orgId,
 }: {
   initialData: RawDashboardData
   availableYears: number[]
+  orgId: string
 }) {
   function allMonths(year: number): number[] {
     const max = year === CURRENT_YEAR ? CURRENT_MONTH : 12
@@ -227,7 +229,7 @@ export function DashboardClient({
     setSelectedYear(year)
     setSelectedMonths(year === CURRENT_YEAR ? [CURRENT_MONTH] : allMonths(year))
     startTransition(async () => {
-      const newData = await getDashboardRawData(year)
+      const newData = await getDashboardRawData(year, orgId)
       if (newData) setRawData(newData)
     })
   }

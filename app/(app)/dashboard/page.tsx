@@ -15,25 +15,27 @@ export default async function DashboardPage() {
   const admin = createServiceClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (user) {
-    const { data: member } = await admin
-      .from('organization_members')
-      .select('role')
-      .eq('user_id', user.id)
-      .single()
+  if (!user) redirect('/login')
 
-    if (member?.role === 'doctor') {
-      redirect('/scheduling/calendar')
-    }
-  }
+  const { data: member } = await admin
+    .from('organization_members')
+    .select('role, organization_id')
+    .eq('user_id', user.id)
+    .single()
+
+  if (!member?.organization_id) redirect('/onboarding')
+
+  if (member.role === 'doctor') redirect('/scheduling/calendar')
+
+  const orgId = member.organization_id
 
   const currentYear = Number(
     new Intl.DateTimeFormat('en-CA', { year: 'numeric', timeZone: 'America/Bogota' }).format(new Date())
   )
 
   const [rawData, availableYears] = await Promise.all([
-    getDashboardRawData(currentYear),
-    getDashboardYears(),
+    getDashboardRawData(currentYear, orgId),
+    getDashboardYears(orgId),
   ])
 
   if (!rawData) {
@@ -48,7 +50,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-6 xl:p-10">
-      <DashboardClient initialData={rawData} availableYears={availableYears} />
+      <DashboardClient initialData={rawData} availableYears={availableYears} orgId={orgId} />
     </div>
   )
 }

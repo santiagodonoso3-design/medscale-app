@@ -74,7 +74,7 @@ export interface RawDashboardData {
 
 // ── Fetch all data for a given year ──────────────────────────────────────────
 
-export async function getDashboardRawData(year: number): Promise<RawDashboardData | null> {
+export async function getDashboardRawData(year: number, orgId: string): Promise<RawDashboardData | null> {
   noStore()
   try {
     const admin  = createServiceClient()
@@ -91,22 +91,27 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
     ] = await Promise.all([
       admin.from('appointments')
         .select('id, scheduled_at, status, doctor_id, lead_id, doctor_assignment_type')
+        .eq('organization_id', orgId)
         .gte('scheduled_at', fromDate)
         .lt('scheduled_at', toDate),
       admin.from('leads')
         .select('id, status, created_at')
+        .eq('organization_id', orgId)
         .gte('created_at', fromDate)
         .lt('created_at', toDate),
       admin.from('doctors')
         .select('id, metadata')
+        .eq('organization_id', orgId)
         .eq('is_active', true),
       admin.from('appointments')
         .select('id, scheduled_at, status, lead:lead_id(contact_name,contact_last_name), doctor:doctor_id(metadata)')
+        .eq('organization_id', orgId)
         .gte('scheduled_at', today + 'T00:00:00')
         .lte('scheduled_at', today + 'T23:59:59')
         .order('scheduled_at', { ascending: true }),
       admin.from('appointment_types')
-        .select('id, assignment_mode'),
+        .select('id, assignment_mode')
+        .eq('organization_id', orgId),
     ])
 
     console.log('[dashboard] year:', year, 'fromDate:', fromDate, 'toDate:', toDate)
@@ -164,13 +169,13 @@ export async function getDashboardRawData(year: number): Promise<RawDashboardDat
 
 // ── Years that have appointment or lead data ──────────────────────────────────
 
-export async function getDashboardYears(): Promise<number[]> {
+export async function getDashboardYears(orgId: string): Promise<number[]> {
   try {
     const admin   = createServiceClient()
     const curYear = currentBogotaYear()
     const [{ data: firstApt }, { data: firstLead }] = await Promise.all([
-      admin.from('appointments').select('scheduled_at').order('scheduled_at', { ascending: true }).limit(1),
-      admin.from('leads').select('created_at').order('created_at', { ascending: true }).limit(1),
+      admin.from('appointments').select('scheduled_at').eq('organization_id', orgId).order('scheduled_at', { ascending: true }).limit(1),
+      admin.from('leads').select('created_at').eq('organization_id', orgId).order('created_at', { ascending: true }).limit(1),
     ])
     let minYear = curYear
     if (firstApt?.[0]?.scheduled_at) minYear = Math.min(minYear, Number(firstApt[0].scheduled_at.slice(0, 4)))
