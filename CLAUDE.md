@@ -134,6 +134,7 @@ La protección por roles la manejan `layout.tsx` y cada página vía `getSession
 lib/
   auth/session.ts        → getSession() — USAR SIEMPRE en server components
   get-org-id.ts          → getOrgIdFromUser() — para actions/APIs
+  admin/impersonate.ts   → Impersonation de orgs (start/stop/get)
   supabase/server.ts     → createClient() + createServiceClient()
   supabase/client.ts     → cliente browser
   email/resend.ts        → envío de emails
@@ -143,7 +144,7 @@ lib/
 app/
   (app)/                 → rutas protegidas del dashboard
   (auth)/                → login, register, reset-password
-  (superadmin)/          → panel admin (usa public.users, OK por ahora)
+  (superadmin)/          → panel platform admin, protegido por SUPERADMIN_EMAILS + platform_admins
   onboarding/            → wizard post-registro
   book/                  → agendamiento público
   api/                   → API routes
@@ -287,32 +288,54 @@ app/
 - ✅ Padding individual por página
 - ✅ `app/page.tsx` redirige a /login (no muestra boilerplate)
 
+### Logo y Branding (13 Mayo 2026)
+- ✅ Fix logo upload: bucket corregido de `'logos'` a `'organizations'`
+- ✅ Logo en sidebar: se muestra logo de org si existe, fallback a ícono
+- ✅ Logo en booking público: `/book/[org-slug]` y booking wizard muestran logo
+- ✅ Sidebar theme dark/light: columna `sidebar_theme` en organizations, selector en /settings/general
+- ✅ Booking header rediseñado: logo izq + stepper der, sin "Reservar cita", "Powered by MedScale AI"
+- ✅ Booking wizard: si tiene logo muestra solo logo, si no muestra nombre como fallback
+
+### Superadmin (13 Mayo 2026)
+- ✅ Protección /admin: solo emails en `SUPERADMIN_EMAILS` (env var) pueden acceder
+- ✅ Tabla `platform_admins`: user_id, email, role (owner/admin/support)
+- ✅ Superadmin actions migradas: `createServiceClient()`, columnas directas (no metadata), `organization_members` para user count
+- ✅ CRUD organizaciones: plan, is_active, ai_agent_enabled editables desde modal
+- ✅ Impersonation: cookie `impersonate_org_id` (httpOnly, 4h max), `getSession()` verifica `platform_admins` antes de respetar cookie
+- ✅ Org switcher dropdown: en sidebar del tenant Y sidebar del superadmin, solo visible para platform admins
+- ✅ Dashboard superadmin: métricas globales (orgs, usuarios, leads, citas)
+
+### Conversaciones — Fixes (13 Mayo 2026)
+- ✅ Fix agrupamiento: mensaje outbound ahora incluye `sender_phone` del lead (antes era null)
+- ✅ Retención 48h: pg_cron `cleanup_old_messages` corre a las 3am diario, borra mensajes > 2 días
+- ✅ Aviso retención en términos del agente y footer del chat
+
 ---
 
 ## 🔴 PRIORIDAD 1 — MVP Autoservicio
-- [ ] Fix logo upload (se queda en "Subiendo..." — debug pendiente)
-- [ ] Mostrar logo en sidebar y booking público
-- [ ] Stripe billing con trial 14 días
+- [ ] Stripe billing con trial 14 días (pospuesto — cobro manual desde superadmin por ahora)
 
 ## 🟡 PRIORIDAD 2
-- [ ] Responsive en /book/[org-slug], /login, /register, /onboarding
 - [ ] Tour opcional post-onboarding
 - [ ] Verificar buffer_before/after_min con citas reales
-- [ ] Probar webhook n8n con mensaje real de WhatsApp/IG/FB
 - [ ] Estandarizar respuestas API (lib/api/response.ts)
 
-## 🟢 PRIORIDAD 3 — Superadmin
-- [ ] Dashboard superadmin filtrable por cliente
-- [ ] CRUD organizaciones desde /admin
-- [ ] Gestión usuarios por organización
+## 🟢 PRIORIDAD 3 — Superadmin evolución
+- [ ] Dashboard superadmin con métricas avanzadas (MRR, churn, uso por org)
+- [ ] Feature flags por organización (tabla dedicada)
+- [ ] Gestión usuarios por organización desde superadmin
+- [ ] Cupones/promos (cuando haya Stripe)
+- [ ] Logs/auditoría
 
 ## 🔵 Fase 2
 - [ ] Google Calendar bidireccional
 - [ ] WhatsApp via Meta Cloud API
 - [ ] Módulo historia clínica
 - [ ] Motor de automatizaciones
+- [ ] Módulo formularios
 - [ ] Reportes y analítica avanzada
 - [ ] Eliminar tabla `public.users` completamente
+- [ ] Migrar superadmin a subdominio admin.medscale.app (cuando 10+ clientes)
 
 ---
 
@@ -375,6 +398,12 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 
 **Inserts de doctors deben ir por `/api/doctors` con service role, no directos desde client**
 
+**Superadmin usa `createServiceClient()`, NUNCA `createClient()`** — necesita acceso cross-tenant sin RLS
+
+**Impersonation:** cookie `impersonate_org_id` solo se respeta si `user_id` existe en `platform_admins`
+
+**Logo upload va al bucket `organizations` (path: `logos/{orgId}.{ext}`), NO al bucket `logos`**
+
 ### Roles — Protección
 - Protección por rol en `layout.tsx` y páginas vía `getSession()`
 - Doctor permitido: /scheduling, /doctors, /settings/integrations
@@ -387,6 +416,19 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 - roles: `'owner' | 'staff' | 'doctor'`
 - Leer rol: `getSession().role`
 - `doctors.user_id` referencia `auth.users(id)`, NO `public.users`
+
+### Superadmin — Arquitectura
+- Tabla `platform_admins` controla quién es superadmin (no env var sola)
+- Env var `SUPERADMIN_EMAILS` protege el layout server-side como primera barrera
+- `getSession()` soporta impersonation: si hay cookie `impersonate_org_id` y user es platform_admin, devuelve orgId de la cookie con `role: 'owner'` e `isImpersonating: true`
+- Org "Medscale" (883367a9-...) es la org base del superadmin — necesaria para que `getSession()` funcione cuando no impersona
+- Sidebar muestra org switcher dropdown solo para platform admins
+- Superadmin actions usan `createServiceClient()` para acceso cross-tenant
+
+### Superadmin — Roadmap arquitectura
+- **Hoy:** superadmin vive en misma app, protegido por email + platform_admins
+- **10+ clientes:** migrar a subdominio admin.medscale.app (proyecto Next.js aparte, misma DB)
+- **Marca blanca (futuro):** agregar nivel "Reseller" entre Platform y Tenant
 
 ### Google Calendar
 - Tokens en `doctors.google_calendar_token` (JSONB)
@@ -412,6 +454,9 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 - `organizations.onboarding_completed` BOOLEAN (default false)
 - `organizations.contact_phone` TEXT
 - `organizations.contact_email` TEXT
+- `organizations.sidebar_theme` TEXT (dark/light, default dark)
+- `organizations.is_active` BOOLEAN (default true)
+- `platform_admins`: user_id, email, role (owner/admin/support) — controla acceso a superadmin
 
 ### Modos de asignación
 | UI label | assignment_mode | rr_count_all |
