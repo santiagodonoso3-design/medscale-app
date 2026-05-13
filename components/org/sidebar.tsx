@@ -64,7 +64,7 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole }: OrgSideba
       {/* Toggle button */}
       <button
         onClick={toggleCollapsed}
-        className="absolute -right-3 top-16 z-30 flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm hover:bg-slate-50 transition"
+        className="absolute -right-3 top-16 z-50 flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white shadow-md hover:bg-slate-50 transition"
       >
         {collapsed
           ? <ChevronRight className="h-3.5 w-3.5 text-slate-500" />
