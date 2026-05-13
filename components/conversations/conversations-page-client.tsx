@@ -318,6 +318,7 @@ function AgentRequestForm({ orgName, orgEmail, organizationId }: { orgName: stri
                 El agente <strong>NO garantiza resultados</strong> de tratamientos. Toda interacción es informativa y orientativa,
                 no sustituye la consulta médica profesional. Soy responsable de mantener actualizada la información.
                 MedScale AI no se hace responsable por información incorrecta proporcionada para configurar el agente.
+                {' '}Los mensajes se almacenan por un máximo de 48 horas y se eliminan automáticamente después de este período.
               </span>
             </label>
           </div>
@@ -651,7 +652,7 @@ function ConversationsView({ organizationId }: { organizationId: string }) {
 
               <div className="shrink-0 bg-slate-50 border-t border-slate-100 px-6 py-3 flex items-center gap-2">
                 <Bot className="h-4 w-4 text-slate-400 shrink-0" />
-                <p className="text-sm text-slate-500">Las respuestas se envían automáticamente por el agente AI</p>
+                <p className="text-sm text-slate-500">Las respuestas se envían automáticamente por el agente AI · Los mensajes se retienen por 48 horas</p>
               </div>
             </>
           )}
