@@ -10,18 +10,45 @@ const STEPS = [
   { number: 4, title: 'Tu link está listo' },
 ]
 
-interface Step1Data {
-  name: string
-  city: string
-  phone: string
-  contact_email: string
+const DAY_NAMES: Record<number, string> = {
+  1: 'Lunes', 2: 'Martes', 3: 'Miércoles',
+  4: 'Jueves', 5: 'Viernes', 6: 'Sábado', 0: 'Domingo',
+}
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
+
+function timeOptions(from: number, to: number) {
+  const opts: string[] = []
+  for (let h = from; h <= to; h++) {
+    opts.push(`${String(h).padStart(2, '0')}:00`)
+    if (h < to) opts.push(`${String(h).padStart(2, '0')}:30`)
+  }
+  return opts
+}
+const START_TIMES = timeOptions(6, 20)   // 06:00 – 20:30
+const END_TIMES   = timeOptions(6, 22)   // 06:00 – 22:00
+
+interface DaySchedule {
+  active: boolean
+  start: string
+  end: string
 }
 
-interface Step2Data {
-  name: string
-  specialty: string
-  duration: number
+type Step3Data = Record<number, DaySchedule>
+
+function defaultStep3(): Step3Data {
+  const data: Step3Data = {}
+  DAY_ORDER.forEach((d) => {
+    data[d] = {
+      active: d >= 1 && d <= 5,
+      start: '08:00',
+      end: '17:00',
+    }
+  })
+  return data
 }
+
+interface Step1Data { name: string; city: string; phone: string; contact_email: string }
+interface Step2Data { name: string; specialty: string; duration: number }
 
 interface Props {
   orgId: string
@@ -36,21 +63,15 @@ export function OnboardingWizard({ orgId, orgName, userEmail, userId }: Props) {
   const [finishing, setFinishing] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  const [step1, setStep1] = useState<Step1Data>({
-    name: orgName,
-    city: '',
-    phone: '',
-    contact_email: userEmail,
-  })
+  const [step1, setStep1] = useState<Step1Data>({ name: orgName, city: '', phone: '', contact_email: userEmail })
   const [step1Error, setStep1Error] = useState<string | null>(null)
 
-  const [step2, setStep2] = useState<Step2Data>({
-    name: '',
-    specialty: '',
-    duration: 30,
-  })
+  const [step2, setStep2] = useState<Step2Data>({ name: '', specialty: '', duration: 30 })
   const [step2Error, setStep2Error] = useState<string | null>(null)
   const [doctorId, setDoctorId] = useState<string | null>(null)
+
+  const [step3, setStep3] = useState<Step3Data>(defaultStep3)
+  const [step3Error, setStep3Error] = useState<string | null>(null)
 
   const totalSteps = STEPS.length
   const progress = (currentStep / totalSteps) * 100
@@ -98,6 +119,35 @@ export function OnboardingWizard({ orgId, orgName, userEmail, userId }: Props) {
       setDoctorId(body.doctorId ?? null)
     }
 
+    if (currentStep === 3) {
+      if (!doctorId) {
+        setStep3Error('No se encontró el médico. Vuelve al paso anterior.')
+        return
+      }
+      const schedules = DAY_ORDER.filter((d) => step3[d].active).map((d) => ({
+        day_of_week: d,
+        start_time: step3[d].start,
+        end_time: step3[d].end,
+      }))
+      if (schedules.length === 0) {
+        setStep3Error('Activa al menos un día de disponibilidad.')
+        return
+      }
+      setSaving(true)
+      setStep3Error(null)
+      const res = await fetch('/api/onboarding/step3', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doctorId, schedules }),
+      })
+      setSaving(false)
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setStep3Error(body.error ?? 'Error al guardar.')
+        return
+      }
+    }
+
     setCurrentStep((s) => s + 1)
   }
 
@@ -117,32 +167,23 @@ export function OnboardingWizard({ orgId, orgName, userEmail, userId }: Props) {
         {/* Header */}
         <div className="mb-8 text-center">
           <p className="text-sm text-gray-500 mb-1">Paso {currentStep} de {totalSteps}</p>
-          <h1 className="text-2xl font-semibold text-gray-900">
-            {STEPS[currentStep - 1].title}
-          </h1>
+          <h1 className="text-2xl font-semibold text-gray-900">{STEPS[currentStep - 1].title}</h1>
         </div>
 
         {/* Progress bar */}
         <div className="w-full h-1.5 bg-gray-200 rounded-full mb-8">
-          <div
-            className="h-1.5 bg-blue-600 rounded-full transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
+          <div className="h-1.5 bg-blue-600 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
 
         {/* Step indicators */}
         <div className="flex items-center justify-between mb-8">
           {STEPS.map((step) => (
             <div key={step.number} className="flex flex-col items-center gap-1.5">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
-                  step.number < currentStep
-                    ? 'bg-blue-600 text-white'
-                    : step.number === currentStep
-                    ? 'bg-blue-600 text-white ring-4 ring-blue-100'
-                    : 'bg-gray-200 text-gray-500'
-                }`}
-              >
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                step.number < currentStep ? 'bg-blue-600 text-white'
+                : step.number === currentStep ? 'bg-blue-600 text-white ring-4 ring-blue-100'
+                : 'bg-gray-200 text-gray-500'
+              }`}>
                 {step.number < currentStep ? '✓' : step.number}
               </div>
               <span className={`text-xs hidden sm:block ${step.number === currentStep ? 'text-blue-600 font-medium' : 'text-gray-400'}`}>
@@ -155,15 +196,10 @@ export function OnboardingWizard({ orgId, orgName, userEmail, userId }: Props) {
         {/* Step content */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
           <div className="p-8">
-            {currentStep === 1 && (
-              <Step1Form data={step1} setData={setStep1} error={step1Error} />
-            )}
-            {currentStep === 2 && (
-              <Step2Form data={step2} setData={setStep2} error={step2Error} />
-            )}
-            {currentStep > 2 && (
-              <StepPlaceholder step={currentStep} doctorId={doctorId} />
-            )}
+            {currentStep === 1 && <Step1Form data={step1} setData={setStep1} error={step1Error} />}
+            {currentStep === 2 && <Step2Form data={step2} setData={setStep2} error={step2Error} />}
+            {currentStep === 3 && <Step3Form data={step3} setData={setStep3} error={step3Error} />}
+            {currentStep === 4 && <StepFinal />}
           </div>
         </div>
 
@@ -200,147 +236,156 @@ export function OnboardingWizard({ orgId, orgName, userEmail, userId }: Props) {
   )
 }
 
-function Step1Form({
-  data,
-  setData,
-  error,
-}: {
+// ── Step 1 ────────────────────────────────────────────────────────────────────
+
+function Step1Form({ data, setData, error }: {
   data: Step1Data
   setData: React.Dispatch<React.SetStateAction<Step1Data>>
   error: string | null
 }) {
   return (
     <div className="space-y-5 max-w-xl">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Nombre de la clínica <span className="text-red-500">*</span>
-        </label>
-        <input
-          type="text"
-          value={data.name}
+      <Field label="Nombre de la clínica" required>
+        <input type="text" value={data.name}
           onChange={(e) => setData((d) => ({ ...d, name: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-          placeholder="Ej: Clínica Santa María"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Ciudad <span className="text-red-500">*</span>
-        </label>
-        <input
-          type="text"
-          value={data.city}
+          className={inputCls} placeholder="Ej: Clínica Santa María" />
+      </Field>
+      <Field label="Ciudad" required>
+        <input type="text" value={data.city}
           onChange={(e) => setData((d) => ({ ...d, city: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-          placeholder="Ej: Bogotá"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Teléfono
-        </label>
-        <input
-          type="tel"
-          value={data.phone}
+          className={inputCls} placeholder="Ej: Bogotá" />
+      </Field>
+      <Field label="Teléfono">
+        <input type="tel" value={data.phone}
           onChange={(e) => setData((d) => ({ ...d, phone: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-          placeholder="+57 300 000 0000"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Email de contacto
-        </label>
-        <input
-          type="email"
-          value={data.contact_email}
+          className={inputCls} placeholder="+57 300 000 0000" />
+      </Field>
+      <Field label="Email de contacto">
+        <input type="email" value={data.contact_email}
           onChange={(e) => setData((d) => ({ ...d, contact_email: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-          placeholder="contacto@clinica.com"
-        />
-      </div>
-
+          className={inputCls} placeholder="contacto@clinica.com" />
+      </Field>
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   )
 }
 
-function Step2Form({
-  data,
-  setData,
-  error,
-}: {
+// ── Step 2 ────────────────────────────────────────────────────────────────────
+
+function Step2Form({ data, setData, error }: {
   data: Step2Data
   setData: React.Dispatch<React.SetStateAction<Step2Data>>
   error: string | null
 }) {
   return (
     <div className="space-y-5 max-w-xl">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Nombre completo <span className="text-red-500">*</span>
-        </label>
-        <input
-          type="text"
-          value={data.name}
+      <Field label="Nombre completo" required>
+        <input type="text" value={data.name}
           onChange={(e) => setData((d) => ({ ...d, name: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-          placeholder="Ej: Dr. Juan Pérez"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Especialidad <span className="text-red-500">*</span>
-        </label>
-        <input
-          type="text"
-          value={data.specialty}
+          className={inputCls} placeholder="Ej: Dr. Juan Pérez" />
+      </Field>
+      <Field label="Especialidad" required>
+        <input type="text" value={data.specialty}
           onChange={(e) => setData((d) => ({ ...d, specialty: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-          placeholder="Ej: Medicina general"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Duración de consulta
-        </label>
-        <select
-          value={data.duration}
+          className={inputCls} placeholder="Ej: Medicina general" />
+      </Field>
+      <Field label="Duración de consulta">
+        <select value={data.duration}
           onChange={(e) => setData((d) => ({ ...d, duration: Number(e.target.value) }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition bg-white"
-        >
-          <option value={15}>15 minutos</option>
-          <option value={20}>20 minutos</option>
-          <option value={30}>30 minutos</option>
-          <option value={45}>45 minutos</option>
-          <option value={60}>60 minutos</option>
+          className={inputCls + ' bg-white'}>
+          {[15, 20, 30, 45, 60].map((m) => (
+            <option key={m} value={m}>{m} minutos</option>
+          ))}
         </select>
-      </div>
-
+      </Field>
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   )
 }
 
-function StepPlaceholder({ step, doctorId }: { step: number; doctorId: string | null }) {
-  const content: Record<number, string> = {
-    3: 'Define los días y horarios en que el médico atiende.',
-    4: 'Tu link de agendamiento ya está listo para compartir con tus pacientes.',
+// ── Step 3 ────────────────────────────────────────────────────────────────────
+
+function Step3Form({ data, setData, error }: {
+  data: Step3Data
+  setData: React.Dispatch<React.SetStateAction<Step3Data>>
+  error: string | null
+}) {
+  function toggle(day: number) {
+    setData((d) => ({ ...d, [day]: { ...d[day], active: !d[day].active } }))
   }
-  const text = content[step]
-  if (!text) return null
+  function setTime(day: number, field: 'start' | 'end', value: string) {
+    setData((d) => ({ ...d, [day]: { ...d[day], [field]: value } }))
+  }
+
+  return (
+    <div className="space-y-1">
+      <p className="text-sm text-gray-500 mb-4">Configura el horario de atención para cada día.</p>
+      {DAY_ORDER.map((day) => {
+        const s = data[day]
+        return (
+          <div key={day} className={`flex items-center gap-3 py-2.5 px-3 rounded-lg transition-colors ${s.active ? 'bg-gray-50' : 'opacity-50'}`}>
+            {/* Toggle */}
+            <button
+              type="button"
+              onClick={() => toggle(day)}
+              className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${s.active ? 'bg-blue-600' : 'bg-gray-200'}`}
+            >
+              <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${s.active ? 'translate-x-4' : 'translate-x-0'}`} />
+            </button>
+
+            {/* Day name */}
+            <span className="w-24 text-sm font-medium text-gray-700">{DAY_NAMES[day]}</span>
+
+            {/* Time selects */}
+            <div className="flex items-center gap-2 flex-1">
+              <select
+                value={s.start}
+                onChange={(e) => setTime(day, 'start', e.target.value)}
+                disabled={!s.active}
+                className="flex-1 px-2 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed"
+              >
+                {START_TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <span className="text-gray-400 text-sm">–</span>
+              <select
+                value={s.end}
+                onChange={(e) => setTime(day, 'end', e.target.value)}
+                disabled={!s.active}
+                className="flex-1 px-2 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed"
+              >
+                {END_TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+        )
+      })}
+      {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+    </div>
+  )
+}
+
+// ── Step 4 ────────────────────────────────────────────────────────────────────
+
+function StepFinal() {
   return (
     <div className="space-y-2">
-      <p className="text-gray-600">{text}</p>
-      <p className="text-sm text-gray-400 italic">Contenido del paso {step} — próximamente.</p>
-      {step === 3 && doctorId && (
-        <p className="text-xs text-gray-400">Doctor ID: {doctorId}</p>
-      )}
+      <p className="text-gray-600">Tu link de agendamiento ya está listo para compartir con tus pacientes.</p>
+      <p className="text-sm text-gray-400 italic">Contenido del paso 4 — próximamente.</p>
+    </div>
+  )
+}
+
+// ── Shared ────────────────────────────────────────────────────────────────────
+
+const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition'
+
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+      </label>
+      {children}
     </div>
   )
 }
