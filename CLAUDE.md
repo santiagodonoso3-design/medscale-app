@@ -1,4 +1,155 @@
-# MedScale App — Estado del proyecto (12 Mayo 2026)
+# MedScale App — Estado del proyecto (13 Mayo 2026)
+
+---
+
+## 🚨 REGLAS DE ARQUITECTURA — LEER ANTES DE CUALQUIER CAMBIO
+
+### Filosofía de estas reglas
+
+Estas reglas no son inmutables. Se pueden y deben evolucionar cuando el proyecto lo requiera. Pero cualquier cambio a una regla debe cumplir esto:
+
+- **Visión holística:** ¿Cómo impacta este cambio al sistema completo?
+  No se cambia una regla para resolver un bug puntual — se busca la causa raíz.
+- **Sostenibilidad:** ¿Este cambio nos hace más sólidos a 6 meses o solo resuelve lo de hoy? Si es un parche, no es un cambio de regla.
+- **Consistencia:** Si cambias un patrón, se migra en **TODOS** los archivos que lo usen. No se deja código viejo conviviendo con código nuevo.
+- **Validación:** Antes de cambiar una regla, analizar cuántos archivos afecta y qué puede romperse. Nunca cambiar a ciegas.
+
+Si durante el desarrollo encuentras que una regla no aplica o hay un camino mejor: no la ignores ni la rompas silenciosamente. Proponla como cambio con argumentos (por qué es mejor, qué impacto tiene, cómo se migra). Si tiene sentido, se actualiza la regla Y se migra todo el codebase. Si no tiene sentido, se sigue la regla actual.
+
+### Fuente de verdad para identity
+
+```
+┌─────────────┐     ┌──────────────────────┐     ┌───────────────┐
+│ auth.users  │────▶│ organization_members  │────▶│ organizations │
+│ (auth)      │     │ (org + role + doctor) │     │ (tenant data) │
+└─────────────┘     └──────────────────────┘     └───────────────┘
+```
+
+- `auth.users` → autenticación (email, password, OAuth)
+- `organization_members` → relación usuario ↔ organización + rol
+- `organizations` → datos del tenant
+
+**NUNCA usar la tabla `public.users` para obtener `organization_id` o `role`.**
+La tabla `public.users` es legacy y será eliminada en el futuro.
+
+### Patrones obligatorios
+
+**1. Obtener sesión en server components:**
+```typescript
+import { getSession } from '@/lib/auth/session'
+
+const session = await getSession()
+if (!session) redirect('/login')
+// session.user, session.orgId, session.role, session.doctorId
+```
+
+**2. Obtener orgId en server actions / API routes (cuando no hay getSession):**
+```typescript
+import { getOrgIdFromUser } from '@/lib/get-org-id'
+
+const orgId = await getOrgIdFromUser(user.id)
+```
+
+**3. Queries en client components (browser):**
+```typescript
+// Obtener orgId desde organization_members
+const { data: member } = await supabase
+  .from('organization_members')
+  .select('organization_id')
+  .eq('user_id', user.id)
+  .single()
+```
+
+**4. Service client para operaciones admin:**
+```typescript
+import { createServiceClient } from '@/lib/supabase/server'
+const admin = createServiceClient() // síncrono, NO async
+```
+
+**5. Client de auth para server components:**
+```typescript
+import { createClient } from '@/lib/supabase/server'
+const supabase = await createClient() // async, usa cookies
+```
+
+### Patrones PROHIBIDOS
+
+```typescript
+// ❌ NUNCA — tabla legacy
+.from('users').select('organization_id')
+
+// ❌ NUNCA — await en createServiceClient
+const admin = await createServiceClient()
+
+// ❌ NUNCA — queries a DB en middleware
+// El middleware solo verifica si hay sesión, nada más
+
+// ❌ NUNCA — queries sin filtro de organization_id
+.from('doctors').select('*') // trae TODOS los doctores de TODOS los tenants
+
+// ❌ NUNCA — createServerClient con service role key
+// createServerClient es para cookies/auth, NO para service role
+import { createServerClient } from '@supabase/ssr'
+createServerClient(url, SERVICE_ROLE_KEY) // ← INCORRECTO
+
+// ❌ NUNCA — acceder a params sin await en Next.js 15
+const slug = params['org-slug'] // ← crash
+// ✅ CORRECTO:
+const resolvedParams = await params
+const slug = resolvedParams['org-slug']
+```
+
+### RLS (Row Level Security)
+
+- Todas las policies usan la función `get_user_org_id()`
+- `get_user_org_id()` consulta `organization_members` (NO `public.users`)
+- Si creas una tabla nueva con `organization_id`, crear policy:
+
+```sql
+CREATE POLICY "org_access" ON nueva_tabla
+  FOR ALL USING (organization_id = get_user_org_id());
+```
+
+### Multi-tenancy — regla de oro
+
+Toda query a datos de negocio **DEBE** incluir `.eq('organization_id', orgId)`
+
+Tablas que requieren filtro: `appointments`, `leads`, `doctors`, `appointment_types`,
+`messages`, `schedules` (via `doctor_id`), `appointment_type_notifications`,
+`appointment_form_fields`.
+
+### Middleware
+
+El middleware es **LIGERO** (~48 líneas). Solo hace:
+1. Refrescar cookies de Supabase
+2. Sin sesión + ruta no pública → redirect `/login`
+3. Con sesión en `/login` o `/register` → redirect `/dashboard`
+
+La protección por roles la manejan `layout.tsx` y cada página vía `getSession()`.
+**NUNCA** agregar queries a DB en el middleware.
+
+### Estructura de archivos
+
+```
+lib/
+  auth/session.ts        → getSession() — USAR SIEMPRE en server components
+  get-org-id.ts          → getOrgIdFromUser() — para actions/APIs
+  supabase/server.ts     → createClient() + createServiceClient()
+  supabase/client.ts     → cliente browser
+  email/resend.ts        → envío de emails
+  email/templates.ts     → templates HTML
+  google/calendar.ts     → integración Google Calendar
+
+app/
+  (app)/                 → rutas protegidas del dashboard
+  (auth)/                → login, register, reset-password
+  (superadmin)/          → panel admin (usa public.users, OK por ahora)
+  onboarding/            → wizard post-registro
+  book/                  → agendamiento público
+  api/                   → API routes
+```
+
+---
 
 ## ✅ Completado
 
@@ -7,31 +158,35 @@
 - ✅ Sign in with Google — OAuth 2.0 con vinculación de cuentas por email
 - ✅ /auth/callback — maneja redirect de Google OAuth
 - ✅ Variables de entorno en Vercel
-- ✅ Middleware protección de rutas (/book/* público)
+- ✅ Middleware simplificado (solo auth, sin queries de rol)
 - ✅ "Olvidé mi contraseña" — flujo completo con email desde passwordreset@medscale.app
 - ✅ /reset-password — maneja invite + recovery flows (Suspense boundary)
 - ✅ SMTP configurado en Supabase con Resend (bypasea rate limit)
 - ✅ Email template reset password con logo MedScale y diseño branded
 - ✅ Allow manual linking habilitado en Supabase (vincula Google a cuenta existente)
+- ✅ Autodeploy GitHub→Vercel configurado
+
+### Arquitectura (13 Mayo 2026)
+- ✅ `getSession()` helper centralizado en `lib/auth/session.ts`
+- ✅ Migración `from('users')` → `getOrgIdFromUser`/`getSession` en 14+ archivos
+- ✅ `createServiceClient()` usa `@supabase/supabase-js` (service role real, bypasea RLS)
+- ✅ `get_user_org_id()` SQL function apunta a `organization_members`
+- ✅ Todas las RLS policies migradas a `get_user_org_id()`
+- ✅ Foreign key `doctors.user_id` → `auth.users` (no `public.users`)
+- ✅ Middleware simplificado: 0 queries a DB, solo verifica sesión
+- ✅ Layout usa `getSession()`
+- ✅ Dashboard filtra por `organization_id`
+- ✅ Doctors page filtra por `organization_id`
+- ✅ Limpieza: eliminados `guards.ts`, `layout/header.tsx`, `layout/sidebar.tsx`, `api/dev/`, `console.logs`
 
 ### Sistema de Roles y Equipo
-- ✅ Tabla organization_members: id, organization_id, user_id, role, doctor_id, invited_by
+- ✅ Tabla `organization_members`: id, organization_id, user_id, role, doctor_id, invited_by
 - ✅ Roles: owner | staff | doctor (superadmin invisible en UI)
-- ✅ Usuarios existentes migrados como owner automáticamente
 - ✅ Sidebar filtra items según rol del usuario
 - ✅ Badge de rol visible en sidebar (Admin / Colaborador / Médico)
 - ✅ /team: panel de gestión de equipo
-  - Lista de miembros con rol, email, fecha de ingreso
-  - Cambiar rol desde dropdown inline
-  - Eliminar miembro
-  - Invitar usuario con rol (owner/staff/doctor)
-  - Al invitar médico: crea registro en doctors automáticamente (nombre + especialidad)
-  - Indicador ⚠️ Sin disponibilidad / ✓ Disponibilidad configurada por médico
 - ✅ /api/team/invite: invita via Supabase Auth + agrega a organization_members + crea doctor
-- ✅ Middleware bloqueo de rutas por rol:
-  - Doctor: solo /scheduling, /doctors, /settings/integrations → redirige a /scheduling/calendar
-  - Staff: bloqueado de /team, /settings/*, /admin → redirige a /dashboard
-  - Doctor en /dashboard → redirige a /scheduling/calendar
+- ✅ Protección de rutas por rol en `layout.tsx` y páginas (NO en middleware)
 - ✅ Permisos por módulo según rol:
   | Módulo | Owner | Staff | Doctor |
   |---|---|---|---|
@@ -42,7 +197,15 @@
   | Conversaciones | ✅✅ | ✅✅ | ❌❌ |
   | Equipo | ✅✅ | ❌❌ | ❌❌ |
   | Configuración | ✅✅ | ❌❌ | Solo Integraciones |
-  | Integraciones | ✅✅ | ❌❌ | ✅ solo su calendario |
+
+### Onboarding Wizard (13 Mayo 2026)
+- ✅ Wizard 4 pasos: Datos clínica → Primer médico → Disponibilidad → Link listo
+- ✅ Cada paso guarda en DB al avanzar (no al final)
+- ✅ Flag `onboarding_completed` en organizations
+- ✅ Dashboard redirige a /onboarding si `onboarding_completed = false`
+- ✅ Paso 4 crea appointment_type "Consulta general" automáticamente
+- ✅ Teléfono obligatorio en onboarding paso 1
+- ✅ Teléfono removido de /register (solo en onboarding)
 
 ### Agendamiento público /book/[org-slug]
 - ✅ Wizard completo con round-robin, modalidad, médico, calendario, formulario
@@ -57,6 +220,7 @@
 - ✅ Rol doctor: ve solo sus citas, sin dropdown de médicos
 
 ### Módulo Doctores /doctors
+- ✅ Filtrado por organization_id
 - ✅ ⚠️ Sin disponibilidad + link "Configurar →" cuando días = —
 - ✅ Rol doctor: solo su perfil, sin Nuevo médico ni Desactivar
 - ✅ Disponibilidad /doctors/availability: estilo Cal.com
@@ -65,9 +229,13 @@
 - ✅ Pipeline completo con 6 estados
 - ✅ Vista Kanban con drag & drop
 - ✅ Modal: citas vinculadas, comentarios, agendamiento interno
+- ✅ Estado: dot color + keyword (max 15 chars)
+- ✅ Fuente: texto compacto sin dot
+- ✅ Orden columnas: Nombre, Cédula, Teléfono, Email, Estado, Fuente, Citas, Creado
 
 ### Dashboard /dashboard
 - ✅ Funnel + tendencia mensual + agendamiento semanal + por médico
+- ✅ Filtrado por organization_id (seguridad multi-tenant)
 
 ### Settings /settings
 - ✅ General, Sedes, Tipos de cita, Notificaciones (global), Integraciones
@@ -93,50 +261,36 @@
 - ✅ Tabla messages con RLS (organization_id, lead_id, channel, direction, content)
 - ✅ API /api/conversations/webhook — recibe mensajes desde n8n
 - ✅ UI estilo WhatsApp: lista agrupada por lead + chat con burbujas
-- ✅ Filtros por canal: Todos / WhatsApp / Instagram / Facebook
-- ✅ Badge de canal (WA verde, IG rosa, FB azul)
-- ✅ Búsqueda por nombre/teléfono
-- ✅ Marca mensajes como leídos al abrir
-- ✅ "Ver en CRM →" abre el lead directo con query param
-- ✅ Banner "Las respuestas se envían automáticamente por el agente AI"
-- ✅ Responsive: alterna lista/chat en móvil
+- ✅ Filtros por canal, búsqueda, marca leídos
 - ✅ n8n configurado: nodo Webhook Medscale APP en flujos WA, IG, FB
-- ✅ Formulario solicitud agente AI cuando ai_agent_enabled=false
-- ✅ API /api/conversations/request-agent — envía email con Resend
 
 ### Registro /register
-- ✅ Página /register con wizard 2 pasos: elegir plan → formulario
+- ✅ Página /register con wizard 2 pasos: elegir plan → formulario (sin teléfono)
 - ✅ API /api/register/complete: crea organización + organization_members con rol owner
-- ✅ Link "Regístrate" desde /login
+- ✅ Redirige a /onboarding después del registro
 - ⚠️ Google OAuth en registro NO crea organización — solo funciona con email+password
-- TODO: rediseño profesional de la página + conectar Stripe
 
-### UX Improvements (12 Mayo 2026)
-- ✅ Sidebar sticky + "Mi cuenta" compacto con dropdown
-- ✅ Sidebar angosto (w-52) para ganar espacio
-- ✅ Sidebar colapsable con tooltips (colapsa a solo iconos)
-- ✅ Ícono CRM cambiado a ContactRound
-- ✅ Quitar "Integraciones" duplicado del sidebar
-- ✅ CRM estilo Airtable: compacto, edge-to-edge, scrollbar horizontal visible
-- ✅ Agenda edge-to-edge con header compacto
-- ✅ Conversaciones full viewport
-- ✅ Padding individual por página (main sin padding global)
-- ✅ Menú ⋯ en doctores con fixed positioning (nunca se corta)
-- ✅ Eliminar médicos con validación de citas activas
-- ✅ Autodeploy GitHub→Vercel configurado
+### UX Improvements
+- ✅ Sidebar sticky + colapsable con tooltips
+- ✅ CRM estilo Airtable: compacto, edge-to-edge
+- ✅ Agenda y Conversaciones edge-to-edge
+- ✅ Padding individual por página
+- ✅ `app/page.tsx` redirige a /login (no muestra boilerplate)
 
 ---
 
 ## 🔴 PRIORIDAD 1 — MVP Autoservicio
-- [ ] Onboarding wizard post-registro (5 pasos guiados)
-- [ ] Logo upload desde /settings/general + onboarding
 - [ ] Rediseño profesional página /register (2 columnas, pitch + plans)
+- [ ] Logo upload desde /settings/general + onboarding
 - [ ] Stripe billing con trial 14 días
 
 ## 🟡 PRIORIDAD 2
+- [ ] Tour opcional post-onboarding (tooltips en dashboard)
 - [ ] Verificar buffer_before/after_min con citas reales
 - [ ] Página /account o /settings/profile
 - [ ] Probar webhook n8n con mensaje real de WhatsApp/IG/FB
+- [ ] Estandarizar respuestas API (lib/api/response.ts)
+- [ ] Responsive móvil en /book/[org-slug], /login, /register, /onboarding
 
 ## 🟢 PRIORIDAD 3 — Superadmin
 - [ ] Dashboard superadmin filtrable por cliente
@@ -149,52 +303,7 @@
 - [ ] Módulo historia clínica
 - [ ] Motor de automatizaciones
 - [ ] Reportes y analítica avanzada
-
----
-
-## 📋 Detalle de lo que falta construir
-
-### Registro + Planes (`/register`) — 🔴 P2
-- Página `/register` con wizard 2 pasos: elegir plan → formulario (clínica, email, pass, teléfono)
-- API `/api/register/complete`: crea organización + organization_members con rol owner
-- Campo `plan` en tabla `organizations` (TEXT: free/starter/growth/scale)
-- Link "Regístrate" desde `/login`
-- TODO: conectar Stripe para cobro real
-- ⚠️ Google OAuth en registro NO crea organización — solo funciona con email+password por ahora
-- TODO Fase 2: guardar plan en localStorage antes de OAuth, procesarlo en /auth/callback
-
-### Onboarding wizard — 🔴 P2
-- Flujo post-registro guiado paso a paso. Sin esto el dashboard queda vacío.
-- Paso 1: Datos clínica (nombre, dirección, teléfono, logo)
-- Paso 2: Crear primer médico (nombre, especialidad, duración)
-- Paso 3: Configurar tipo de cita (nombre, duración, modalidad, modo asignación)
-- Paso 4: Configurar disponibilidad del médico (días, horas)
-- Paso 5: "Tu link está listo" → muestra URL de booking + botón copiar
-- Flag `onboarding_completed` en organizations para redirigir al wizard o dashboard
-- Cada paso guarda en DB al avanzar, no al final (permite retomar si abandona)
-
-### Logo upload — 🔴 P1
-- Componente upload en `/settings/general` o dentro del onboarding
-- Subir imagen a Supabase Storage (bucket `logos`, service role)
-- Guardar URL en `organizations.logo_url`
-- File → base64 con FileReader (File objects no se serializan en server actions)
-- Mostrar logo en sidebar, booking público y emails
-
-### Stripe billing — 🔵 Fase 2
-- Checkout session al elegir plan pago en registro
-- Webhook Stripe para confirmar pago → activar plan en organizations
-- Portal de billing para que el owner gestione suscripción
-- Enforcement de límites por plan (médicos, leads, citas/mes)
-- Lógica upgrade/downgrade
-
-### Disponibilidad (parcial) — 🟡 P2
-- Pre-seleccionar disponibilidad del médico logueado en `/doctors/availability` con rol doctor
-- Verificar que buffer_before_min y buffer_after_min bloquean slots con citas reales en producción
-
-### Autodeploy GitHub→Vercel — 🔴 P1
-- Conectar repo `santiagodonoso3-design/medscale-app` a Vercel
-- No es código — es configuración en dashboard de Vercel: importar repo, variables de entorno, branch main
-- Hoy cada deploy es manual con `npx vercel --prod`
+- [ ] Eliminar tabla `public.users` completamente
 
 ---
 
@@ -204,7 +313,9 @@
 - **Patrón:** Monolito modular (NO microservicios)
 - **Frontend:** Next.js 15 con App Router
 - **Backend:** Supabase (PostgreSQL + Auth + RLS)
-- **Deploy:** Vercel (repo público)
+- **Deploy:** Vercel (autodeploy desde GitHub, branch main)
+- **Auth:** `getSession()` centralizado, middleware ligero
+- **Multi-tenant:** `organization_id` en toda query de negocio
 
 ### ⚠️ Reglas críticas de código
 
@@ -218,7 +329,7 @@ const slug = resolvedParams['org-slug']
 
 **appointments NO tiene appointment_type_id — no incluir en selects**
 
-**Siempre usar createServiceClient() (service role) en server components y rutas públicas**
+**`createServiceClient()` es SÍNCRONO — no usar await**
 
 **contact_email de organizations NO viene del join — query separado**
 
@@ -228,8 +339,6 @@ const slug = resolvedParams['org-slug']
 
 **await en resend.emails.send() — sin await Vercel cierra la función**
 
-**Deploy:** `npx vercel --prod` desde la carpeta del proyecto
-
 **Cron plan Hobby:** máximo 1 vez/día, schedule "0 9 * * *"
 
 **PowerShell con corchetes en rutas — usar -LiteralPath:**
@@ -237,26 +346,30 @@ const slug = resolvedParams['org-slug']
 Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 ```
 
-**Tabla messages — channel CHECK constraint: 'whatsapp' | 'instagram' | 'facebook' | 'web'**
+**Tabla messages — channel CHECK constraint: `'whatsapp' | 'instagram' | 'facebook' | 'web'`**
 
-**WEBHOOK_SECRET en Vercel — usar en header x-webhook-secret para todos los webhooks**
+**WEBHOOK_SECRET en Vercel — usar en header `x-webhook-secret`**
 
-**Sidebar colapsable — estado en localStorage key "sidebar-collapsed"**
+**Sidebar colapsable — estado en localStorage key `"sidebar-collapsed"`**
 
 **Siempre dar código completo listo para copiar — nunca pedir ajustes manuales**
 
 **No sugerir esperar si hay solución inmediata disponible**
 
-### Roles — Middleware
-- Doctor permitido: /scheduling, /doctors, /settings/integrations, /api/google, /api/team
-- Staff bloqueado: /team, /settings/general, /settings/locations, /settings/appointment-types, /settings/notifications, /admin
+**ANTES de pushear cambios al sidebar o layout:** correr `npx next build` Y `npx next start` para verificar que no crashea en runtime
+
+### Roles — Protección
+- Protección por rol en `layout.tsx` y páginas vía `getSession()`
+- Doctor permitido: /scheduling, /doctors, /settings/integrations
+- Staff bloqueado: /team, /settings/*, /admin
 - Doctor en /dashboard → redirect a /scheduling/calendar
+- **NO hay verificación de roles en middleware**
 
 ### Roles — DB
 - Tabla: `organization_members` (organization_id, user_id, role, doctor_id)
-- roles: 'owner' | 'staff' | 'doctor'
-- Leer rol en server components: query a organization_members por user_id
-- doctors.user_id es NOT NULL — siempre incluirlo al crear médico desde invite
+- roles: `'owner' | 'staff' | 'doctor'`
+- Leer rol: `getSession().role`
+- `doctors.user_id` referencia `auth.users(id)`, NO `public.users`
 
 ### Google Calendar
 - Tokens en `doctors.google_calendar_token` (JSONB)
@@ -267,21 +380,21 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 - Callback Supabase en GCP: https://tfqakdffusydutmzditz.supabase.co/auth/v1/callback
 - Callback app en GCP: https://app.medscale.app/api/google/callback
 
-### Google Auth (Sign in with Google)
-- Callback: https://app.medscale.app/auth/callback
-- Allow manual linking: habilitado en Supabase
-- GCP mismo proyecto que Calendar
-
 ### Base de Datos — columnas clave
 - `appointments.doctor_assignment_type` TEXT ('patient_choice' | 'auto_assigned')
 - `appointment_types.rr_count_all` BOOLEAN (default true)
 - `appointment_types.max_notice_days`, `buffer_before_min`, `buffer_after_min`
+- `appointment_types.doctor_ids` UUID[] (array de doctores vinculados)
 - `doctors.google_calendar_token` JSONB
-- `doctors.user_id` TEXT NOT NULL
+- `doctors.user_id` UUID NOT NULL → `auth.users(id)`
+- `doctors.default_duration` INT DEFAULT 30
 - `organization_members`: tabla de roles por organización
-- `messages`: organization_id, lead_id, channel, direction, content, sender_name, sender_phone, is_read, created_at
+- `messages`: organization_id, lead_id, channel, direction, content, is_read
 - `organizations.ai_agent_enabled` BOOLEAN (default false)
 - `organizations.plan` TEXT (free/starter/growth/scale)
+- `organizations.onboarding_completed` BOOLEAN (default false)
+- `organizations.contact_phone` TEXT
+- `organizations.contact_email` TEXT
 
 ### Modos de asignación
 | UI label | assignment_mode | rr_count_all |
@@ -312,6 +425,7 @@ Ferttes: plan Growth (beta, sin restricciones)
 - No hacks — causa raíz siempre
 - Siempre código/HTML completo listo para copiar y pegar
 - No sugerir esperar si hay solución inmediata
+- Antes de modificar un archivo importante, leer su contenido primero
 
 ### Estilo de trabajo MedScale
 - Prompts atómicos, un cambio a la vez
@@ -319,8 +433,13 @@ Ferttes: plan Growth (beta, sin restricciones)
 - Verificar rutas con PowerShell antes de asumir
 - Comandos PowerShell, nunca bash Unix
 - Screenshots para verificar antes de seguir
+- ANTES de pushear cambios al sidebar o layout: build + start para verificar
 
 ### Cliente beta
 - Ferttes (org_id: 4270c9b0-cbaa-4a94-bea7-508387a2529c)
 - admin@ferttes.com | app.medscale.app
 - 5 médicos activos, 291 leads, 234 citas históricas
+
+### Cuenta de prueba
+- Clinica LAb 2 (org_id: 669ed7cb-3e4d-43a7-8065-cfd7ee8de47c)
+- labdepamdigital@gmail.com
