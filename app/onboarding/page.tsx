@@ -33,6 +33,7 @@ export default async function OnboardingPage() {
       orgId={org.id}
       orgName={org.name}
       userEmail={user.email ?? ''}
+      userId={user.id}
     />
   )
 }

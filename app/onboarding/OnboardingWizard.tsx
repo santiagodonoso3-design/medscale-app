@@ -27,9 +27,10 @@ interface Props {
   orgId: string
   orgName: string
   userEmail: string
+  userId: string
 }
 
-export function OnboardingWizard({ orgId, orgName, userEmail }: Props) {
+export function OnboardingWizard({ orgId, orgName, userEmail, userId }: Props) {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(1)
   const [finishing, setFinishing] = useState(false)
@@ -85,7 +86,7 @@ export function OnboardingWizard({ orgId, orgName, userEmail }: Props) {
       const res = await fetch('/api/onboarding/step2', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orgId, ...step2 }),
+        body: JSON.stringify({ orgId, userId, ...step2 }),
       })
       setSaving(false)
       if (!res.ok) {
