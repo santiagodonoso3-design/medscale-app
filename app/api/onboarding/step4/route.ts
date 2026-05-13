@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
     .insert({
       organization_id: orgId,
       name: 'Consulta general',
+      slug: 'consulta-general',
       duration_minutes: 30,
       modality: 'in_person',
       assignment_mode: 'one_on_one',
