@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useEffect, useState } from 'react'
+import { startImpersonation, stopImpersonation } from '@/lib/admin/impersonate'
 
 interface OrgSidebarProps {
   orgName?: string
@@ -15,6 +16,9 @@ interface OrgSidebarProps {
   userRole?: 'owner' | 'staff' | 'doctor' | null
   logoUrl?: string | null
   sidebarTheme?: 'dark' | 'light'
+  isPlatformAdmin?: boolean
+  allOrganizations?: { id: string; name: string; logo_url: string | null }[]
+  isImpersonating?: boolean
 }
 
 const ALL_NAV_ITEMS = [
@@ -27,7 +31,10 @@ const ALL_NAV_ITEMS = [
   { name: 'Configuración',  href: '/settings',            icon: Settings,        roles: ['owner'] },
 ]
 
-export function OrgSidebar({ orgName, userName, userEmail, userRole, logoUrl, sidebarTheme }: OrgSidebarProps) {
+export function OrgSidebar({
+  orgName, userName, userEmail, userRole, logoUrl, sidebarTheme,
+  isPlatformAdmin, allOrganizations, isImpersonating,
+}: OrgSidebarProps) {
   const navItems = ALL_NAV_ITEMS.filter(item =>
     !userRole || item.roles.includes(userRole)
   )
@@ -36,6 +43,7 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole, logoUrl, si
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [orgDropdownOpen, setOrgDropdownOpen] = useState(false)
   const supabase = createClient()
 
   const isDark = sidebarTheme !== 'light'
@@ -80,21 +88,109 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole, logoUrl, si
 
       {/* Logo */}
       <div className={`border-b ${theme.border} py-5 ${collapsed ? 'px-2 flex justify-center' : 'px-5'}`}>
-        <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
-          {logoUrl ? (
-            <img src={logoUrl} alt="Logo" className="h-9 w-9 shrink-0 rounded-xl object-contain" />
-          ) : (
-            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${theme.iconBg}`}>
-              <LayoutDashboard className="h-4 w-4" />
-            </div>
-          )}
-          {!collapsed && (
-            <div className="min-w-0">
-              <p className={`text-[10px] font-semibold uppercase tracking-[0.2em] ${theme.accentText}`}>Medscale AI</p>
-              <h1 className={`text-sm font-bold tracking-tight truncate ${theme.text}`}>{orgName || 'Mi clínica'}</h1>
-            </div>
-          )}
-        </div>
+        {isPlatformAdmin ? (
+          <div className="relative">
+            <button
+              onClick={() => setOrgDropdownOpen(!orgDropdownOpen)}
+              className={`w-full flex items-center ${collapsed ? 'justify-center' : 'gap-3'} hover:opacity-80 transition`}
+            >
+              {isImpersonating && logoUrl ? (
+                <img src={logoUrl} alt={orgName} className="h-9 w-9 shrink-0 rounded-xl object-contain" />
+              ) : (
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${theme.iconBg}`}>
+                  <LayoutDashboard className="h-4 w-4" />
+                </div>
+              )}
+              {!collapsed && (
+                <div className="min-w-0 flex-1">
+                  <p className={`text-[10px] font-semibold uppercase tracking-[0.2em] ${theme.accentText}`}>
+                    {isImpersonating ? 'Medscale AI' : 'Superadmin'}
+                  </p>
+                  <h1 className={`text-sm font-bold tracking-tight truncate ${theme.text}`}>
+                    {isImpersonating ? orgName : 'Panel de control'}
+                  </h1>
+                </div>
+              )}
+              {!collapsed && <ChevronDown className={`h-4 w-4 shrink-0 ${theme.textMuted}`} />}
+            </button>
+
+            {orgDropdownOpen && !collapsed && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setOrgDropdownOpen(false)} />
+                <div className="absolute left-2 right-2 top-full mt-1 z-50 rounded-xl border border-slate-200 bg-white shadow-lg py-1 max-h-64 overflow-y-auto">
+                  {/* Superadmin option */}
+                  <button
+                    onClick={async () => {
+                      setOrgDropdownOpen(false)
+                      if (isImpersonating) {
+                        await stopImpersonation()
+                        router.push('/admin')
+                        router.refresh()
+                      } else {
+                        router.push('/admin')
+                      }
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-50 transition ${!isImpersonating ? 'bg-slate-50' : ''}`}
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-900">
+                      <LayoutDashboard className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900">Superadmin</p>
+                      <p className="text-xs text-slate-400">Panel de control</p>
+                    </div>
+                  </button>
+
+                  <div className="h-px bg-slate-100 my-1" />
+
+                  {/* Organizations */}
+                  {(allOrganizations || []).map(org => {
+                    const isCurrentOrg = isImpersonating && org.name === orgName
+                    return (
+                      <button
+                        key={org.id}
+                        onClick={async () => {
+                          setOrgDropdownOpen(false)
+                          await startImpersonation(org.id)
+                          router.push('/dashboard')
+                          router.refresh()
+                        }}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-50 transition ${isCurrentOrg ? 'bg-blue-50' : ''}`}
+                      >
+                        {org.logo_url ? (
+                          <img src={org.logo_url} alt={org.name} className="h-8 w-8 shrink-0 rounded-lg object-contain" />
+                        ) : (
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-200">
+                            <span className="text-xs font-bold text-slate-500">{org.name[0]}</span>
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-900 truncate">{org.name}</p>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" className="h-9 w-9 shrink-0 rounded-xl object-contain" />
+            ) : (
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${theme.iconBg}`}>
+                <LayoutDashboard className="h-4 w-4" />
+              </div>
+            )}
+            {!collapsed && (
+              <div className="min-w-0">
+                <p className={`text-[10px] font-semibold uppercase tracking-[0.2em] ${theme.accentText}`}>Medscale AI</p>
+                <h1 className={`text-sm font-bold tracking-tight truncate ${theme.text}`}>{orgName || 'Mi clínica'}</h1>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Toggle button */}
@@ -131,7 +227,6 @@ export function OrgSidebar({ orgName, userName, userEmail, userRole, logoUrl, si
                 <Icon className="h-4.5 w-4.5 shrink-0" style={{ width: '18px', height: '18px' }} />
                 {!collapsed && <span>{item.name}</span>}
               </Link>
-              {/* Tooltip when collapsed — always dark */}
               {collapsed && (
                 <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs text-white opacity-0 transition group-hover:opacity-100">
                   {item.name}
