@@ -1,28 +1,19 @@
 export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
+import { getSession } from '@/lib/auth/session'
 import { OnboardingWizard } from './OnboardingWizard'
 
 export default async function OnboardingPage() {
-  const supabase = await createClient()
+  const session = await getSession()
+  if (!session) redirect('/login')
+
   const admin = createServiceClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: member } = await admin
-    .from('organization_members')
-    .select('organization_id')
-    .eq('user_id', user.id)
-    .single()
-
-  if (!member) redirect('/login')
-
   const { data: org } = await admin
     .from('organizations')
     .select('id, name, onboarding_completed')
-    .eq('id', member.organization_id)
+    .eq('id', session.orgId)
     .single()
 
   if (!org) redirect('/login')
@@ -32,8 +23,8 @@ export default async function OnboardingPage() {
     <OnboardingWizard
       orgId={org.id}
       orgName={org.name}
-      userEmail={user.email ?? ''}
-      userId={user.id}
+      userEmail={session.user.email ?? ''}
+      userId={session.user.id}
     />
   )
 }

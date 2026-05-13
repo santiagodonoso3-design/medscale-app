@@ -1,33 +1,18 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { getOrgIdFromUser } from '@/lib/get-org-id'
+import { redirect } from 'next/navigation'
+import { getSession } from '@/lib/auth/session'
 import { DoctorsPageClient } from '@/components/doctors/doctors-page-client'
 
 export default async function DoctorsPage() {
-  const supabase = await createClient()
-  const admin = createServiceClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-
-  let isDoctor = false
-  let userDoctorId: string | null = null
-  const orgId = user ? await getOrgIdFromUser(user.id) : null
-
-  if (user) {
-    const { data: member } = await admin
-      .from('organization_members')
-      .select('role, doctor_id')
-      .eq('user_id', user.id)
-      .single()
-
-    if (member?.role === 'doctor') {
-      isDoctor = true
-      userDoctorId = member.doctor_id ?? null
-    }
-  }
+  const session = await getSession()
+  if (!session) redirect('/login')
 
   return (
     <div className="p-6 xl:p-10">
-      <DoctorsPageClient isDoctor={isDoctor} userDoctorId={userDoctorId} orgId={orgId ?? ''} />
+      <DoctorsPageClient
+        isDoctor={session.role === 'doctor'}
+        userDoctorId={session.doctorId}
+        orgId={session.orgId}
+      />
     </div>
   )
 }

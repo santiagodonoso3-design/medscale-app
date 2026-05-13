@@ -4,35 +4,24 @@ export const fetchCache = 'force-no-store'
 
 import { unstable_noStore } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
+import { getSession } from '@/lib/auth/session'
 import { getDashboardRawData, getDashboardYears } from './actions'
 import { DashboardClient } from './dashboard-client'
 
 export default async function DashboardPage() {
   unstable_noStore()
 
-  const supabase = await createClient()
+  const session = await getSession()
+  if (!session) redirect('/login')
+  if (!session.orgId) redirect('/onboarding')
+  if (session.role === 'doctor') redirect('/scheduling/calendar')
+
   const admin = createServiceClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) redirect('/login')
-
-  const { data: member } = await admin
-    .from('organization_members')
-    .select('role, organization_id')
-    .eq('user_id', user.id)
-    .single()
-
-  if (!member?.organization_id) redirect('/onboarding')
-
-  if (member.role === 'doctor') redirect('/scheduling/calendar')
-
-  const orgId = member.organization_id
-
   const { data: org } = await admin
     .from('organizations')
     .select('onboarding_completed')
-    .eq('id', orgId)
+    .eq('id', session.orgId)
     .single()
 
   if (!org?.onboarding_completed) redirect('/onboarding')
@@ -42,8 +31,8 @@ export default async function DashboardPage() {
   )
 
   const [rawData, availableYears] = await Promise.all([
-    getDashboardRawData(currentYear, orgId),
-    getDashboardYears(orgId),
+    getDashboardRawData(currentYear, session.orgId),
+    getDashboardYears(session.orgId),
   ])
 
   if (!rawData) {
@@ -58,7 +47,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-6 xl:p-10">
-      <DashboardClient initialData={rawData} availableYears={availableYears} orgId={orgId} />
+      <DashboardClient initialData={rawData} availableYears={availableYears} orgId={session.orgId} />
     </div>
   )
 }
