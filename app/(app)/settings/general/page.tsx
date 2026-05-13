@@ -18,6 +18,7 @@ export default function GeneralPage() {
   const [name,         setName]         = useState('')
   const [primaryColor, setPrimaryColor] = useState('#215F73')
   const [logoUrl,      setLogoUrl]      = useState<string | null>(null)
+  const [sidebarTheme, setSidebarTheme] = useState<'dark' | 'light'>('dark')
   const [loading,      setLoading]      = useState(true)
   const [saving,       setSaving]       = useState(false)
   const [uploading,    setUploading]    = useState(false)
@@ -32,6 +33,7 @@ export default function GeneralPage() {
       setName(data.name ?? '')
       setPrimaryColor(data.primary_color ?? '#215F73')
       setLogoUrl(data.logo_url ?? null)
+      setSidebarTheme(data.sidebar_theme ?? 'dark')
       setLoading(false)
     }
     load()
@@ -45,7 +47,7 @@ export default function GeneralPage() {
   const handleSave = async () => {
     if (!orgId) return
     setSaving(true)
-    const ok = await saveOrgSettings(orgId, { name, primary_color: primaryColor, logo_url: logoUrl })
+    const ok = await saveOrgSettings(orgId, { name, primary_color: primaryColor, logo_url: logoUrl, sidebar_theme: sidebarTheme })
     setSaving(false)
     if (!ok) showToast('Error al guardar')
     else showToast('Cambios guardados')
@@ -121,6 +123,38 @@ export default function GeneralPage() {
         <p className="text-xs mt-1.5" style={{ color: B.muted }}>
           Se aplica en el formulario de agendamiento público
         </p>
+      </div>
+
+      {/* Tema del sidebar */}
+      <div>
+        <label className="block text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: B.muted }}>
+          Tema del sidebar
+        </label>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setSidebarTheme('dark')}
+            className="flex-1 p-3 rounded-xl border-2 transition flex flex-col items-center gap-2"
+            style={{
+              borderColor: sidebarTheme === 'dark' ? B.primary : B.border,
+              background: sidebarTheme === 'dark' ? B.bg : '#fff',
+            }}
+          >
+            <div className="w-full h-16 rounded-lg bg-[#0D2B3E]" />
+            <span className="text-xs font-medium" style={{ color: B.fg }}>Oscuro</span>
+          </button>
+          <button
+            onClick={() => setSidebarTheme('light')}
+            className="flex-1 p-3 rounded-xl border-2 transition flex flex-col items-center gap-2"
+            style={{
+              borderColor: sidebarTheme === 'light' ? B.primary : B.border,
+              background: sidebarTheme === 'light' ? B.bg : '#fff',
+            }}
+          >
+            <div className="w-full h-16 rounded-lg bg-[#F3F7FA] border" style={{ borderColor: B.border }} />
+            <span className="text-xs font-medium" style={{ color: B.fg }}>Claro</span>
+          </button>
+        </div>
+        <p className="text-xs mt-1.5" style={{ color: B.muted }}>Aplica para todos los usuarios de tu clínica</p>
       </div>
 
       {/* Logo */}

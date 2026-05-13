@@ -31,7 +31,7 @@ export async function getOrgSettings() {
 
   const { data: org } = await admin
     .from('organizations')
-    .select('id, name, primary_color, logo_url')
+    .select('id, name, primary_color, logo_url, sidebar_theme')
     .eq('id', orgId)
     .single()
 
@@ -64,6 +64,7 @@ export async function saveOrgSettings(orgId: string, data: {
   name?: string
   primary_color?: string
   logo_url?: string | null
+  sidebar_theme?: 'dark' | 'light'
 }) {
   const admin = createServiceClient()
   const { error } = await admin
