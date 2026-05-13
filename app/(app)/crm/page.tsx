@@ -69,6 +69,15 @@ const STATUS_COLORS: Record<string, string> = {
   finalizado:               'bg-slate-100 text-slate-600',
 }
 
+const STATUS_DOT: Record<string, { dot: string; keyword: string }> = {
+  contactado:               { dot: 'bg-blue-500',    keyword: 'Contactado' },
+  cita_valoracion_agendada: { dot: 'bg-green-500',   keyword: 'Agendada' },
+  asistio_cita:             { dot: 'bg-purple-500',  keyword: 'Asistió' },
+  cancelo_cita:             { dot: 'bg-red-500',     keyword: 'Canceló' },
+  en_tratamiento_medico:    { dot: 'bg-yellow-500',  keyword: 'En tratamiento' },
+  finalizado:               { dot: 'bg-slate-400',   keyword: 'Finalizado' },
+}
+
 // Normalize legacy DB values (English pre-migration + Spanish pre-008 migration)
 const STATUS_NORMALIZE: Record<string, string> = {
   new:              'contactado',
@@ -758,11 +767,15 @@ export default function CrmPage() {
                       </td>
 
                       {/* Estado inline */}
-                      <td className="px-3 py-2 min-w-[120px]" onClick={e => e.stopPropagation()}>
-                        <button onClick={e => openPopover(e, setStatusPopover, statusPopover?.leadId, lead.id, () => setStatusPopover(null))}
-                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold transition hover:ring-2 hover:ring-offset-1 hover:ring-slate-300 ${STATUS_COLORS[lead.status] ?? 'bg-slate-100 text-slate-600'}`}>
-                          {statusLabel(lead.status)}
-                          <ChevronDown className="h-3 w-3 opacity-60" />
+                      <td className="px-3 py-2 max-w-[140px] whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={e => openPopover(e, setStatusPopover, statusPopover?.leadId, lead.id, () => setStatusPopover(null))}
+                          title={statusLabel(lead.status)}
+                          className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-100 transition"
+                        >
+                          <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${STATUS_DOT[lead.status]?.dot ?? 'bg-slate-400'}`} />
+                          <span className="truncate max-w-[100px]">{STATUS_DOT[lead.status]?.keyword ?? statusLabel(lead.status)}</span>
+                          <ChevronDown className="h-3 w-3 shrink-0 opacity-50" />
                         </button>
                       </td>
 
