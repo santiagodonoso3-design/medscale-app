@@ -23,6 +23,7 @@ interface OrganizationFormModalProps {
     plan: Plan
     is_active: boolean
     ai_agent_enabled: boolean
+    monthly_revenue: number
   }) => Promise<{ success: boolean; error?: string }>
   initialValues?: {
     id?: string
@@ -31,6 +32,7 @@ interface OrganizationFormModalProps {
     plan: Plan
     is_active: boolean
     ai_agent_enabled: boolean
+    monthly_revenue: number
   }
 }
 
@@ -55,6 +57,7 @@ export function OrganizationFormModal({
   const [plan, setPlan] = useState<Plan>(initialValues?.plan ?? 'free')
   const [isActive, setIsActive] = useState(initialValues?.is_active ?? true)
   const [aiAgentEnabled, setAiAgentEnabled] = useState(initialValues?.ai_agent_enabled ?? false)
+  const [monthlyRevenue, setMonthlyRevenue] = useState(initialValues?.monthly_revenue ?? 0)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -64,6 +67,7 @@ export function OrganizationFormModal({
     setPlan(initialValues?.plan ?? 'free')
     setIsActive(initialValues?.is_active ?? true)
     setAiAgentEnabled(initialValues?.ai_agent_enabled ?? false)
+    setMonthlyRevenue(initialValues?.monthly_revenue ?? 0)
     setError(null)
   }, [initialValues])
 
@@ -85,7 +89,15 @@ export function OrganizationFormModal({
       return
     }
 
-    const result = await onSave({ id: initialValues?.id, name, slug, plan, is_active: isActive, ai_agent_enabled: aiAgentEnabled })
+    const result = await onSave({
+      id: initialValues?.id,
+      name,
+      slug,
+      plan,
+      is_active: isActive,
+      ai_agent_enabled: aiAgentEnabled,
+      monthly_revenue: monthlyRevenue,
+    })
 
     if (!result.success) {
       setError(result.error || 'Error guardando organización')
@@ -98,6 +110,7 @@ export function OrganizationFormModal({
     setPlan('free')
     setIsActive(true)
     setAiAgentEnabled(false)
+    setMonthlyRevenue(0)
     onSuccess()
     onClose()
   }
@@ -164,6 +177,23 @@ export function OrganizationFormModal({
 
           {mode === 'edit' && (
             <>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Revenue mensual (USD)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">US$</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={monthlyRevenue}
+                    onChange={(e) => setMonthlyRevenue(parseInt(e.target.value) || 0)}
+                    disabled={isLoading}
+                    placeholder="0"
+                    className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+                  />
+                </div>
+                <p className="text-xs text-slate-500 mt-1">Cuánto paga este cliente por mes</p>
+              </div>
+
               <div className="flex items-center gap-3">
                 <input
                   id="isActive"

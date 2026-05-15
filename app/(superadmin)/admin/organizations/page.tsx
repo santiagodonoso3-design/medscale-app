@@ -92,6 +92,7 @@ export default function OrganizationsPage() {
     plan: 'free' | 'starter' | 'growth' | 'scale'
     is_active: boolean
     ai_agent_enabled: boolean
+    monthly_revenue: number
   }) => {
     if (payload.id) {
       return await updateOrganization(
@@ -100,7 +101,8 @@ export default function OrganizationsPage() {
         payload.slug,
         payload.plan,
         payload.is_active,
-        payload.ai_agent_enabled
+        payload.ai_agent_enabled,
+        payload.monthly_revenue
       )
     }
 

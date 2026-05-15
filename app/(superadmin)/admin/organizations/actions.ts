@@ -10,6 +10,7 @@ export interface Organization {
   plan: 'free' | 'starter' | 'growth' | 'scale'
   is_active: boolean
   ai_agent_enabled: boolean
+  monthly_revenue: number
   user_count: number
   created_at: string
 }
@@ -20,7 +21,7 @@ export async function getAllOrganizations(): Promise<Organization[] | null> {
   try {
     const { data: orgs, error } = await admin
       .from('organizations')
-      .select('id, name, slug, plan, is_active, ai_agent_enabled, created_at')
+      .select('id, name, slug, plan, is_active, ai_agent_enabled, monthly_revenue, created_at')
       .order('created_at', { ascending: false })
 
     if (error) return null
@@ -39,6 +40,7 @@ export async function getAllOrganizations(): Promise<Organization[] | null> {
           plan: (org.plan || 'free') as 'free' | 'starter' | 'growth' | 'scale',
           is_active: org.is_active !== false,
           ai_agent_enabled: org.ai_agent_enabled === true,
+          monthly_revenue: org.monthly_revenue || 0,
           user_count: count || 0,
           created_at: org.created_at,
         }
@@ -69,8 +71,8 @@ export async function createOrganization(
 
     const { data: newOrg, error } = await admin
       .from('organizations')
-      .insert({ name, slug, plan, is_active: true, ai_agent_enabled: false })
-      .select('id, name, slug, plan, is_active, ai_agent_enabled, created_at')
+      .insert({ name, slug, plan, is_active: true, ai_agent_enabled: false, monthly_revenue: 0 })
+      .select('id, name, slug, plan, is_active, ai_agent_enabled, monthly_revenue, created_at')
       .single()
 
     if (error || !newOrg) {
@@ -84,6 +86,7 @@ export async function createOrganization(
       plan: (newOrg.plan || 'free') as 'free' | 'starter' | 'growth' | 'scale',
       is_active: newOrg.is_active !== false,
       ai_agent_enabled: newOrg.ai_agent_enabled === true,
+      monthly_revenue: newOrg.monthly_revenue || 0,
       user_count: 0,
       created_at: newOrg.created_at,
     }
@@ -103,14 +106,15 @@ export async function updateOrganization(
   slug: string,
   plan: 'free' | 'starter' | 'growth' | 'scale',
   is_active: boolean,
-  ai_agent_enabled: boolean
+  ai_agent_enabled: boolean,
+  monthly_revenue: number
 ): Promise<{ success: boolean; error?: string }> {
   const admin = createServiceClient()
 
   try {
     const { error } = await admin
       .from('organizations')
-      .update({ name, slug, plan, is_active, ai_agent_enabled })
+      .update({ name, slug, plan, is_active, ai_agent_enabled, monthly_revenue })
       .eq('id', id)
 
     if (error) return { success: false, error: error.message }
