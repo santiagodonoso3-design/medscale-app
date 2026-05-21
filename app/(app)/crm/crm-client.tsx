@@ -7,7 +7,7 @@ import { BookAppointmentModal } from '@/components/crm/book-appointment-modal'
 import {
   Plus, Loader2, Search, X, Save, List, LayoutGrid,
   ChevronDown, CalendarPlus, ChevronUp, ChevronsUpDown, Send,
-  FileDown, Upload, Trash2,
+  FileDown, Upload, Trash2, ContactRound,
 } from 'lucide-react'
 import { ImportLeadsModal, downloadLeadTemplate } from '@/components/crm/import-leads-modal'
 import { deleteLeads } from '@/app/(app)/crm/actions/deleteLeads'
@@ -654,6 +654,26 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
 
       {/* Table area */}
       <div className="flex flex-col flex-1 min-h-0 bg-white">
+        {!isLoading && leads.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center py-20">
+            <div className="flex flex-col items-center gap-4 text-center">
+              <div className="rounded-2xl bg-[#EBF0F6] p-3">
+                <ContactRound className="h-12 w-12 text-[#5A9DB5]" />
+              </div>
+              <h2 className="text-lg font-semibold text-[#0D2B3E]">Aún no tienes pacientes</h2>
+              <p className="text-sm text-[#4A6B7A] max-w-sm">Los leads aparecerán aquí cuando alguien agende una cita o los importes.</p>
+              {!readOnly && (
+                <button
+                  onClick={() => setIsImportModalOpen(true)}
+                  className="rounded-xl bg-[#215F73] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0D2B3E]"
+                >
+                  Importar leads
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
         {/* Filters */}
         <div className="shrink-0 flex items-center gap-2 border-b border-slate-100 px-2 py-1.5">
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -849,6 +869,8 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
               ? <div className="flex items-center justify-center py-12 text-slate-400"><Loader2 className="h-5 w-5 animate-spin mr-2" /> Cargando...</div>
               : <KanbanView leads={filteredLeads} aptCounts={aptCounts} onStatusChange={handleInlineStatusChange} onOpenLead={openLeadDetail} readOnly={readOnly} />}
           </div>
+        )}
+          </>
         )}
       </div>
 

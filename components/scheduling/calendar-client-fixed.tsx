@@ -1125,10 +1125,30 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
 
         {/* Main view */}
         <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 bg-white">
-          {loading && viewMode === 'calendar' ? (
-            <div className="flex items-center justify-center gap-2 py-16 text-slate-400">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm">Cargando citas...</span>
+          {loading ? (
+            viewMode === 'calendar' ? (
+              <div className="flex items-center justify-center gap-2 py-16 text-slate-400">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">Cargando citas...</span>
+              </div>
+            ) : renderListView()
+          ) : appointments.length === 0 ? (
+            <div className="flex h-full items-center justify-center py-20">
+              <div className="flex flex-col items-center gap-4 text-center">
+                <div className="rounded-2xl bg-[#EBF0F6] p-3">
+                  <CalendarDays className="h-12 w-12 text-[#5A9DB5]" />
+                </div>
+                <h2 className="text-lg font-semibold text-[#0D2B3E]">Sin citas por ahora</h2>
+                <p className="text-sm text-[#4A6B7A] max-w-sm text-center">Las citas aparecerán aquí cuando alguien agende desde tu link o las crees manualmente.</p>
+                {!readOnly && (
+                  <button
+                    onClick={() => setShowCreate(true)}
+                    className="rounded-xl bg-[#215F73] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0D2B3E]"
+                  >
+                    Nueva cita
+                  </button>
+                )}
+              </div>
             </div>
           ) : viewMode === 'calendar' ? (
             renderCalendarView()
