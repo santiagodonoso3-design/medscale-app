@@ -16,7 +16,7 @@ export default async function TeamPage() {
 
   const { data: members } = await admin
     .from('organization_members')
-    .select('id, role, doctor_id, created_at, user_id')
+    .select('id, role, doctor_id, created_at, user_id, permissions')
     .eq('organization_id', orgId)
     .order('created_at', { ascending: true })
 

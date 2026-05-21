@@ -1,7 +1,8 @@
 'use client'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, Trash2, Plus } from 'lucide-react'
+import { Loader2, Trash2, Plus, SlidersHorizontal } from 'lucide-react'
+import { PermissionsModal, type PermissionsMember } from '@/components/team/permissions-modal'
 
 const ROLE_LABELS: Record<string, string> = {
   owner: 'Admin',
@@ -22,6 +23,7 @@ interface Member {
   doctor_id: string | null
   created_at: string
   email: string
+  permissions: Record<string, string> | null
 }
 
 interface Doctor {
@@ -40,6 +42,7 @@ interface TeamClientProps {
 export function TeamClient({ orgId, members: initialMembers, doctors, currentUserId, doctorsWithSchedules }: TeamClientProps) {
   const supabase = createClient()
   const [members, setMembers] = useState(initialMembers)
+  const [permissionsMember, setPermissionsMember] = useState<PermissionsMember | null>(null)
   const [showInvite, setShowInvite] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'owner' | 'staff' | 'doctor'>('staff')
@@ -113,6 +116,11 @@ export function TeamClient({ orgId, members: initialMembers, doctors, currentUse
     showToast('Rol actualizado')
   }
 
+  function handlePermissionsSaved(memberId: string, permissions: Record<string, string> | null) {
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, permissions } : m))
+    showToast('Permisos actualizados')
+  }
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -142,59 +150,78 @@ export function TeamClient({ orgId, members: initialMembers, doctors, currentUse
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {members.map(member => (
-              <tr key={member.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-6 py-4">
-                  <p className="font-medium text-slate-900">{member.email}</p>
-                  {member.role === 'doctor' && member.doctor_id && (
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {doctors.find(d => d.id === member.doctor_id)?.metadata?.name ?? '—'}
-                    </p>
-                  )}
-                  {member.role === 'doctor' && member.doctor_id && (
-                    !doctorsWithSchedules.includes(member.doctor_id) ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-medium mt-0.5">
-                        ⚠️ Sin disponibilidad configurada
+            {members.map(member => {
+              const isOwner = member.role === 'owner'
+              const isSelf  = member.user_id === currentUserId
+              return (
+                <tr
+                  key={member.id}
+                  onClick={() => !isOwner && setPermissionsMember(member)}
+                  className={`transition-colors ${isOwner ? '' : 'cursor-pointer hover:bg-slate-50'}`}
+                >
+                  <td className="px-6 py-4">
+                    <p className="font-medium text-slate-900">{member.email}</p>
+                    {member.role === 'doctor' && member.doctor_id && (
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {doctors.find(d => d.id === member.doctor_id)?.metadata?.name ?? '—'}
+                      </p>
+                    )}
+                    {member.role === 'doctor' && member.doctor_id && (
+                      !doctorsWithSchedules.includes(member.doctor_id) ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-amber-600 font-medium mt-0.5">
+                          ⚠️ Sin disponibilidad configurada
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium mt-0.5">
+                          ✓ Disponibilidad configurada
+                        </span>
+                      )
+                    )}
+                  </td>
+                  <td className="px-6 py-4" onClick={e => e.stopPropagation()}>
+                    {isSelf ? (
+                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${ROLE_BADGE[member.role] ?? 'bg-slate-100 text-slate-600'}`}>
+                        {ROLE_LABELS[member.role] ?? member.role}
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium mt-0.5">
-                        ✓ Disponibilidad configurada
-                      </span>
-                    )
-                  )}
-                </td>
-                <td className="px-6 py-4">
-                  {member.user_id === currentUserId ? (
-                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${ROLE_BADGE[member.role] ?? 'bg-slate-100 text-slate-600'}`}>
-                      {ROLE_LABELS[member.role] ?? member.role}
-                    </span>
-                  ) : (
-                    <select
-                      value={member.role}
-                      onChange={e => handleRoleChange(member.id, e.target.value)}
-                      className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="owner">Admin</option>
-                      <option value="staff">Colaborador</option>
-                      <option value="doctor">Médico</option>
-                    </select>
-                  )}
-                </td>
-                <td className="px-6 py-4 text-slate-500 text-xs">
-                  {new Date(member.created_at).toLocaleDateString('es-CO')}
-                </td>
-                <td className="px-6 py-4 text-right">
-                  {member.user_id !== currentUserId && (
-                    <button
-                      onClick={() => handleRemove(member.id, member.user_id)}
-                      className="text-red-400 hover:text-red-600 transition"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
+                      <select
+                        value={member.role}
+                        onChange={e => handleRoleChange(member.id, e.target.value)}
+                        className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="owner">Admin</option>
+                        <option value="staff">Colaborador</option>
+                        <option value="doctor">Médico</option>
+                      </select>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-slate-500 text-xs">
+                    {new Date(member.created_at).toLocaleDateString('es-CO')}
+                  </td>
+                  <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-2">
+                      {!isOwner && (
+                        <button
+                          onClick={() => setPermissionsMember(member)}
+                          title="Editar permisos"
+                          className="text-slate-300 hover:text-slate-600 transition"
+                        >
+                          <SlidersHorizontal className="h-4 w-4" />
+                        </button>
+                      )}
+                      {!isSelf && (
+                        <button
+                          onClick={() => handleRemove(member.id, member.user_id)}
+                          className="text-red-400 hover:text-red-600 transition"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -274,6 +301,14 @@ export function TeamClient({ orgId, members: initialMembers, doctors, currentUse
             </div>
           </div>
         </div>
+      )}
+
+      {permissionsMember && (
+        <PermissionsModal
+          member={permissionsMember}
+          onClose={() => setPermissionsMember(null)}
+          onSaved={handlePermissionsSaved}
+        />
       )}
 
       {toast && (

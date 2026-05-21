@@ -23,9 +23,10 @@ interface DoctorsPageClientProps {
   isDoctor?: boolean
   userDoctorId?: string | null
   orgId: string
+  readOnly?: boolean
 }
 
-export function DoctorsPageClient({ isDoctor = false, userDoctorId = null, orgId }: DoctorsPageClientProps) {
+export function DoctorsPageClient({ isDoctor = false, userDoctorId = null, orgId, readOnly = false }: DoctorsPageClientProps) {
   const [doctors, setDoctors] = useState<DoctorRow[]>([])
   const [schedules, setSchedules] = useState<ScheduleRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -197,7 +198,7 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null, orgId
               {loading ? '…' : `${doctors.length} médico${doctors.length !== 1 ? 's' : ''}`}
             </p>
           </div>
-          {!isDoctor && (
+          {!isDoctor && !readOnly && (
             <button
               onClick={openCreate}
               className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition"
@@ -220,9 +221,11 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null, orgId
           ) : doctors.length === 0 ? (
             <div className="px-6 py-16 text-center">
               <p className="text-sm text-slate-400">No hay médicos registrados.</p>
-              <button onClick={openCreate} className="mt-3 text-sm font-medium text-blue-600 hover:underline">
-                Crear el primero
-              </button>
+              {!readOnly && (
+                <button onClick={openCreate} className="mt-3 text-sm font-medium text-blue-600 hover:underline">
+                  Crear el primero
+                </button>
+              )}
             </div>
           ) : (
             <table className="min-w-full text-sm">
@@ -307,7 +310,7 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null, orgId
               <Pencil className="h-3.5 w-3.5 text-slate-400" />
               Editar
             </button>
-            {!isDoctor && (
+            {!isDoctor && !readOnly && (
               <button
                 onClick={() => { toggleActive(openMenuDoc.id, openMenuDoc.is_active); setOpenMenuId(null); setOpenMenuDoc(null) }}
                 className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
@@ -316,7 +319,7 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null, orgId
                 {openMenuDoc.is_active ? 'Desactivar' : 'Activar'}
               </button>
             )}
-            {!isDoctor && (
+            {!isDoctor && !readOnly && (
               <>
                 <div className="my-1 border-t border-slate-100" />
                 <button

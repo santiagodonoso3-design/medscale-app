@@ -33,7 +33,7 @@ export async function getSession() {
   // Normal flow
   const { data: member } = await admin
     .from('organization_members')
-    .select('organization_id, role, doctor_id')
+    .select('organization_id, role, doctor_id, permissions')
     .eq('user_id', user.id)
     .single()
 
@@ -44,6 +44,7 @@ export async function getSession() {
     orgId: member.organization_id as string,
     role: member.role as 'owner' | 'staff' | 'doctor',
     doctorId: (member.doctor_id as string) ?? null,
+    permissions: (member.permissions ?? null) as Record<string, string> | null,
     isImpersonating: false,
   }
 }

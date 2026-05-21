@@ -8,12 +8,14 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { useEffect, useState } from 'react'
 import { startImpersonation, stopImpersonation } from '@/lib/admin/impersonate'
+import { getUserPermissions, canAccess, type ModulePermissions } from '@/lib/permissions'
 
 interface OrgSidebarProps {
   orgName?: string
   userName?: string
   userEmail?: string
   userRole?: 'owner' | 'staff' | 'doctor' | null
+  permissions?: Record<string, string> | null
   logoUrl?: string | null
   sidebarTheme?: 'dark' | 'light'
   isPlatformAdmin?: boolean
@@ -21,23 +23,22 @@ interface OrgSidebarProps {
   isImpersonating?: boolean
 }
 
-const ALL_NAV_ITEMS = [
-  { name: 'Dashboard',      href: '/dashboard',           icon: LayoutDashboard, roles: ['owner', 'staff'] },
-  { name: 'CRM',            href: '/crm',                 icon: ContactRound,    roles: ['owner', 'staff'] },
-  { name: 'Agenda',         href: '/scheduling/calendar', icon: CalendarDays,    roles: ['owner', 'staff', 'doctor'] },
-  { name: 'Conversaciones', href: '/conversations',       icon: MessageCircle,   roles: ['owner', 'staff'] },
-  { name: 'Doctores',       href: '/doctors',             icon: Stethoscope,     roles: ['owner', 'staff', 'doctor'] },
-  { name: 'Equipo',         href: '/team',                icon: Users,           roles: ['owner'] },
-  { name: 'Configuración',  href: '/settings',            icon: Settings,        roles: ['owner'] },
+const ALL_NAV_ITEMS: { name: string; href: string; icon: React.ElementType; moduleKey: keyof ModulePermissions }[] = [
+  { name: 'Dashboard',      href: '/dashboard',           icon: LayoutDashboard, moduleKey: 'dashboard' },
+  { name: 'CRM',            href: '/crm',                 icon: ContactRound,    moduleKey: 'crm' },
+  { name: 'Agenda',         href: '/scheduling/calendar', icon: CalendarDays,    moduleKey: 'scheduling' },
+  { name: 'Conversaciones', href: '/conversations',       icon: MessageCircle,   moduleKey: 'conversations' },
+  { name: 'Doctores',       href: '/doctors',             icon: Stethoscope,     moduleKey: 'doctors' },
+  { name: 'Equipo',         href: '/team',                icon: Users,           moduleKey: 'team' },
+  { name: 'Configuración',  href: '/settings',            icon: Settings,        moduleKey: 'settings' },
 ]
 
 export function OrgSidebar({
-  orgName, userName, userEmail, userRole, logoUrl, sidebarTheme,
+  orgName, userName, userEmail, userRole, permissions, logoUrl, sidebarTheme,
   isPlatformAdmin, allOrganizations, isImpersonating,
 }: OrgSidebarProps) {
-  const navItems = ALL_NAV_ITEMS.filter(item =>
-    !userRole || item.roles.includes(userRole)
-  )
+  const userPerms = getUserPermissions(userRole ?? 'doctor', permissions ?? null)
+  const navItems = ALL_NAV_ITEMS.filter(item => canAccess(userPerms, item.moduleKey))
   const pathname = usePathname()
   const router = useRouter()
   const [isLoggingOut, setIsLoggingOut] = useState(false)

@@ -150,9 +150,10 @@ function statusChipClass(status: string): string {
 interface CalendarClientProps {
   userId: string | null
   doctorId?: string | null
+  readOnly?: boolean
 }
 
-export function CalendarClient({ userId, doctorId }: CalendarClientProps) {
+export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarClientProps) {
   const today = todayStr()
   const todayYear = Number(today.slice(0, 4))
   const todayMonth = Number(today.slice(5, 7)) - 1
@@ -869,14 +870,16 @@ export function CalendarClient({ userId, doctorId }: CalendarClientProps) {
 
             <div className="flex-1" />
 
-            <button
-              onClick={() => setShowCreate(prev => !prev)}
-              className={['inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition shrink-0',
-                showCreate ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-emerald-600 text-white hover:bg-emerald-700'].join(' ')}
-            >
-              <Plus className="h-3.5 w-3.5 shrink-0" />
-              {showCreate ? 'Cerrar' : 'Nueva cita'}
-            </button>
+            {!readOnly && (
+              <button
+                onClick={() => setShowCreate(prev => !prev)}
+                className={['inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition shrink-0',
+                  showCreate ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-emerald-600 text-white hover:bg-emerald-700'].join(' ')}
+              >
+                <Plus className="h-3.5 w-3.5 shrink-0" />
+                {showCreate ? 'Cerrar' : 'Nueva cita'}
+              </button>
+            )}
           </div>
 
           {/* Date range pills — solo en vista lista pasada */}

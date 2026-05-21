@@ -6,6 +6,7 @@ import { unstable_noStore } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getSession } from '@/lib/auth/session'
+import { getUserPermissions, canAccess } from '@/lib/permissions'
 import { getDashboardRawData, getDashboardYears } from './actions'
 import { DashboardClient } from './dashboard-client'
 
@@ -15,7 +16,9 @@ export default async function DashboardPage() {
   const session = await getSession()
   if (!session) redirect('/login')
   if (!session.orgId) redirect('/onboarding')
-  if (session.role === 'doctor') redirect('/scheduling/calendar')
+
+  const perms = getUserPermissions(session.role, session.permissions)
+  if (!canAccess(perms, 'dashboard')) redirect('/scheduling/calendar')
 
   const admin = createServiceClient()
   const { data: org } = await admin

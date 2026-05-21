@@ -1,23 +1,16 @@
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import { getSession } from '@/lib/auth/session'
+import { getUserPermissions, canAccess, canEdit } from '@/lib/permissions'
 import { CalendarClient } from '@/components/scheduling/calendar-client-fixed'
 
 export default async function CalendarPage() {
-  const supabase = await createClient()
-  const admin = createServiceClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const session = await getSession()
+  if (!session) redirect('/login')
 
-  let doctorId: string | null = null
-  if (user) {
-    const { data: member } = await admin
-      .from('organization_members')
-      .select('role, doctor_id')
-      .eq('user_id', user.id)
-      .single()
+  const perms = getUserPermissions(session.role, session.permissions)
+  if (!canAccess(perms, 'scheduling')) redirect('/dashboard')
 
-    if (member?.role === 'doctor' && member?.doctor_id) {
-      doctorId = member.doctor_id
-    }
-  }
+  const doctorId = session.role === 'doctor' ? session.doctorId : null
 
-  return <CalendarClient userId={user?.id ?? null} doctorId={doctorId} />
+  return <CalendarClient userId={session.user.id} doctorId={doctorId} readOnly={!canEdit(perms, 'scheduling')} />
 }

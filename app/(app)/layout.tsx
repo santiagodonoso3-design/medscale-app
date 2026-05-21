@@ -45,6 +45,7 @@ export default async function AppShell({ children }: { children: ReactNode }) {
           userName={session.user.email || 'Usuario del equipo'}
           userEmail={session.user.email || undefined}
           userRole={session.role}
+          permissions={session.permissions}
           logoUrl={organization?.logo_url || null}
           sidebarTheme={organization?.sidebar_theme || 'dark'}
           isPlatformAdmin={isPlatformAdmin}
