@@ -45,6 +45,17 @@ export async function cancelAppointment(id: string): Promise<{ error?: string }>
   if (error) return { error: error.message }
   revalidatePath('/scheduling/calendar')
 
+  // Sync lead status to cancelo_cita
+  const adminSync = createServiceClient()
+  const { data: aptLead } = await adminSync
+    .from('appointments')
+    .select('lead_id')
+    .eq('id', id)
+    .single()
+  if (aptLead?.lead_id) {
+    await adminSync.from('leads').update({ status: 'cancelo_cita' }).eq('id', aptLead.lead_id)
+  }
+
   // Delete Google Calendar event if exists (non-blocking)
   Promise.allSettled([
     (async () => {
@@ -136,6 +147,19 @@ export async function updateAppointmentStatus(
     .eq('id', id)
     .eq('organization_id', orgId)
   if (error) return { error: error.message }
+
+  if (status === 'completed' || status === 'cancelled' || status === 'no_show') {
+    const { data: apt } = await admin
+      .from('appointments')
+      .select('lead_id')
+      .eq('id', id)
+      .single()
+    if (apt?.lead_id) {
+      const leadStatus = status === 'completed' ? 'asistio_a_cita' : 'cancelo_cita'
+      await admin.from('leads').update({ status: leadStatus }).eq('id', apt.lead_id)
+    }
+  }
+
   revalidatePath('/scheduling/calendar')
   return {}
 }

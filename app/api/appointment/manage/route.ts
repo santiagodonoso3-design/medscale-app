@@ -24,7 +24,7 @@ export async function PATCH(request: Request) {
     const { data: apt, error: fetchErr } = await admin
       .from('appointments')
       .select(`
-        id, scheduled_at, ends_at, status, notes, manage_token, organization_id,
+        id, lead_id, scheduled_at, ends_at, status, notes, manage_token, organization_id,
         doctor:doctor_id(metadata),
         lead:lead_id(contact_name, contact_last_name, contact_email),
         org:organization_id(name)
@@ -115,6 +115,11 @@ export async function PATCH(request: Request) {
         .update({ status: 'cancelled' })
         .eq('id', apt.id)
       if (updErr) return json({ success: false, error: updErr.message }, 500)
+
+      const cancelLeadId = (apt as any).lead_id
+      if (cancelLeadId) {
+        await admin.from('leads').update({ status: 'cancelo_cita' }).eq('id', cancelLeadId)
+      }
 
       await admin.from('appointment_logs').insert({
         appointment_id: apt.id,
