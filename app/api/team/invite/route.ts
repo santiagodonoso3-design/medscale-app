@@ -1,11 +1,21 @@
 import { NextRequest } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { getSession } from '@/lib/auth/session'
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getSession()
+    if (!session || session.role !== 'owner') {
+      return new Response(JSON.stringify({ error: 'Sin permisos' }), { status: 403 })
+    }
+
     const { email, role, doctor_name, doctor_specialty, org_id } = await request.json()
     if (!email || !role || !org_id) {
       return new Response(JSON.stringify({ error: 'Faltan campos requeridos' }), { status: 400 })
+    }
+
+    if (org_id !== session.orgId) {
+      return new Response(JSON.stringify({ error: 'Sin permisos' }), { status: 403 })
     }
 
     const admin = createServiceClient()
@@ -33,12 +43,6 @@ export async function POST(request: NextRequest) {
     if (memberError) {
       return new Response(JSON.stringify({ error: memberError.message }), { status: 400 })
     }
-
-    // Also add to users table
-    await admin.from('users').upsert({
-      id: inviteData.user.id,
-      organization_id: org_id,
-    }, { onConflict: 'id' })
 
     if (role === 'doctor' && doctor_name) {
       const { data: newDoctor } = await admin

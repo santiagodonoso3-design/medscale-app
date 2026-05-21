@@ -1,18 +1,17 @@
 'use server'
+import { redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
-import { createClient } from '@/lib/supabase/server'
-import { getOrgIdFromUser } from '@/lib/get-org-id'
+import { getSession } from '@/lib/auth/session'
 import { TeamClient } from './team-client'
 
 export default async function TeamPage() {
-  const supabase = await createClient()
+  const session = await getSession()
+  if (!session) redirect('/login')
+  if (session.role !== 'owner') redirect('/dashboard')
+
   const admin = createServiceClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
-  const orgId = await getOrgIdFromUser(user.id)
-  if (!orgId) return null
+  const orgId = session.orgId
+  const user = session.user
 
   const { data: members } = await admin
     .from('organization_members')
