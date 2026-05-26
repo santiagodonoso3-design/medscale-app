@@ -153,6 +153,7 @@ interface CalendarPickerProps {
   maxNoticeDays?: number | null
   bufferBeforeMin?: number
   bufferAfterMin?: number
+  durationMinutes: number
   primaryColor?: string
 }
 
@@ -168,6 +169,7 @@ function CalendarPicker({
   maxNoticeDays,
   bufferBeforeMin = 0,
   bufferAfterMin = 0,
+  durationMinutes,
   primaryColor = '#215F73',
 }: CalendarPickerProps) {
   const today          = todayBogota()
@@ -180,7 +182,7 @@ function CalendarPicker({
   const [bookedSlots,  setBookedSlots]  = useState<{ start: string; end: string }[]>([])
   const [slotsLoading, setSlotsLoading] = useState(false)
 
-  const duration    = Number(selectedDoctor?.metadata?.duration || selectedDoctor?.metadata?.default_duration || 60)
+  const duration    = durationMinutes
   const doctorName  = selectedDoctor ? String(selectedDoctor.metadata?.name ?? 'Médico') : 'Asignación automática'
 
   useEffect(() => {
@@ -684,6 +686,7 @@ export default function BookingWizard({
           maxNoticeDays={appointmentType?.max_notice_days ?? null}
           bufferBeforeMin={appointmentType?.buffer_before_min ?? 0}
           bufferAfterMin={appointmentType?.buffer_after_min ?? 0}
+          durationMinutes={appointmentType?.duration_minutes ?? 60}
           primaryColor={primaryColor}
         />
       </div>
