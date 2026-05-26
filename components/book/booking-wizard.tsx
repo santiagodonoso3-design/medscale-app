@@ -754,7 +754,11 @@ export default function BookingWizard({
                   <span className="font-medium" style={{ color: B.fg }}>
                     {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(price)}
                   </span>
-                  <p className="text-xs mt-0.5" style={{ color: B.muted }}>Se paga en el consultorio</p>
+                  <p className="text-xs mt-0.5" style={{ color: B.muted }}>
+                    {formData.modality === 'virtual'
+                      ? 'Te enviaremos los detalles de pago y el enlace de la consulta por email'
+                      : 'Se paga en el consultorio'}
+                  </p>
                 </div>
               </div>
             )
