@@ -58,7 +58,7 @@ export default async function BookTypePage({ params }: PageProps) {
     supabaseAdmin.from('locations').select('id, name, address').eq('organization_id', organization.id),
     supabaseAdmin
       .from('appointment_form_fields')
-      .select('field_name, field_label, field_type, placeholder, required, sort_order')
+      .select('field_name, field_label, field_type, placeholder, required, sort_order, options')
       .eq('organization_id', organization.id)
       .eq('appointment_type_id', appointmentType.id)
       .eq('active', true)
