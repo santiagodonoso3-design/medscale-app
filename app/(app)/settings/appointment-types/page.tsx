@@ -862,6 +862,30 @@ export default function AppointmentTypesPage() {
                         )}
                       </div>
                     )}
+
+                    {/* Danger Zone */}
+                    <div className="border-t border-slate-200 pt-4 mt-6">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-red-500 mb-3">Zona de peligro</p>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!window.confirm('¿Eliminar este tipo de cita? Esta acción no se puede deshacer.')) return
+                          const { error } = await supabase
+                            .from('appointment_types')
+                            .delete()
+                            .eq('id', editing.id)
+                          if (error) {
+                            setFormError(error.message)
+                          } else {
+                            setModalOpen(false)
+                            await loadData()
+                          }
+                        }}
+                        className="w-full border border-red-200 bg-red-50 text-red-700 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-red-100 transition"
+                      >
+                        Eliminar tipo de cita
+                      </button>
+                    </div>
                   </>)}
 
                   {/* ── Tab: Reglas ──────────────────────────────────────── */}
