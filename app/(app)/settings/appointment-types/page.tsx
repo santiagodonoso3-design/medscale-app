@@ -450,7 +450,15 @@ export default function AppointmentTypesPage() {
         .from('appointment_types')
         .update(payload)
         .eq('id', editing.id)
-      if (error) { setFormError(error.message); setSaving(false); return }
+      if (error) {
+        if (error.message.includes('appointment_types_organization_id_slug_key')) {
+          setFormError('Ya existe un tipo de cita con ese nombre. Usa un nombre diferente.')
+        } else {
+          setFormError(error.message)
+        }
+        setSaving(false)
+        return
+      }
       // Upsert notifications for this type
       if (org && notifications.length > 0) {
         const notifRows = notifications.map(({ id, ...n }) => ({
@@ -474,7 +482,15 @@ export default function AppointmentTypesPage() {
       const { error } = await supabase
         .from('appointment_types')
         .insert({ ...payload, organization_id: member!.organization_id })
-      if (error) { setFormError(error.message); setSaving(false); return }
+      if (error) {
+        if (error.message.includes('appointment_types_organization_id_slug_key')) {
+          setFormError('Ya existe un tipo de cita con ese nombre. Usa un nombre diferente.')
+        } else {
+          setFormError(error.message)
+        }
+        setSaving(false)
+        return
+      }
     }
 
     await loadData()
