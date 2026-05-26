@@ -11,7 +11,7 @@ import {
   type Organization,
 } from './actions'
 import { OrganizationFormModal } from '@/components/admin/create-org-modal'
-import { Building2, Plus, Loader2, Pencil, Trash2, LogIn, X } from 'lucide-react'
+import { Building2, Plus, Loader2, Pencil, LogIn } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { startImpersonation } from '@/lib/admin/impersonate'
@@ -23,7 +23,6 @@ export default function OrganizationsPage() {
   const [error, setError] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null)
-  const [activeActionId, setActiveActionId] = useState<string | null>(null)
 
   const loadOrganizations = async () => {
     setIsLoading(true)
@@ -57,45 +56,6 @@ export default function OrganizationsPage() {
     setIsModalOpen(true)
   }
 
-  const handleDelete = async (id: string) => {
-    const confirmed = window.confirm(
-      '¿Programar eliminación de esta organización? Se eliminará en 24 horas y el owner recibirá un email de aviso.'
-    )
-    if (!confirmed) return
-
-    setActiveActionId(id)
-    try {
-      const result = await scheduleOrganizationDeletion(id)
-      if (!result.success) {
-        setError(result.error || 'Error programando eliminación')
-      } else {
-        loadOrganizations()
-      }
-    } catch (err) {
-      setError('Error programando eliminación')
-      console.error(err)
-    } finally {
-      setActiveActionId(null)
-    }
-  }
-
-  const handleCancelDeletion = async (id: string) => {
-    setActiveActionId(id)
-    try {
-      const result = await cancelOrganizationDeletion(id)
-      if (!result.success) {
-        setError(result.error || 'Error cancelando eliminación')
-      } else {
-        loadOrganizations()
-      }
-    } catch (err) {
-      setError('Error cancelando eliminación')
-      console.error(err)
-    } finally {
-      setActiveActionId(null)
-    }
-  }
-
   const handleImpersonate = async (orgId: string) => {
     const result = await startImpersonation(orgId)
     if (result.success) {
@@ -127,6 +87,20 @@ export default function OrganizationsPage() {
     }
 
     return await createOrganization(payload.name, payload.slug, payload.plan)
+  }
+
+  const handleScheduleDeletion = async (id: string) => {
+    const result = await scheduleOrganizationDeletion(id)
+    if (!result.success) setError(result.error || 'Error programando eliminación')
+    else loadOrganizations()
+    return result
+  }
+
+  const handleCancelDeletion = async (id: string) => {
+    const result = await cancelOrganizationDeletion(id)
+    if (!result.success) setError(result.error || 'Error cancelando eliminación')
+    else loadOrganizations()
+    return result
   }
 
   return (
@@ -263,35 +237,6 @@ export default function OrganizationsPage() {
                           <Pencil className="h-4 w-4" />
                           Editar
                         </button>
-                        {org.pending_deletion_at ? (
-                          <button
-                            type="button"
-                            onClick={() => handleCancelDeletion(org.id)}
-                            disabled={activeActionId === org.id}
-                            className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
-                          >
-                            {activeActionId === org.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <X className="h-4 w-4" />
-                            )}
-                            Cancelar eliminación
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(org.id)}
-                            disabled={activeActionId === org.id}
-                            className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
-                          >
-                            {activeActionId === org.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                            Programar eliminación
-                          </button>
-                        )}
                         <button
                           type="button"
                           onClick={() => handleImpersonate(org.id)}
@@ -340,6 +285,16 @@ export default function OrganizationsPage() {
         onSuccess={handleSuccess}
         onSave={handleSave}
         initialValues={selectedOrganization ?? undefined}
+        onScheduleDeletion={
+          selectedOrganization
+            ? () => handleScheduleDeletion(selectedOrganization.id)
+            : undefined
+        }
+        onCancelDeletion={
+          selectedOrganization
+            ? () => handleCancelDeletion(selectedOrganization.id)
+            : undefined
+        }
       />
     </div>
   )
