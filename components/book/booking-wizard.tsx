@@ -63,10 +63,11 @@ interface ScheduleOption {
 interface FormField {
   field_name: string
   field_label?: string
-  field_type: 'text' | 'email' | 'tel' | 'number' | 'date' | 'textarea'
+  field_type: 'text' | 'email' | 'tel' | 'number' | 'date' | 'textarea' | 'select'
   placeholder?: string
   required: boolean
   sort_order: number
+  options?: string[] | null
 }
 
 interface AppointmentTypeOption {
@@ -807,6 +808,15 @@ export default function BookingWizard({
                   onChange={e => setFormData(p => ({ ...p, customFields: { ...p.customFields, [field.field_name]: e.target.value } }))}
                   placeholder={field.placeholder} rows={3}
                   className={`${inputCls} resize-none`} style={{ ...inputStyle, ...inputFocusRing }} required={field.required} />
+              ) : field.field_type === 'select' ? (
+                <select value={formData.customFields[field.field_name] || ''}
+                  onChange={e => setFormData(p => ({ ...p, customFields: { ...p.customFields, [field.field_name]: e.target.value } }))}
+                  className={inputCls} style={{ ...inputStyle, ...inputFocusRing }} required={field.required}>
+                  <option value="">Selecciona una opción</option>
+                  {(field.options ?? []).map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
               ) : (
                 <input type={field.field_type} value={formData.customFields[field.field_name] || ''}
                   onChange={e => setFormData(p => ({ ...p, customFields: { ...p.customFields, [field.field_name]: e.target.value } }))}

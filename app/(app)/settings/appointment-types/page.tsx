@@ -38,6 +38,7 @@ interface FormFieldRow {
   required: boolean
   sort_order: number
   active: boolean
+  options?: string[] | null
 }
 
 const FIELD_TYPES = [
@@ -47,6 +48,7 @@ const FIELD_TYPES = [
   { value: 'number',   label: 'Número' },
   { value: 'date',     label: 'Fecha' },
   { value: 'textarea', label: 'Área de texto' },
+  { value: 'select',   label: 'Desplegable' },
 ]
 
 const EMPTY_FIELD = {
@@ -55,6 +57,7 @@ const EMPTY_FIELD = {
   field_type:   'text',
   placeholder:  '',
   required:     false,
+  options:      '',
 }
 
 interface DoctorOption {
@@ -125,6 +128,7 @@ function toSlug(text: string): string {
 type FieldFormData = {
   field_label: string; field_name: string
   field_type:  string; placeholder: string; required: boolean
+  options: string
 }
 
 function SortableFieldRow({
@@ -175,6 +179,15 @@ function SortableFieldRow({
               className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
         </div>
+        {editingData.field_type === 'select' && (
+          <div>
+            <label className="text-xs font-medium text-slate-600">Opciones (separadas por coma) *</label>
+            <input value={editingData.options}
+              onChange={e => setEditingData(p => ({ ...p, options: e.target.value }))}
+              placeholder="Ej: Opción 1, Opción 2, Opción 3"
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        )}
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" className="rounded border-slate-300 accent-blue-600"
             checked={editingData.required}
@@ -203,6 +216,9 @@ function SortableFieldRow({
       </button>
       <div className="flex-1 min-w-0">
         <span className="text-sm font-medium text-slate-800">{f.field_label}</span>
+        {f.field_type === 'select' && f.options && f.options.length > 0 && (
+          <p className="text-xs text-slate-400 mt-0.5 truncate">Opciones: {f.options.join(', ')}</p>
+        )}
       </div>
       <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
         {FIELD_TYPES.find(t => t.value === f.field_type)?.label ?? f.field_type}
@@ -982,7 +998,7 @@ export default function AppointmentTypesPage() {
                                     savingField={savingField}
                                     onStartEdit={() => {
                                       setEditingFieldId(f.id)
-                                      setEditingFieldData({ field_label: f.field_label, field_name: f.field_name, field_type: f.field_type, placeholder: f.placeholder ?? '', required: f.required })
+                                      setEditingFieldData({ field_label: f.field_label, field_name: f.field_name, field_type: f.field_type, placeholder: f.placeholder ?? '', required: f.required, options: f.options ? f.options.join(', ') : '' })
                                       setAddingField(false)
                                     }}
                                     onCancelEdit={() => setEditingFieldId(null)}
@@ -996,6 +1012,9 @@ export default function AppointmentTypesPage() {
                                           field_type:  editingFieldData.field_type,
                                           placeholder: editingFieldData.placeholder.trim() || null,
                                           required:    editingFieldData.required,
+                                          options:     editingFieldData.field_type === 'select'
+                                            ? editingFieldData.options.split(',').map(o => o.trim()).filter(Boolean)
+                                            : null,
                                         })
                                         .eq('id', f.id)
                                       setSavingField(false)
@@ -1070,6 +1089,17 @@ export default function AppointmentTypesPage() {
                               />
                             </div>
                           </div>
+                          {newField.field_type === 'select' && (
+                            <div>
+                              <label className="text-xs font-medium text-slate-600">Opciones (separadas por coma) *</label>
+                              <input
+                                value={newField.options}
+                                onChange={e => setNewField(p => ({ ...p, options: e.target.value }))}
+                                placeholder="Ej: Opción 1, Opción 2, Opción 3"
+                                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                            </div>
+                          )}
                           <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
                             <input
                               type="checkbox"
@@ -1095,6 +1125,9 @@ export default function AppointmentTypesPage() {
                                     field_type:          newField.field_type,
                                     placeholder:         newField.placeholder.trim() || null,
                                     required:            newField.required,
+                                    options:             newField.field_type === 'select'
+                                      ? newField.options.split(',').map(o => o.trim()).filter(Boolean)
+                                      : null,
                                     sort_order:          formFields.length,
                                     active:              true,
                                   })
