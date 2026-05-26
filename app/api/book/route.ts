@@ -369,11 +369,14 @@ export async function POST(request: Request) {
       }
 
       const clinicEmail = (org as any).contact_email as string | null
-      if (clinicEmail) {
+      const clinicEmailList = clinicEmail
+        ? clinicEmail.split(',').map((e: string) => e.trim()).filter(Boolean)
+        : []
+      if (clinicEmailList.length > 0) {
         const clinicResults = await Promise.allSettled([
           resend.emails.send({
             from:    'citas@medscale.app',
-            to:      clinicEmail,
+            to:      clinicEmailList,
             subject: `Nueva cita — ${patient_first_name}${patient_last_name ? ' ' + patient_last_name : ''} · ${formattedDate}`,
             html:    bookingNotificationClinic({
               patientName:         `${patient_first_name}${patient_last_name ? ' ' + patient_last_name : ''}`,

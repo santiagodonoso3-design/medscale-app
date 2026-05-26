@@ -132,10 +132,11 @@ export default function NotificationsPage() {
 
       if (error) throw error
 
-      await supabase
-        .from('organizations')
-        .update({ contact_email: clinicEmails.trim() })
-        .eq('id', orgId)
+      await fetch('/api/settings/notifications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact_email: clinicEmails.trim() }),
+      })
 
       setToast('Configuración guardada')
       setTimeout(() => setToast(null), 3000)
