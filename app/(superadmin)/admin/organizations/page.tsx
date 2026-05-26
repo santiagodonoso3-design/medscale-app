@@ -6,11 +6,12 @@ import {
   getAllOrganizations,
   createOrganization,
   updateOrganization,
-  deleteOrganization,
+  scheduleOrganizationDeletion,
+  cancelOrganizationDeletion,
   type Organization,
 } from './actions'
 import { OrganizationFormModal } from '@/components/admin/create-org-modal'
-import { Building2, Plus, Loader2, Pencil, Trash2, LogIn } from 'lucide-react'
+import { Building2, Plus, Loader2, Pencil, Trash2, LogIn, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { startImpersonation } from '@/lib/admin/impersonate'
@@ -57,19 +58,38 @@ export default function OrganizationsPage() {
   }
 
   const handleDelete = async (id: string) => {
-    const confirmed = window.confirm('¿Eliminar esta organización? Esta acción no se puede deshacer.')
+    const confirmed = window.confirm(
+      '¿Programar eliminación de esta organización? Se eliminará en 24 horas y el owner recibirá un email de aviso.'
+    )
     if (!confirmed) return
 
     setActiveActionId(id)
     try {
-      const result = await deleteOrganization(id)
+      const result = await scheduleOrganizationDeletion(id)
       if (!result.success) {
-        setError(result.error || 'Error eliminando organización')
+        setError(result.error || 'Error programando eliminación')
       } else {
         loadOrganizations()
       }
     } catch (err) {
-      setError('Error eliminando organización')
+      setError('Error programando eliminación')
+      console.error(err)
+    } finally {
+      setActiveActionId(null)
+    }
+  }
+
+  const handleCancelDeletion = async (id: string) => {
+    setActiveActionId(id)
+    try {
+      const result = await cancelOrganizationDeletion(id)
+      if (!result.success) {
+        setError(result.error || 'Error cancelando eliminación')
+      } else {
+        loadOrganizations()
+      }
+    } catch (err) {
+      setError('Error cancelando eliminación')
       console.error(err)
     } finally {
       setActiveActionId(null)
@@ -205,15 +225,22 @@ export default function OrganizationsPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          org.is_active
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-slate-100 text-slate-800'
-                        }`}
-                      >
-                        {org.is_active ? 'Activa' : 'Inactiva'}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            org.is_active
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-slate-100 text-slate-800'
+                          }`}
+                        >
+                          {org.is_active ? 'Activa' : 'Inactiva'}
+                        </span>
+                        {org.pending_deletion_at && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                            ⏳ Elimina {format(new Date(new Date(org.pending_deletion_at).getTime() + 24 * 3600 * 1000), 'dd MMM HH:mm', { locale: es })}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -226,36 +253,54 @@ export default function OrganizationsPage() {
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {format(new Date(org.created_at), 'dd MMM yyyy', { locale: es })}
                     </td>
-                    <td className="px-6 py-4 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(org)}
-                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                      >
-                        <Pencil className="h-4 w-4" />
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(org.id)}
-                        disabled={activeActionId === org.id}
-                        className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
-                      >
-                        {activeActionId === org.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(org)}
+                          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Editar
+                        </button>
+                        {org.pending_deletion_at ? (
+                          <button
+                            type="button"
+                            onClick={() => handleCancelDeletion(org.id)}
+                            disabled={activeActionId === org.id}
+                            className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
+                          >
+                            {activeActionId === org.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <X className="h-4 w-4" />
+                            )}
+                            Cancelar eliminación
+                          </button>
                         ) : (
-                          <Trash2 className="h-4 w-4" />
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(org.id)}
+                            disabled={activeActionId === org.id}
+                            className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
+                          >
+                            {activeActionId === org.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                            Programar eliminación
+                          </button>
                         )}
-                        Eliminar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleImpersonate(org.id)}
-                        className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 hover:bg-blue-100 transition-colors"
-                      >
-                        <LogIn className="h-4 w-4" />
-                        Entrar
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => handleImpersonate(org.id)}
+                          className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700 hover:bg-blue-100 transition-colors"
+                        >
+                          <LogIn className="h-4 w-4" />
+                          Entrar
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
