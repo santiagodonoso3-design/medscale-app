@@ -97,6 +97,62 @@ export async function createGoogleCalendarEvent(
   }
 }
 
+export async function getGoogleCalendarBusy(
+  doctorId: string,
+  timeMin: string,
+  timeMax: string
+): Promise<{ start: string; end: string }[]> {
+  try {
+    const { createServiceClient } = await import('@/lib/supabase/server')
+    const admin = createServiceClient()
+
+    const { data: doctor } = await admin
+      .from('doctors')
+      .select('google_calendar_token, google_calendar_id')
+      .eq('id', doctorId)
+      .single()
+
+    if (!doctor?.google_calendar_token) return []
+
+    const token = doctor.google_calendar_token as any
+    let accessToken = token.access_token
+
+    if (Date.now() > token.expiry_date - 60000) {
+      accessToken = await refreshAccessToken(token)
+      await admin.from('doctors').update({
+        google_calendar_token: {
+          ...token,
+          access_token: accessToken,
+          expiry_date:  Date.now() + 3600000,
+        }
+      }).eq('id', doctorId)
+    }
+
+    const calendarId = doctor.google_calendar_id ?? 'primary'
+
+    const res = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
+      method: 'POST',
+      headers: {
+        Authorization:  `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        timeMin,
+        timeMax,
+        timeZone: 'America/Bogota',
+        items: [{ id: calendarId }],
+      }),
+    })
+
+    const data = await res.json()
+    const busy: { start: string; end: string }[] = data?.calendars?.[calendarId]?.busy ?? []
+    return busy
+  } catch (e) {
+    console.error('[google/calendar] freeBusy error:', e)
+    return []
+  }
+}
+
 export async function deleteGoogleCalendarEvent(
   doctorId: string,
   eventId: string

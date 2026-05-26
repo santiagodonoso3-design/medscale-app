@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { getGoogleCalendarBusy } from '@/lib/google/calendar'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,8 +38,16 @@ export async function getBookedSlots(
     return `${datePart}T${timePart}`
   }
 
-  return (data ?? []).map((a: any) => ({
+  const dbSlots = (data ?? []).map((a: any) => ({
     start: toBogota(new Date(a.scheduled_at)),
     end:   toBogota(new Date(a.ends_at)),
   }))
+
+  const googleBusy = await getGoogleCalendarBusy(doctorId, startOfMonth.toISOString(), endOfMonth.toISOString())
+  const gcalSlots = googleBusy.map(b => ({
+    start: toBogota(new Date(b.start)),
+    end:   toBogota(new Date(b.end)),
+  }))
+
+  return [...dbSlots, ...gcalSlots]
 }
