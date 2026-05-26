@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2, CheckCircle2 } from 'lucide-react'
+import { TermsModal } from '@/components/legal/terms-modal'
 
 const PLANS = [
   {
@@ -63,6 +64,8 @@ export default function RegisterPage() {
   const [step, setStep] = useState<1 | 2>(1)
   const [selectedPlan, setSelectedPlan] = useState<PlanId | null>(null)
   const [serverError, setServerError] = useState<string | null>(null)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+  const [showTerms, setShowTerms] = useState(false)
 
   const {
     register,
@@ -298,9 +301,28 @@ export default function RegisterPage() {
                   <p className="text-sm text-red-500">{serverError}</p>
                 )}
 
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={e => setAcceptedTerms(e.target.checked)}
+                    className="mt-0.5 shrink-0 rounded border-[#C8D8E4] accent-[#215F73]"
+                  />
+                  <span className="text-sm text-[#4A6B7A]">
+                    Acepto los{' '}
+                    <button
+                      type="button"
+                      onClick={() => setShowTerms(true)}
+                      className="text-[#215F73] font-medium hover:underline"
+                    >
+                      términos y condiciones
+                    </button>
+                  </span>
+                </label>
+
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !acceptedTerms}
                   className="w-full h-12 flex items-center justify-center gap-2 bg-[#215F73] hover:bg-[#1a4d5e] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition"
                 >
                   {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -316,6 +338,8 @@ export default function RegisterPage() {
           </div>
         </div>
       )}
+
+      {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
     </div>
   )
 }

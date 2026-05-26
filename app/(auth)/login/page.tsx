@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
+import { TermsModal } from '@/components/legal/terms-modal'
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -19,6 +20,7 @@ export default function LoginPage() {
   const router = useRouter()
   const [serverError, setServerError] = useState<string | null>(null)
   const [showForgot, setShowForgot] = useState(false)
+  const [showTerms, setShowTerms] = useState(false)
   const [forgotEmail, setForgotEmail] = useState('')
   const [forgotSent, setForgotSent] = useState(false)
   const [forgotLoading, setForgotLoading] = useState(false)
@@ -161,12 +163,25 @@ export default function LoginPage() {
               {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
               {isSubmitting ? 'Iniciando sesión...' : 'Iniciar sesión'}
             </button>
+
+            <p className="text-center text-xs text-slate-400">
+              Al iniciar sesión aceptas los{' '}
+              <button
+                type="button"
+                onClick={() => setShowTerms(true)}
+                className="underline hover:text-slate-600 transition"
+              >
+                términos y condiciones
+              </button>
+            </p>
           </form>
 
           <p className="mt-6 text-center text-sm text-gray-500">
             ¿No tienes cuenta?{' '}
             <a href="/register" className="text-blue-600 hover:text-blue-700 font-medium">Regístrate gratis</a>
           </p>
+
+          {showTerms && <TermsModal onClose={() => setShowTerms(false)} />}
 
           {showForgot && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
