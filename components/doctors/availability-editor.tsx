@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, Check, Plus, Trash2, Lock } from 'lucide-react'
+import { Loader2, Check, Plus, Trash2, Lock, X } from 'lucide-react'
 
 // DB: day_of_week 0-6  (0=Dom, 1=Lun … 6=Sáb)
 const DAYS = [
@@ -15,8 +15,9 @@ const DAYS = [
   { label: 'Domingo',   value: 0 },
 ]
 
-type DayState = { enabled: boolean; start_time: string; end_time: string }
-type Week     = Record<number, DayState>
+type TimeBlock = { start_time: string; end_time: string }
+type DayState  = { enabled: boolean; blocks: TimeBlock[] }
+type Week      = Record<number, DayState>
 
 type ExRow = {
   id: string
@@ -28,7 +29,7 @@ type ExRow = {
 
 function emptyWeek(): Week {
   return Object.fromEntries(
-    DAYS.map(d => [d.value, { enabled: false, start_time: '08:00', end_time: '17:00' }])
+    DAYS.map(d => [d.value, { enabled: false, blocks: [{ start_time: '08:00', end_time: '17:00' }] }])
   )
 }
 
@@ -101,18 +102,26 @@ export function AvailabilityEditor() {
         .select('day_of_week, start_time, end_time, location_id')
         .eq('doctor_id', doctorId)
         .eq('is_recurring', true)
+        .order('start_time', { ascending: true })
 
       if (recurring?.length) {
         const firstLoc = recurring.find((r: any) => r.location_id)?.location_id
         if (firstLoc) setLocationId(firstLoc)
+
+        // Group multiple rows per day into blocks
+        const grouped: Record<number, TimeBlock[]> = {}
         recurring.forEach((row: any) => {
           if (fresh[row.day_of_week] !== undefined) {
-            fresh[row.day_of_week] = {
-              enabled:    true,
+            if (!grouped[row.day_of_week]) grouped[row.day_of_week] = []
+            grouped[row.day_of_week].push({
               start_time: row.start_time ?? '08:00',
               end_time:   row.end_time   ?? '17:00',
-            }
+            })
           }
+        })
+
+        Object.entries(grouped).forEach(([day, blocks]) => {
+          fresh[Number(day)] = { enabled: true, blocks }
         })
       }
       setWeek(fresh)
@@ -132,10 +141,44 @@ export function AvailabilityEditor() {
 
   // ── Weekly handlers ───────────────────────────────────────────────────────
   const toggle = (day: number) =>
-    setWeek(prev => ({ ...prev, [day]: { ...prev[day], enabled: !prev[day].enabled } }))
+    setWeek(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        enabled: !prev[day].enabled,
+        // If enabling with empty blocks, restore default
+        blocks: !prev[day].enabled && prev[day].blocks.length === 0
+          ? [{ start_time: '08:00', end_time: '17:00' }]
+          : prev[day].blocks,
+      },
+    }))
 
-  const setTime = (day: number, field: 'start_time' | 'end_time', val: string) =>
-    setWeek(prev => ({ ...prev, [day]: { ...prev[day], [field]: val } }))
+  const setBlockTime = (day: number, idx: number, field: 'start_time' | 'end_time', val: string) =>
+    setWeek(prev => {
+      const blocks = prev[day].blocks.map((b, i) => i === idx ? { ...b, [field]: val } : b)
+      return { ...prev, [day]: { ...prev[day], blocks } }
+    })
+
+  const addBlock = (day: number) =>
+    setWeek(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        blocks: [...prev[day].blocks, { start_time: '08:00', end_time: '17:00' }],
+      },
+    }))
+
+  const removeBlock = (day: number, idx: number) =>
+    setWeek(prev => {
+      const blocks = prev[day].blocks.filter((_, i) => i !== idx)
+      return {
+        ...prev,
+        [day]: {
+          enabled: blocks.length > 0 ? prev[day].enabled : false,
+          blocks:  blocks.length > 0 ? blocks : [{ start_time: '08:00', end_time: '17:00' }],
+        },
+      }
+    })
 
   const handleSaveWeek = async () => {
     if (!doctorId) { setWeekError('Selecciona un médico.'); return }
@@ -147,15 +190,18 @@ export function AvailabilityEditor() {
       .eq('doctor_id', doctorId).eq('is_recurring', true)
     if (delErr) { setWeekError(delErr.message); setSaving(false); return }
 
-    const rows = DAYS.filter(d => week[d.value].enabled).map(d => ({
-      doctor_id:    doctorId,
-      location_id:  locationId || null,
-      day_of_week:  d.value,
-      start_time:   week[d.value].start_time,
-      end_time:     week[d.value].end_time,
-      active:       true,
-      is_recurring: true,
-    }))
+    // One row per block per enabled day
+    const rows = DAYS.filter(d => week[d.value].enabled).flatMap(d =>
+      week[d.value].blocks.map(block => ({
+        doctor_id:    doctorId,
+        location_id:  locationId || null,
+        day_of_week:  d.value,
+        start_time:   block.start_time,
+        end_time:     block.end_time,
+        active:       true,
+        is_recurring: true,
+      }))
+    )
 
     if (rows.length) {
       const { error: insErr } = await supabase.from('schedules').insert(rows)
@@ -296,49 +342,78 @@ export function AvailabilityEditor() {
               return (
                 <div
                   key={value}
-                  className="flex items-center gap-4 border-b border-slate-100 px-6 py-3 last:border-0"
+                  className="flex gap-4 border-b border-slate-100 px-6 py-3 last:border-0"
                 >
-                  <button
-                    type="button"
-                    onClick={() => toggle(value)}
-                    aria-pressed={day.enabled}
-                    className={[
-                      'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
-                      'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
-                      day.enabled ? 'bg-blue-600' : 'bg-slate-200',
-                    ].join(' ')}
-                  >
+                  {/* Toggle */}
+                  <div className="flex items-start pt-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => toggle(value)}
+                      aria-pressed={day.enabled}
+                      className={[
+                        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
+                        'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+                        day.enabled ? 'bg-blue-600' : 'bg-slate-200',
+                      ].join(' ')}
+                    >
+                      <span className={[
+                        'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                        day.enabled ? 'translate-x-6' : 'translate-x-1',
+                      ].join(' ')} />
+                    </button>
+                  </div>
+
+                  {/* Day label */}
+                  <div className="flex items-start pt-1 shrink-0">
                     <span className={[
-                      'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
-                      day.enabled ? 'translate-x-6' : 'translate-x-1',
-                    ].join(' ')} />
-                  </button>
+                      'w-24 text-sm font-medium',
+                      day.enabled ? 'text-slate-900' : 'text-slate-400',
+                    ].join(' ')}>
+                      {label}
+                    </span>
+                  </div>
 
-                  <span className={[
-                    'w-24 shrink-0 text-sm font-medium',
-                    day.enabled ? 'text-slate-900' : 'text-slate-400',
-                  ].join(' ')}>
-                    {label}
-                  </span>
-
+                  {/* Blocks or inactive */}
                   {day.enabled ? (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="time"
-                        value={day.start_time}
-                        onChange={e => setTime(value, 'start_time', e.target.value)}
-                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <span className="text-sm text-slate-400">—</span>
-                      <input
-                        type="time"
-                        value={day.end_time}
-                        onChange={e => setTime(value, 'end_time', e.target.value)}
-                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                    <div className="flex flex-col gap-2 flex-1 min-w-0">
+                      {day.blocks.map((block, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input
+                            type="time"
+                            value={block.start_time}
+                            onChange={e => setBlockTime(value, idx, 'start_time', e.target.value)}
+                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-slate-400">—</span>
+                          <input
+                            type="time"
+                            value={block.end_time}
+                            onChange={e => setBlockTime(value, idx, 'end_time', e.target.value)}
+                            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          {day.blocks.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeBlock(value, idx)}
+                              className="rounded-md p-1 text-slate-300 hover:bg-red-50 hover:text-red-400 transition"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => addBlock(value)}
+                        className="self-start text-xs font-medium text-blue-500 hover:text-blue-700 transition"
+                      >
+                        + Agregar bloque
+                      </button>
                     </div>
                   ) : (
-                    <span className="text-sm text-slate-400">Sin atención</span>
+                    <div className="flex items-center">
+                      <span className="text-sm text-slate-400">Sin atención</span>
+                    </div>
                   )}
                 </div>
               )
