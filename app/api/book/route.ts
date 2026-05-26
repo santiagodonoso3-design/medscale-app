@@ -353,6 +353,19 @@ export async function POST(request: Request) {
         results.forEach(r => { if (r.status === 'rejected') console.error('[email] failed:', r.reason) })
       }
 
+      // Build field_name → field_label map for readable custom field keys
+      let fieldLabelMap: Record<string, string> = {}
+      if (appointment_type_id && custom_fields && Object.keys(custom_fields).length > 0) {
+        const { data: formFieldDefs } = await supabase
+          .from('appointment_form_fields')
+          .select('field_name, field_label')
+          .eq('appointment_type_id', appointment_type_id)
+          .eq('active', true)
+        fieldLabelMap = Object.fromEntries(
+          (formFieldDefs ?? []).map((f: any) => [f.field_name, f.field_label || f.field_name])
+        )
+      }
+
       const clinicEmail = (org as any).contact_email as string | null
       if (clinicEmail) {
         const clinicResults = await Promise.allSettled([
@@ -364,13 +377,16 @@ export async function POST(request: Request) {
               patientName:         `${patient_first_name}${patient_last_name ? ' ' + patient_last_name : ''}`,
               patientPhone:        phone ?? '',
               patientEmail:        email ?? null,
+              patientCedula:       cedula ?? null,
               doctorName:          doctorName || null,
               date:                formattedDate,
               time,
               modality:            modality ?? 'presencial',
               orgName:             orgNameDisplay,
               appointmentTypeName,
-              customFields:        custom_fields ?? null,
+              customFields:        custom_fields
+                ? Object.fromEntries(Object.entries(custom_fields).map(([k, v]) => [fieldLabelMap[k] || k, v]))
+                : null,
             }),
           }),
         ])

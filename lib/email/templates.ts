@@ -179,6 +179,7 @@ export function bookingNotificationClinic(p: {
   patientName: string
   patientPhone: string
   patientEmail?: string | null
+  patientCedula?: string | null
   doctorName: string | null
   date: string
   time: string
@@ -207,6 +208,7 @@ export function bookingNotificationClinic(p: {
         ${row('Paciente', p.patientName)}
         ${row('Teléfono', p.patientPhone)}
         ${p.patientEmail ? row('Email', p.patientEmail) : ''}
+        ${p.patientCedula ? row('Cédula', p.patientCedula) : ''}
         <hr style="${DIVIDER}" />
         ${row('Tipo de cita', typeDisplay)}
         ${row('Médico asignado', doctorDisplay)}
