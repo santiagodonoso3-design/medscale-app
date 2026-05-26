@@ -83,14 +83,16 @@ export async function POST(request: Request) {
         if (appointment_type_id) {
           const { data: apptType, error: typeError } = await supabase
             .from('appointment_types')
-            .select('name, price, assignment_mode, doctor_ids, rr_count_all')
+            .select('name, price_presencial, price_virtual, assignment_mode, doctor_ids, rr_count_all')
             .eq('id', appointment_type_id)
             .single()
           if (typeError) {
             console.error('[/api/book] appointment_types fetch error:', typeError)
           } else if (apptType) {
             appointmentTypeName  = (apptType.name  as string) ?? null
-            appointmentTypePrice = (apptType.price as number) ?? null
+            appointmentTypePrice = modality === 'virtual'
+              ? ((apptType.price_virtual    as number) ?? null)
+              : ((apptType.price_presencial as number) ?? null)
             assignmentMode = (apptType.assignment_mode as string) ?? 'round_robin_proportional'
             typeDoctorIds  = (apptType.doctor_ids as string[]) ?? []
             rrCountAll     = (apptType.rr_count_all ?? true) as boolean

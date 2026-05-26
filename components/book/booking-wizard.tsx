@@ -82,7 +82,8 @@ interface AppointmentTypeOption {
   max_notice_days?: number | null
   buffer_before_min?: number
   buffer_after_min?: number
-  price?: number | null
+  price_presencial?: number | null
+  price_virtual?: number | null
 }
 
 interface BookingWizardProps {
@@ -741,17 +742,23 @@ export default function BookingWizard({
             <span style={{ color: B.muted }}>Modalidad</span>
             <span className="font-medium" style={{ color: B.fg }}>{formData.modality === 'presencial' ? 'Presencial' : 'Virtual'}</span>
           </div>
-          {appointmentType?.price && appointmentType.price > 0 && (
-            <div className="flex justify-between items-start">
-              <span style={{ color: B.muted }}>Valor</span>
-              <div className="text-right">
-                <span className="font-medium" style={{ color: B.fg }}>
-                  {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(appointmentType.price)}
-                </span>
-                <p className="text-xs mt-0.5" style={{ color: B.muted }}>Se paga en el consultorio</p>
+          {(() => {
+            const price = formData.modality === 'virtual'
+              ? appointmentType?.price_virtual
+              : appointmentType?.price_presencial
+            if (!price || price <= 0) return null
+            return (
+              <div className="flex justify-between items-start">
+                <span style={{ color: B.muted }}>Valor</span>
+                <div className="text-right">
+                  <span className="font-medium" style={{ color: B.fg }}>
+                    {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(price)}
+                  </span>
+                  <p className="text-xs mt-0.5" style={{ color: B.muted }}>Se paga en el consultorio</p>
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
         </div>
 
         {/* Patient form */}

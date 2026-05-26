@@ -16,7 +16,8 @@ interface AppointmentType {
   duration_minutes: number
   color: string
   modality: 'presencial' | 'virtual' | 'patient_choice'
-  price: number | null
+  price_presencial: number | null
+  price_virtual: number | null
   active: boolean
   assignment_mode: AssignmentMode
   doctor_ids: string[]
@@ -89,7 +90,8 @@ const EMPTY_FORM = {
   duration_minutes: 60,
   color: '#3B82F6',
   modality: 'patient_choice' as 'presencial' | 'virtual' | 'patient_choice',
-  price: '',
+  price_presencial: '',
+  price_virtual: '',
   assignment_mode: 'hybrid' as AssignmentMode,
   doctor_ids: [] as string[],
   min_notice_hours: 24,
@@ -390,7 +392,8 @@ export default function AppointmentTypesPage() {
       duration_minutes: t.duration_minutes,
       color:            t.color,
       modality:         t.modality,
-      price:            t.price != null ? String(t.price) : '',
+      price_presencial: t.price_presencial != null ? String(t.price_presencial) : '',
+      price_virtual:    t.price_virtual    != null ? String(t.price_virtual)    : '',
       assignment_mode:  t.assignment_mode,
       doctor_ids:       t.doctor_ids ?? [],
       min_notice_hours:  t.min_notice_hours  ?? 24,
@@ -434,7 +437,8 @@ export default function AppointmentTypesPage() {
       duration_minutes: Number(form.duration_minutes),
       color:            form.color,
       modality:         form.modality,
-      price:            form.price ? Number(form.price) : null,
+      price_presencial: form.price_presencial ? Number(form.price_presencial) : null,
+      price_virtual:    form.price_virtual    ? Number(form.price_virtual)    : null,
       assignment_mode:  form.assignment_mode,
       doctor_ids:       form.doctor_ids,
       min_notice_hours:  Number(form.min_notice_hours),
@@ -599,10 +603,17 @@ export default function AppointmentTypesPage() {
                                                      'Paciente elige'}
                     </span>
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600">
-                    {t.price != null
-                      ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(t.price)
-                      : '—'}
+                  <td className="px-5 py-3.5 text-slate-600 text-xs">
+                    {(() => {
+                      const fmt = (n: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
+                      if (t.modality === 'presencial') return t.price_presencial != null ? fmt(t.price_presencial) : '—'
+                      if (t.modality === 'virtual')    return t.price_virtual    != null ? fmt(t.price_virtual)    : '—'
+                      const parts = [
+                        t.price_presencial != null ? `Pres: ${fmt(t.price_presencial)}` : null,
+                        t.price_virtual    != null ? `Virt: ${fmt(t.price_virtual)}`    : null,
+                      ].filter(Boolean)
+                      return parts.length > 0 ? parts.join(' / ') : '—'
+                    })()}
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
@@ -710,20 +721,42 @@ export default function AppointmentTypesPage() {
                           className="flex-1 bg-transparent px-1 py-2 text-sm focus:outline-none" />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Duración (min) *</label>
-                        <input type="number" min={5} step={5} value={form.duration_minutes}
-                          onChange={e => setForm(p => ({ ...p, duration_minutes: Number(e.target.value) }))}
-                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Duración (min) *</label>
+                      <input type="number" min={5} step={5} value={form.duration_minutes}
+                        onChange={e => setForm(p => ({ ...p, duration_minutes: Number(e.target.value) }))}
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    {form.modality === 'patient_choice' ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Precio presencial</label>
+                          <input type="number" min={0} value={form.price_presencial} onChange={e => setForm(p => ({ ...p, price_presencial: e.target.value }))}
+                            placeholder="Sin precio"
+                            className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Precio virtual</label>
+                          <input type="number" min={0} value={form.price_virtual} onChange={e => setForm(p => ({ ...p, price_virtual: e.target.value }))}
+                            placeholder="Sin precio"
+                            className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
                       </div>
+                    ) : form.modality === 'presencial' ? (
                       <div>
-                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Precio (opcional)</label>
-                        <input type="number" min={0} value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))}
+                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Precio presencial (opcional)</label>
+                        <input type="number" min={0} value={form.price_presencial} onChange={e => setForm(p => ({ ...p, price_presencial: e.target.value }))}
                           placeholder="Sin precio"
                           className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                       </div>
-                    </div>
+                    ) : (
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Precio virtual (opcional)</label>
+                        <input type="number" min={0} value={form.price_virtual} onChange={e => setForm(p => ({ ...p, price_virtual: e.target.value }))}
+                          placeholder="Sin precio"
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                    )}
                     {/*
                      * Modality controls booking wizard behaviour:
                      * - 'presencial'     → skip modality step, always use presencial
@@ -1098,30 +1131,51 @@ export default function AppointmentTypesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Duración (min) *</label>
-                  <input
-                    type="number"
-                    min={5}
-                    step={5}
-                    value={form.duration_minutes}
-                    onChange={e => setForm(p => ({ ...p, duration_minutes: Number(e.target.value) }))}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Precio (opcional)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={form.price}
-                    onChange={e => setForm(p => ({ ...p, price: e.target.value }))}
-                    placeholder="Sin precio"
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Duración (min) *</label>
+                <input
+                  type="number"
+                  min={5}
+                  step={5}
+                  value={form.duration_minutes}
+                  onChange={e => setForm(p => ({ ...p, duration_minutes: Number(e.target.value) }))}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
+              {form.modality === 'patient_choice' ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Precio presencial</label>
+                    <input type="number" min={0} value={form.price_presencial}
+                      onChange={e => setForm(p => ({ ...p, price_presencial: e.target.value }))}
+                      placeholder="Sin precio"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Precio virtual</label>
+                    <input type="number" min={0} value={form.price_virtual}
+                      onChange={e => setForm(p => ({ ...p, price_virtual: e.target.value }))}
+                      placeholder="Sin precio"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+              ) : form.modality === 'presencial' ? (
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Precio presencial (opcional)</label>
+                  <input type="number" min={0} value={form.price_presencial}
+                    onChange={e => setForm(p => ({ ...p, price_presencial: e.target.value }))}
+                    placeholder="Sin precio"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              ) : (
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Precio virtual (opcional)</label>
+                  <input type="number" min={0} value={form.price_virtual}
+                    onChange={e => setForm(p => ({ ...p, price_virtual: e.target.value }))}
+                    placeholder="Sin precio"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+              )}
 
               {/*
                * Modality controls booking wizard behaviour (not yet implemented):

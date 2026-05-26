@@ -43,7 +43,7 @@ export default async function BookPage({ params }: BookPageProps) {
 
   const { data: types } = await supabaseAdmin
     .from('appointment_types')
-    .select('id, name, slug, duration_minutes, modality, color, price')
+    .select('id, name, slug, duration_minutes, modality, color, price_presencial, price_virtual')
     .eq('organization_id', organization.id)
     .eq('active', true)
     .order('created_at', { ascending: true })
@@ -89,13 +89,17 @@ export default async function BookPage({ params }: BookPageProps) {
                       <Clock className="h-3 w-3" /> {t.duration_minutes} min
                     </span>
                     <span>{MODALITY_LABEL[t.modality] ?? t.modality}</span>
-                    {t.price != null && t.price > 0 && (
-                      <span>
-                        {new Intl.NumberFormat('es-CO', {
-                          style: 'currency', currency: 'COP', maximumFractionDigits: 0,
-                        }).format(t.price)}
-                      </span>
-                    )}
+                    {(() => {
+                      const price = t.modality === 'virtual' ? t.price_virtual : t.price_presencial
+                      if (!price || price <= 0) return null
+                      return (
+                        <span>
+                          {new Intl.NumberFormat('es-CO', {
+                            style: 'currency', currency: 'COP', maximumFractionDigits: 0,
+                          }).format(price)}
+                        </span>
+                      )
+                    })()}
                   </div>
                 </div>
 
