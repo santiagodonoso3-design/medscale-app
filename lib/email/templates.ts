@@ -185,10 +185,17 @@ export function bookingNotificationClinic(p: {
   modality: string
   orgName: string
   appointmentTypeName: string | null
+  customFields?: Record<string, string> | null
 }): string {
   const modalityDisplay = p.modality === 'virtual' ? 'Virtual (videollamada)' : 'Presencial'
   const doctorDisplay   = p.doctorName ?? 'Por asignar'
   const typeDisplay     = p.appointmentTypeName ?? 'Consulta'
+
+  const customFieldsSection = (() => {
+    const fields = p.customFields ? Object.entries(p.customFields).filter(([, v]) => v) : []
+    if (fields.length === 0) return ''
+    return `<hr style="${DIVIDER}" /><p style="${LABEL}">Información adicional</p>${fields.map(([k, v]) => row(k, v)).join('')}`
+  })()
 
   return `<!DOCTYPE html><html><body style="${BASE}">
     <div style="${CARD}">
@@ -206,6 +213,7 @@ export function bookingNotificationClinic(p: {
         ${row('Fecha', p.date)}
         ${row('Hora', p.time)}
         ${row('Modalidad', modalityDisplay)}
+        ${customFieldsSection}
       </div>
       <div style="${FOOTER}">MedScale AI · Notificación interna</div>
     </div>

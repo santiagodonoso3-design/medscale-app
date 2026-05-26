@@ -355,7 +355,7 @@ export async function POST(request: Request) {
 
       const clinicEmail = (org as any).contact_email as string | null
       if (clinicEmail) {
-        Promise.allSettled([
+        const clinicResults = await Promise.allSettled([
           resend.emails.send({
             from:    'citas@medscale.app',
             to:      clinicEmail,
@@ -370,11 +370,11 @@ export async function POST(request: Request) {
               modality:            modality ?? 'presencial',
               orgName:             orgNameDisplay,
               appointmentTypeName,
+              customFields:        custom_fields ?? null,
             }),
           }),
-        ]).then(results => {
-          results.forEach(r => { if (r.status === 'rejected') console.error('[email:clinic] failed:', r.reason) })
-        })
+        ])
+        clinicResults.forEach(r => { if (r.status === 'rejected') console.error('[email:clinic] failed:', r.reason) })
       }
     }
 
