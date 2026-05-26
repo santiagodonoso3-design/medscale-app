@@ -71,6 +71,7 @@ export async function POST(request: Request) {
     let selectedDoctorId: string | null = bodyDoctorId
     let appointmentTypeName: string | null = null
     let appointmentTypePrice: number | null = null
+    let appointmentTypeDuration: number | null = null
     let assignmentMode = ''
     let rrCountAll = true
 
@@ -83,16 +84,17 @@ export async function POST(request: Request) {
         if (appointment_type_id) {
           const { data: apptType, error: typeError } = await supabase
             .from('appointment_types')
-            .select('name, price_presencial, price_virtual, assignment_mode, doctor_ids, rr_count_all')
+            .select('name, price_presencial, price_virtual, assignment_mode, doctor_ids, rr_count_all, duration_minutes')
             .eq('id', appointment_type_id)
             .single()
           if (typeError) {
             console.error('[/api/book] appointment_types fetch error:', typeError)
           } else if (apptType) {
-            appointmentTypeName  = (apptType.name  as string) ?? null
-            appointmentTypePrice = modality === 'virtual'
+            appointmentTypeName     = (apptType.name  as string) ?? null
+            appointmentTypePrice    = modality === 'virtual'
               ? ((apptType.price_virtual    as number) ?? null)
               : ((apptType.price_presencial as number) ?? null)
+            appointmentTypeDuration = (apptType.duration_minutes as number) ?? null
             assignmentMode = (apptType.assignment_mode as string) ?? 'round_robin_proportional'
             typeDoctorIds  = (apptType.doctor_ids as string[]) ?? []
             rrCountAll     = (apptType.rr_count_all ?? true) as boolean
@@ -200,10 +202,11 @@ export async function POST(request: Request) {
     if (bodyDoctorId && !assignmentMode && appointment_type_id) {
       const { data: typeData } = await supabase
         .from('appointment_types')
-        .select('assignment_mode')
+        .select('assignment_mode, duration_minutes')
         .eq('id', appointment_type_id)
         .single()
-      assignmentMode = typeData?.assignment_mode ?? ''
+      assignmentMode          = typeData?.assignment_mode ?? ''
+      appointmentTypeDuration = (typeData?.duration_minutes as number) ?? null
     }
 
     // Determine assignment type: patient chose explicitly vs system auto-assigned
@@ -227,8 +230,7 @@ export async function POST(request: Request) {
     }
 
     const locationId = locations[0].id
-    const doctorMeta = doctorData?.metadata as { duration?: number; default_duration?: number } | null
-    const duration = Number(doctorMeta?.duration || doctorMeta?.default_duration || 30)
+    const duration = appointmentTypeDuration ?? 30
 
     // Create lead
     const leadNotes = custom_fields
