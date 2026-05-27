@@ -128,8 +128,7 @@ export default function RegisterPage() {
         <div className="min-h-screen flex flex-col items-center justify-center px-4 py-16">
           {/* Logo */}
           <div className="mb-10 text-center">
-            <p className="text-xl font-bold tracking-tight text-[#0D2B3E]">MEDSCALE AI</p>
-            <p className="text-xs tracking-widest text-[#4A6B7A] mt-0.5">FOR HEALTHCARE GROWTH</p>
+            <img src="/logo-dark.png" alt="MedScale AI" className="h-10 mx-auto" />
           </div>
 
           {/* Headline */}

@@ -78,7 +78,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
           <div className="mb-8 text-center">
-            <h1 className="text-2xl font-bold text-gray-900">Medscale AI</h1>
+            <img src="/logo-dark.png" alt="MedScale AI" className="h-10 mx-auto mb-2" />
             <p className="text-sm text-gray-500 mt-1">Inicia sesión en tu cuenta</p>
           </div>
 
