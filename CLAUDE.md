@@ -202,7 +202,7 @@ app/
   | Agenda | ✅✅ | ✅✅ | ✅ solo suyas |
   | Doctores | ✅✅ | ✅ ver+disponibilidad | ✅ solo su perfil |
   | Conversaciones | ✅✅ | ✅✅ | ❌❌ |
-  | Equipo | ✅✅ | ✅ solo lectura | ❌❌ |
+  | Equipo | ✅✅ | ✅❌ | ❌❌ |
   | Configuración | ✅✅ | ✅✅ | Solo Integraciones |
 
 ### Onboarding Wizard (13 Mayo 2026)
@@ -416,16 +416,57 @@ app/
 - 1 médico (Dr. Carlos Lopera), Google Calendar conectado
 - 100 leads, 100 citas, plan Growth
 
----
+### Sesión 27 Mayo 2026 — Parte 2
 
-### Sistema de Referidos (27 Mayo 2026)
+#### Dashboard rediseño completo
+- ✅ KPI cards: Ingresos estimados (citas + procedimientos), Citas del período, Tasa de asistencia, Leads nuevos
+- ✅ Ingresos = solo appointments con status completed × price
+- ✅ Tasa asistencia = completed / (completed + no_show + cancelled), excluye scheduled
+- ✅ Tendencia mensual: barras azules (agendadas), verdes (asistencias), moradas (finalizados), naranjas (procedimiento)
+- ✅ Procedimientos y finalizados anclados a scheduled_at de última cita completed del lead (no created_at del lead)
+- ✅ Ingresos por mes: bar chart stacked (verde=citas, violeta=procedimientos) con labels compactos (4.5M, 350K)
+- ✅ Leads por estado: barras horizontales con distribución del período
+- ✅ Actividad de citas: heatmap compacto últimos 30 días + métricas (semana, progreso mes, vs mes anterior)
+- ✅ Agendamientos por día: bar chart últimos 14 días por created_at (no scheduled_at)
+- ✅ Tabla por médico: columna Ingresos agregada (SUM price WHERE completed + procedimientos)
+- ✅ Razones de cancelación y no-show al final (desde appointments.metadata.cancellation_reason)
+
+#### Procedimientos
+- ✅ Tabla `procedures`: id, organization_id, name, price, is_active
+- ✅ CRUD en /settings/procedures con cards UI
+- ✅ API /api/procedures: GET, POST, PATCH, DELETE — filtrado por organization_id, service role
+- ✅ CRM: dropdown "Procedimiento realizado" cuando lead status = en_tratamiento_medico
+- ✅ `leads.procedure_id` y `leads.procedure_price` guardan snapshot del procedimiento asignado
+- ✅ Dashboard: ingresos totales = citas completed + procedimientos. Chart stacked bar.
+
+#### Appointments — columnas nuevas
+- ✅ `appointment_type_id` UUID FK → appointment_types (guardar siempre al crear)
+- ✅ `modality` TEXT ('presencial' | 'virtual')
+- ✅ `price` INTEGER (precio COP al momento de crear la cita — snapshot)
+- ✅ Booking público y cita manual guardan los 3 campos
+- ✅ Backfill Bariatric Latam: todas las citas con price = 350000
+
+#### Permisos actualizados
+- ✅ Staff en /dashboard → redirect a /crm (no tiene acceso)
+- ✅ /team readOnly para staff (ve lista, no puede invitar/editar/eliminar)
+- ✅ /settings accesible para staff (todas las secciones)
+
+#### Sistema de referidos
 - ✅ Tabla `referral_codes`: CRUD completo desde superadmin `/admin/referrals`
-- ✅ Tabla `referral_uses`: registro de uso por organización (created en `/api/register/complete`)
+- ✅ Tabla `referral_uses`: registro de uso por organización
 - ✅ `organizations.referral_code_id`: FK al código usado en el registro
 - ✅ API `/api/referrals`: GET/POST/PATCH — superadmin only (verifica SUPERADMIN_EMAILS)
 - ✅ API `/api/referrals/validate?code=XXX`: endpoint público — valida código activo, no expirado, con cupo
-- ✅ `/register`: campo opcional "Código de referido" con validación en tiempo real (debounce 500ms), badge verde si válido
-- ✅ `/api/register/complete`: re-valida código server-side, guarda `referral_code_id` en org, inserta en `referral_uses`, incrementa `times_used`
+- ✅ `/register`: campo opcional "Código de referido" con validación en tiempo real (debounce 500ms)
+- ✅ Badge verde "Descuento de X% aplicado · Referido por [nombre]" si código válido
+- ✅ `/api/register/complete`: re-valida server-side, guarda `referral_code_id`, inserta en `referral_uses`, incrementa `times_used`
+- ✅ `/api/referrals/validate` excluido del middleware (ruta pública)
+
+#### Backfills
+- ✅ `appointments.created_at` corregido con fechas reales del CRM de Bariatric (99 registros)
+- ✅ `appointments.doctor_assignment_type` = patient_choice para todas las citas de Bariatric
+
+---
 
 ## 🔴 PRIORIDAD 1 — MVP Autoservicio
 _(cobro manual desde superadmin por ahora — sin tareas activas)_
@@ -478,6 +519,10 @@ const slug = resolvedParams['org-slug']
 **schedules no tiene organization_id — filtrar por doctor_id**
 
 **appointments tiene appointment_type_id, modality y price — siempre guardarlos al crear citas**
+
+**procedures: catálogo por organización, price se guarda como snapshot en leads.procedure_price al asignar**
+
+**Procedimientos y finalizados en dashboard se anclan a scheduled_at de última cita completed del lead, no a created_at**
 
 **`createServiceClient()` es SÍNCRONO — no usar await**
 
@@ -594,6 +639,9 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 - `appointment_types.price_virtual` INT (reemplaza price)
 - `appointments.metadata` JSONB (cancellation_reason, custom data)
 - `leads.metadata` JSONB (custom fields del formulario de agendamiento)
+- `leads.procedure_id` UUID FK → procedures (null si no tiene procedimiento asignado)
+- `leads.procedure_price` INTEGER (snapshot del precio al momento de asignar el procedimiento)
+- `procedures`: id, organization_id, name TEXT, price INTEGER, is_active BOOLEAN
 - `org_custom_fields`: organization_id, field_name, field_label, field_type, options[], source, sort_order, active
 - `referral_codes`: code (unique, uppercase), referrer_name, referrer_email, referrer_phone, discount_type (percentage|fixed_amount), discount_value, discount_duration_months, commission_type, commission_value, commission_duration_months, max_uses, times_used, is_active, expires_at
 - `referral_uses`: referral_code_id, organization_id, discount_applied, status (active|expired|cancelled), applied_at
