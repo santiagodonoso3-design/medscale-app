@@ -466,7 +466,7 @@ const slug = resolvedParams['org-slug']
 
 **schedules no tiene organization_id — filtrar por doctor_id**
 
-**appointments NO tiene appointment_type_id — no incluir en selects**
+**appointments tiene appointment_type_id, modality y price — siempre guardarlos al crear citas**
 
 **`createServiceClient()` es SÍNCRONO — no usar await**
 
@@ -556,6 +556,9 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 
 ### Base de Datos — columnas clave
 - `appointments.doctor_assignment_type` TEXT ('patient_choice' | 'auto_assigned')
+- `appointments.appointment_type_id` UUID FK → appointment_types (guardar siempre al crear)
+- `appointments.modality` TEXT ('presencial' | 'virtual')
+- `appointments.price` INTEGER (precio al momento de la cita)
 - `appointment_types.rr_count_all` BOOLEAN (default true)
 - `appointment_types.max_notice_days`, `buffer_before_min`, `buffer_after_min`
 - `appointment_types.doctor_ids` UUID[] (array de doctores vinculados)

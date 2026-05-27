@@ -202,11 +202,14 @@ export async function POST(request: Request) {
     if (bodyDoctorId && !assignmentMode && appointment_type_id) {
       const { data: typeData } = await supabase
         .from('appointment_types')
-        .select('assignment_mode, duration_minutes')
+        .select('assignment_mode, duration_minutes, price_presencial, price_virtual')
         .eq('id', appointment_type_id)
         .single()
       assignmentMode          = typeData?.assignment_mode ?? ''
       appointmentTypeDuration = (typeData?.duration_minutes as number) ?? null
+      appointmentTypePrice    = modality === 'virtual'
+        ? ((typeData?.price_virtual    as number) ?? null)
+        : ((typeData?.price_presencial as number) ?? null)
     }
 
     // Determine assignment type: patient chose explicitly vs system auto-assigned
@@ -278,6 +281,9 @@ export async function POST(request: Request) {
         notes: modality === 'virtual' ? 'Consulta virtual' : 'Consulta presencial',
         external_calendar_id: null,
         doctor_assignment_type: doctorAssignmentType,
+        appointment_type_id: appointment_type_id ?? null,
+        modality: modality ?? null,
+        price: appointmentTypePrice ?? null,
       })
       .select('id, manage_token')
       .single()

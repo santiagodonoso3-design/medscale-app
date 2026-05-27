@@ -164,6 +164,7 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
   const [locations, setLocations] = useState<any[]>([])
   const [schedules, setSchedules] = useState<ScheduleOption[]>([])
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([])
+  const [appointmentTypes, setAppointmentTypes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -192,6 +193,8 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
     patient_email: '',
     notes: '',
     lead_id: '',
+    appointment_type_id: '',
+    modality: 'presencial' as 'presencial' | 'virtual',
   })
   const [createStep, setCreateStep] = useState<'patient' | 'schedule'>('patient')
   const [patientMode, setPatientMode] = useState<'search' | 'new'>('new')
@@ -225,6 +228,7 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
       { data: doctorData, error: doctorError },
       { data: locationData, error: locationError },
       { data: aptData, error: aptError },
+      { data: aptTypeData },
     ] = await Promise.all([
       supabase.from('doctors').select('id, specialty, is_active, metadata').eq('is_active', true).order('created_at', { ascending: true }),
       supabase.from('locations').select('id, name').order('name', { ascending: true }),
@@ -236,6 +240,7 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
         if (doctorId) q = q.eq('doctor_id', doctorId)
         return q
       })(),
+      supabase.from('appointment_types').select('id, name, duration_minutes, modality, price_presencial, price_virtual').eq('active', true).order('name', { ascending: true }),
     ])
     if (doctorError || locationError || aptError) {
       setError(doctorError?.message || locationError?.message || aptError?.message || 'Error cargando datos')
@@ -245,6 +250,7 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
     setDoctors(doctorData || [])
     setLocations(locationData || [])
     setAppointments((aptData as unknown as AppointmentRecord[]) || [])
+    setAppointmentTypes(aptTypeData || [])
     if (doctorData && doctorData.length > 0) {
       const { data: schedData } = await supabase
         .from('schedules')
@@ -472,9 +478,13 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
       }
 
       const start = new Date(`${form.scheduled_date}T${form.scheduled_time}`)
+      const selectedType = appointmentTypes.find(t => t.id === form.appointment_type_id)
       const doctor = doctors.find(d => d.id === form.doctor_id)
-      const duration = doctor?.metadata?.default_duration ?? 30
+      const duration = selectedType?.duration_minutes ?? doctor?.metadata?.default_duration ?? 30
       const end = new Date(start.getTime() + duration * 60000)
+      const price = selectedType
+        ? (form.modality === 'virtual' ? (selectedType.price_virtual ?? null) : (selectedType.price_presencial ?? null))
+        : null
 
       const { error: aptErr } = await supabase.from('appointments').insert({
         doctor_id: form.doctor_id,
@@ -485,10 +495,13 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
         ends_at: end.toISOString(),
         status: 'scheduled',
         notes: form.notes || null,
+        appointment_type_id: form.appointment_type_id || null,
+        modality: form.modality || null,
+        price: price,
       })
       if (aptErr) throw aptErr
 
-      setForm({ doctor_id: doctors[0]?.id ?? '', location_id: locations[0]?.id ?? '', scheduled_date: '', scheduled_time: '', patient_name: '', patient_phone: '', patient_email: '', notes: '', lead_id: '' })
+      setForm({ doctor_id: doctors[0]?.id ?? '', location_id: locations[0]?.id ?? '', scheduled_date: '', scheduled_time: '', patient_name: '', patient_phone: '', patient_email: '', notes: '', lead_id: '', appointment_type_id: '', modality: 'presencial' as 'presencial' | 'virtual' })
       setLeadSearch('')
       setLeadResults([])
       setCreateStep('patient')
@@ -1050,6 +1063,24 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
               {/* PASO 2 — FECHA Y MÉDICO */}
               {createStep === 'schedule' && (
                 <div className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="text-xs font-medium text-slate-600">Tipo de cita</label>
+                      <select value={form.appointment_type_id} onChange={e => setForm(p => ({ ...p, appointment_type_id: e.target.value }))}
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Sin tipo de cita</option>
+                        {appointmentTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-600">Modalidad</label>
+                      <select value={form.modality} onChange={e => setForm(p => ({ ...p, modality: e.target.value as 'presencial' | 'virtual' }))}
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="presencial">Presencial</option>
+                        <option value="virtual">Virtual</option>
+                      </select>
+                    </div>
+                  </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <label className="text-xs font-medium text-slate-600">Médico</label>
