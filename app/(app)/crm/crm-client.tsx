@@ -26,8 +26,17 @@ interface Lead {
   status: string
   notes: string | null
   metadata: Record<string, string> | null
+  procedure_id: string | null
+  procedure_price: number | null
   created_at: string
   updated_at: string
+}
+
+interface ProcedureOption {
+  id: string
+  name: string
+  price: number
+  is_active: boolean
 }
 
 interface OrgField {
@@ -170,6 +179,9 @@ const APT_STATUS_LABELS: Record<string, string> = {
   cancelled:  'Cancelada',
   no_show:    'No show',
 }
+
+const formatCOP = (n: number) =>
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
 
 const fmtDate = (iso: string) =>
   new Intl.DateTimeFormat('es-CO', {
@@ -354,6 +366,10 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
   const [newFieldForm,  setNewFieldForm]  = useState({ field_label: '', field_type: 'text', options: '' })
   const [savingField,   setSavingField]   = useState(false)
 
+  // procedures
+  const [procedures,       setProcedures]       = useState<ProcedureOption[]>([])
+  const [editProcedureId,  setEditProcedureId]  = useState<string | null>(null)
+
   const supabase = createClient()
 
   useEffect(() => {
@@ -369,6 +385,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
         await reloadOrgFields(orgId)
       }
       await loadLeads()
+      fetch('/api/procedures').then(r => r.ok ? r.json() : []).then(setProcedures).catch(() => {})
     }
     init()
   }, [])
@@ -403,7 +420,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
     try {
       const { data, error: err } = await supabase
         .from('leads')
-        .select('id, contact_name, contact_last_name, contact_phone, contact_email, contact_cedula, source, status, notes, metadata, created_at, updated_at')
+        .select('id, contact_name, contact_last_name, contact_phone, contact_email, contact_cedula, source, status, notes, metadata, procedure_id, procedure_price, created_at, updated_at')
         .order('created_at', { ascending: false })
       if (err) { setError('Error cargando leads'); return }
       const normalized = (data ?? []).map(l => ({ ...l, status: STATUS_NORMALIZE[l.status] ?? l.status }))
@@ -499,6 +516,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
 
   const openLeadDetail = async (lead: Lead) => {
     setSelectedLead(lead)
+    setEditProcedureId(lead.procedure_id ?? null)
     setEditForm({
       contact_name:      lead.contact_name      ?? '',
       contact_last_name: lead.contact_last_name ?? '',
@@ -544,6 +562,10 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
       status:            editForm.status,
       source:            editForm.source                   || null,
       metadata:          Object.keys(mergedMetadata).length > 0 ? mergedMetadata : null,
+      procedure_id:      editProcedureId || null,
+      procedure_price:   editProcedureId
+        ? (procedures.find(p => p.id === editProcedureId)?.price ?? null)
+        : null,
       updated_at:        now,
     }).eq('id', selectedLead.id)
     if (error) { setSaveLeadError(error.message); setSavingLead(false); return }
@@ -1066,6 +1088,26 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                     {STATUS_PIPELINE.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                   </select>
                 </div>
+                {(editForm.status === 'en_tratamiento_medico' || selectedLead.procedure_id) && (
+                  <div className="col-span-2">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Procedimiento realizado</label>
+                    <select
+                      value={editProcedureId ?? ''}
+                      onChange={e => setEditProcedureId(e.target.value || null)}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">— Sin procedimiento —</option>
+                      {procedures.filter(p => p.is_active || p.id === editProcedureId).map(p => (
+                        <option key={p.id} value={p.id}>{p.name} — {formatCOP(p.price)}</option>
+                      ))}
+                    </select>
+                    {editProcedureId && selectedLead.procedure_price != null && (
+                      <p className="mt-1 text-xs text-slate-400">
+                        Precio registrado: <span className="font-semibold text-slate-600">{formatCOP(selectedLead.procedure_price)}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
                 {orgFields.length > 0 && orgFields.map(f => (
                   <div key={f.field_name} className={f.field_type === 'textarea' ? 'col-span-2' : ''}>
                     <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">{f.field_label}</label>
