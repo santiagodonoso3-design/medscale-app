@@ -233,10 +233,6 @@ export async function POST(request: Request) {
     const duration = appointmentTypeDuration ?? 30
 
     // Create lead
-    const leadNotes = custom_fields
-      ? `Cédula: ${cedula}\n${Object.entries(custom_fields).map(([k, v]) => `${k}: ${v}`).join('\n')}`
-      : `Cédula: ${cedula}`
-
     const { data: lead, error: leadError } = await supabase
       .from('leads')
       .insert({
@@ -245,8 +241,10 @@ export async function POST(request: Request) {
         contact_last_name: patient_last_name || null,
         contact_phone: phone,
         contact_email: email || null,
+        contact_cedula: cedula || null,
         source: 'book',
-        notes: leadNotes,
+        notes: null,
+        metadata: custom_fields && Object.keys(custom_fields).length > 0 ? custom_fields : null,
         status: 'cita_valoracion_agendada',
       })
       .select('id')
