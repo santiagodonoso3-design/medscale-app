@@ -8,11 +8,12 @@ interface SettingsNavProps {
 }
 
 const ALL_TABS = [
-  { label: 'General',        href: '/settings/general' },
-  { label: 'Sedes',          href: '/settings/locations' },
-  { label: 'Tipos de cita',  href: '/settings/appointment-types' },
-  { label: 'Notificaciones', href: '/settings/notifications' },
-  { label: 'Integraciones',  href: '/settings/integrations' },
+  { label: 'General',          href: '/settings/general' },
+  { label: 'Sedes',            href: '/settings/locations' },
+  { label: 'Tipos de cita',    href: '/settings/appointment-types' },
+  { label: 'Procedimientos',   href: '/settings/procedures' },
+  { label: 'Notificaciones',   href: '/settings/notifications' },
+  { label: 'Integraciones',    href: '/settings/integrations' },
 ]
 
 const DOCTOR_TABS = [

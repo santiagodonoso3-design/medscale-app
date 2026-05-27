@@ -245,8 +245,10 @@ app/
 - ✅ Filtrado por organization_id (seguridad multi-tenant)
 
 ### Settings /settings
-- ✅ General, Sedes, Tipos de cita, Notificaciones (global), Integraciones
+- ✅ General, Sedes, Tipos de cita, Procedimientos, Notificaciones (global), Integraciones
 - ✅ Settings layout filtra tabs según rol (doctor solo ve Integraciones)
+- ✅ /settings/procedures: CRUD de procedimientos (nombre, precio COP, activo/inactivo) con cards UI
+- ✅ API /api/procedures: GET, POST, PATCH, DELETE — filtrado por organization_id, service role
 
 ### Google Calendar Integration
 - ✅ OAuth 2.0 completo por médico desde /settings/integrations
