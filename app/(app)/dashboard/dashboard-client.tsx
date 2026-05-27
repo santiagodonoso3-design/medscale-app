@@ -3,11 +3,9 @@
 import { useState, useTransition, useMemo, useRef } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, ReferenceLine, LabelList,
+  Tooltip, ResponsiveContainer, ReferenceLine, Legend,
 } from 'recharts'
-import {
-  Loader2, ArrowRight,
-} from 'lucide-react'
+import { Loader2, AlertTriangle } from 'lucide-react'
 import type { RawDashboardData } from './actions'
 import { getDashboardRawData } from './actions'
 
@@ -19,6 +17,18 @@ const _nowBogota   = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: 
 const CURRENT_YEAR  = Number(_nowBogota.slice(0, 4))
 const CURRENT_MONTH = Number(_nowBogota.slice(5, 7))
 
+const TODAY_LABEL = new Intl.DateTimeFormat('es-CO', {
+  day: 'numeric', month: 'long', timeZone: 'America/Bogota',
+}).format(new Date())
+
+const APT_STATUS_BADGE: Record<string, { text: string; cls: string }> = {
+  scheduled: { text: 'Programada',  cls: 'bg-blue-100 text-blue-700' },
+  confirmed: { text: 'Confirmada',  cls: 'bg-sky-100 text-sky-700' },
+  completed: { text: 'Completada',  cls: 'bg-emerald-100 text-emerald-700' },
+  cancelled: { text: 'Cancelada',   cls: 'bg-slate-100 text-slate-400' },
+  no_show:   { text: 'No asistió',  cls: 'bg-red-100 text-red-700' },
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function pad(n: number) { return String(n).padStart(2, '0') }
@@ -29,7 +39,7 @@ function bogotaDateStr(date: Date): string {
 
 function getWeekRange(offset: number): { from: string; to: string } {
   const d = new Date(bogotaDateStr(new Date()) + 'T12:00:00')
-  const dow = d.getDay() === 0 ? 6 : d.getDay() - 1  // Mon=0
+  const dow = d.getDay() === 0 ? 6 : d.getDay() - 1
   const mon = new Date(d)
   mon.setDate(d.getDate() - dow + offset * 7)
   const sun = new Date(mon)
@@ -37,25 +47,49 @@ function getWeekRange(offset: number): { from: string; to: string } {
   return { from: bogotaDateStr(mon), to: bogotaDateStr(sun) }
 }
 
-function convPct(num: number, den: number): number | null {
-  if (den === 0) return null
-  return Math.round((num / den) * 100)
+function formatCOP(n: number): string {
+  return '$' + Math.round(n).toLocaleString('es-CO')
 }
 
-// ── Metric computation ────────────────────────────────────────────────────────
+function formatRevAxis(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
+  if (value >= 1_000) return `${Math.round(value / 1_000)}K`
+  return String(value)
+}
+
+function formatTime12h(iso: string): string {
+  return new Intl.DateTimeFormat('es-CO', {
+    hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Bogota',
+  }).format(new Date(iso))
+}
+
+function prevPeriodMonths(months: number[]): number[] | null {
+  const n = months.length
+  const sorted = [...months].sort((a, b) => a - b)
+  if (sorted[0] - n < 1) return null
+  return sorted.map(m => m - n)
+}
+
+// ── Metric types ──────────────────────────────────────────────────────────────
 
 interface Metrics {
-  leadsCount: number
+  revenueTotal: number
+  revenuePrev: number | null
   citasCount: number
-  attendedCount: number
+  completedCount: number
+  noShowCount: number
   cancelledCount: number
+  pendingCount: number
+  attendanceRate: number | null
+  leadsCount: number
+  leadsWithoutAppointment: number
+  funnelCitasConLead: number
+  funnelAsistieron: number
   inProcedureCount: number
-  finalizedCount: number
-  monthlyLines: { label: string; agendadas: number; asistencias: number; procedimiento: number; finalizados: number }[]
-  avgAsistencias: number
-  thisWeek: number
-  lastWeek: number
-  monthAvg: number
+  monthlyRevenue: { label: string; revenue: number }[]
+  avgMonthlyRevenue: number
+  monthlyNoShows: { label: string; no_shows: number; cancelled: number }[]
+  noShowRate: number | null
   doctorStats: {
     name: string
     total: number
@@ -64,34 +98,104 @@ interface Metrics {
     autoAssigned: number
     patientChosen: number
     inProcedure: number
+    revenue: number
   }[]
+  thisWeek: number
+  lastWeek: number
+  monthAvg: number
+  avgAsistencias: number
+  monthlyLines: { label: string; agendadas: number; asistencias: number; procedimiento: number }[]
 }
 
-function computeMetrics(data: RawDashboardData, months: number[], year: number, currentYear: number, currentMonth: number): Metrics {
+// ── computeMetrics ────────────────────────────────────────────────────────────
+
+function computeMetrics(
+  data: RawDashboardData,
+  months: number[],
+  year: number,
+  currentYear: number,
+  currentMonth: number,
+): Metrics {
   const { appointments, yearLeads, doctors } = data
   const monthSet = new Set(months)
   const inPeriod = (ym: string) =>
     Number(ym.slice(0, 4)) === year && monthSet.has(Number(ym.slice(5)))
 
-  // Funnel
-  const leadsCount        = yearLeads.filter(l => inPeriod(l.ym)).length
-  const citasCount        = appointments.filter(a => inPeriod(a.ym)).length
-  const attendedCount     = appointments.filter(a => inPeriod(a.ym) && a.status === 'completed').length
-  const cancelledCount    = appointments.filter(a => inPeriod(a.ym) && a.status === 'cancelled').length
-  const inProcedureCount  = yearLeads.filter(l => inPeriod(l.ym) && l.status === 'en_tratamiento_medico').length
-  const finalizedCount    = yearLeads.filter(l => inPeriod(l.ym) && l.status === 'finalizado').length
+  const periodApts = appointments.filter(a => inPeriod(a.ym))
 
-  // Monthly lines — always full year, ignoring month filter
+  // KPI 1: Revenue
+  const revenueTotal = periodApts
+    .filter(a => a.status === 'completed' && a.price != null)
+    .reduce((s, a) => s + (a.price ?? 0), 0)
+
+  const prevMs = prevPeriodMonths(months)
+  const revenuePrev = prevMs !== null
+    ? appointments
+        .filter(a => {
+          const mNum = Number(a.ym.slice(5))
+          const yNum = Number(a.ym.slice(0, 4))
+          return yNum === year && prevMs.includes(mNum) && a.status === 'completed' && a.price != null
+        })
+        .reduce((s, a) => s + (a.price ?? 0), 0)
+    : null
+
+  // KPI 2: Appointment counts
+  const citasCount     = periodApts.length
+  const completedCount = periodApts.filter(a => a.status === 'completed').length
+  const noShowCount    = periodApts.filter(a => a.status === 'no_show').length
+  const cancelledCount = periodApts.filter(a => a.status === 'cancelled').length
+  const pendingCount   = periodApts.filter(a => a.status === 'scheduled' || a.status === 'confirmed').length
+
+  // KPI 3: Attendance rate
+  const denomAtt = completedCount + noShowCount + cancelledCount
+  const attendanceRate = denomAtt > 0 ? Math.round((completedCount / denomAtt) * 100) : null
+
+  // KPI 4: Leads
+  const leadsCount = yearLeads.filter(l => inPeriod(l.ym)).length
+  const leadIdsWithApt = new Set(periodApts.map(a => a.lead_id).filter(Boolean))
+  const leadsWithoutAppointment = yearLeads.filter(l => inPeriod(l.ym) && !leadIdsWithApt.has(l.id)).length
+
+  // Funnel
+  const funnelCitasConLead = yearLeads.filter(l => inPeriod(l.ym) && leadIdsWithApt.has(l.id)).length
+  const leadIdsCompleted = new Set(
+    periodApts.filter(a => a.status === 'completed').map(a => a.lead_id).filter(Boolean)
+  )
+  const funnelAsistieron = yearLeads.filter(l => inPeriod(l.ym) && leadIdsCompleted.has(l.id)).length
+  const inProcedureCount = yearLeads.filter(l => inPeriod(l.ym) && l.status === 'en_tratamiento_medico').length
+
+  // Monthly data (always full year, not filtered by month)
   const maxMonth = year === currentYear ? currentMonth : 12
   const allYearMonths = Array.from({ length: maxMonth }, (_, i) => i + 1)
+
+  const monthlyRevenue = allYearMonths.map(m => {
+    const ym = `${year}-${pad(m)}`
+    const rev = appointments
+      .filter(a => a.ym === ym && a.status === 'completed' && a.price != null)
+      .reduce((s, a) => s + (a.price ?? 0), 0)
+    return { label: MONTH_LABELS[m - 1], revenue: rev }
+  })
+  const activeRevMonths = monthlyRevenue.filter(mr => mr.revenue > 0)
+  const avgMonthlyRevenue = activeRevMonths.length > 0
+    ? Math.round(activeRevMonths.reduce((s, mr) => s + mr.revenue, 0) / activeRevMonths.length)
+    : 0
+
+  const monthlyNoShows = allYearMonths.map(m => {
+    const ym = `${year}-${pad(m)}`
+    return {
+      label:     MONTH_LABELS[m - 1],
+      no_shows:  appointments.filter(a => a.ym === ym && a.status === 'no_show').length,
+      cancelled: appointments.filter(a => a.ym === ym && a.status === 'cancelled').length,
+    }
+  })
+  const noShowRate = citasCount > 0 ? Math.round((noShowCount / citasCount) * 100) : null
+
   const monthlyLines = allYearMonths.map(m => {
-    const ym_str = `${year}-${pad(m)}`
+    const ym = `${year}-${pad(m)}`
     return {
       label:         MONTH_LABELS[m - 1],
-      agendadas:     appointments.filter(a => a.ym === ym_str).length,
-      asistencias:   appointments.filter(a => a.ym === ym_str && a.status === 'completed').length,
-      procedimiento: yearLeads.filter(l => l.ym === ym_str && l.status === 'en_tratamiento_medico').length,
-      finalizados:   yearLeads.filter(l => l.ym === ym_str && l.status === 'finalizado').length,
+      agendadas:     appointments.filter(a => a.ym === ym).length,
+      asistencias:   appointments.filter(a => a.ym === ym && a.status === 'completed').length,
+      procedimiento: yearLeads.filter(l => l.ym === ym && l.status === 'en_tratamiento_medico').length,
     }
   })
   const activeMths = monthlyLines.filter(ml => ml.agendadas > 0)
@@ -99,7 +203,7 @@ function computeMetrics(data: RawDashboardData, months: number[], year: number, 
     ? Math.round(activeMths.reduce((s, ml) => s + ml.asistencias, 0) / activeMths.length)
     : 0
 
-  // Weekly (uses raw scheduled_at, independent of year filter)
+  // Weekly
   const thisWeekRange = getWeekRange(0)
   const lastWeekRange = getWeekRange(-1)
   const thisWeek = appointments.filter(a => {
@@ -118,21 +222,23 @@ function computeMetrics(data: RawDashboardData, months: number[], year: number, 
 
   // Doctor stats
   const leadDoctorMap = new Map<string, Set<string>>()
-  appointments.forEach(a => {
-    if (!inPeriod(a.ym) || !a.lead_id) return
+  periodApts.forEach(a => {
+    if (!a.lead_id) return
     if (!leadDoctorMap.has(a.lead_id)) leadDoctorMap.set(a.lead_id, new Set())
     leadDoctorMap.get(a.lead_id)!.add(a.doctor_id)
   })
 
   const docMap = new Map(doctors.map(d => [
-    d.id, { name: d.name, total: 0, completed: 0, autoAssigned: 0, patientChosen: 0, inProcedure: 0 }
+    d.id, { name: d.name, total: 0, completed: 0, autoAssigned: 0, patientChosen: 0, inProcedure: 0, revenue: 0 },
   ]))
-  appointments.forEach(a => {
-    if (!inPeriod(a.ym)) return
+  periodApts.forEach(a => {
     const e = docMap.get(a.doctor_id)
     if (!e) return
     e.total++
-    if (a.status === 'completed') e.completed++
+    if (a.status === 'completed') {
+      e.completed++
+      if (a.price != null) e.revenue += a.price
+    }
     if (a.doctor_assignment_type === 'patient_choice') e.patientChosen++
     else e.autoAssigned++
   })
@@ -149,13 +255,20 @@ function computeMetrics(data: RawDashboardData, months: number[], year: number, 
     .sort((a, b) => b.total - a.total)
 
   return {
-    leadsCount, citasCount, attendedCount, cancelledCount, inProcedureCount, finalizedCount,
-    monthlyLines, avgAsistencias, thisWeek, lastWeek, monthAvg, doctorStats,
+    revenueTotal, revenuePrev,
+    citasCount, completedCount, noShowCount, cancelledCount, pendingCount,
+    attendanceRate,
+    leadsCount, leadsWithoutAppointment,
+    funnelCitasConLead, funnelAsistieron, inProcedureCount,
+    monthlyRevenue, avgMonthlyRevenue,
+    monthlyNoShows, noShowRate,
+    doctorStats,
+    thisWeek, lastWeek, monthAvg,
+    avgAsistencias, monthlyLines,
   }
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-
 
 function InfoTooltip({ text }: { text: string }) {
   const [show, setShow] = useState(false)
@@ -203,6 +316,18 @@ function BarTooltip({ active, payload, label }: any) {
   )
 }
 
+function RevenueTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg text-sm space-y-1">
+      <p className="font-semibold text-slate-700">{label}</p>
+      {payload.map((p: any) => (
+        <p key={p.dataKey} style={{ color: p.color }}>{p.name}: <strong>{formatCOP(p.value)}</strong></p>
+      ))}
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function DashboardClient({
@@ -234,11 +359,11 @@ export function DashboardClient({
     })
   }
 
-  function toggleMonth(m: number) {
+  function toggleMonth(mo: number) {
     setSelectedMonths(prev =>
-      prev.includes(m)
-        ? prev.length > 1 ? prev.filter(x => x !== m) : prev
-        : [...prev, m].sort((a, b) => a - b)
+      prev.includes(mo)
+        ? prev.length > 1 ? prev.filter(x => x !== mo) : prev
+        : [...prev, mo].sort((a, b) => a - b)
     )
   }
 
@@ -247,23 +372,33 @@ export function DashboardClient({
 
   const m = useMemo(
     () => computeMetrics(rawData, selectedMonths, selectedYear, CURRENT_YEAR, CURRENT_MONTH),
-    [rawData, selectedMonths, selectedYear]
+    [rawData, selectedMonths, selectedYear],
   )
 
-  const funnelSteps = [
-    { label: 'Leads',            count: m.leadsCount,       bg: 'bg-slate-100',  text: 'text-slate-700' },
-    { label: 'Citas totales',    count: m.citasCount,       bg: 'bg-violet-50',  text: 'text-violet-700' },
-    { label: 'Asistieron',       count: m.attendedCount,    bg: 'bg-emerald-50', text: 'text-emerald-700' },
-    { label: 'En procedimiento', count: m.inProcedureCount, bg: 'bg-amber-50',  text: 'text-amber-700' },
-    { label: 'Finalizados',      count: m.finalizedCount,   bg: 'bg-blue-50',   text: 'text-blue-700' },
+  const funnelData = [
+    { label: 'Leads',          count: m.leadsCount,          color: 'bg-slate-400' },
+    { label: 'Cita agendada',  count: m.funnelCitasConLead,  color: 'bg-violet-500' },
+    { label: 'Asistió',        count: m.funnelAsistieron,    color: 'bg-emerald-500' },
+    { label: 'En tratamiento', count: m.inProcedureCount,    color: 'bg-amber-500' },
   ]
+  const funnelMax = Math.max(...funnelData.map(f => f.count), 1)
 
   const weekMax = Math.max(m.thisWeek, m.lastWeek, m.monthAvg, 1)
+
+  const hasRevenue = m.monthlyRevenue.some(mr => mr.revenue > 0)
+  const isHighNoShow = m.noShowRate !== null && m.noShowRate > 15
+
+  const revChangeDir  = m.revenuePrev != null && m.revenuePrev > 0 && m.revenueTotal !== m.revenuePrev
+    ? m.revenueTotal > m.revenuePrev ? 'up' : 'down'
+    : null
+  const revChangePct  = revChangeDir && m.revenuePrev
+    ? Math.round(Math.abs((m.revenueTotal - m.revenuePrev) / m.revenuePrev) * 100)
+    : null
 
   return (
     <div className="space-y-6">
 
-      {/* Header + filtros */}
+      {/* ── Header + filtros ──────────────────────────────────────────────── */}
       <div className="rounded-3xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -297,105 +432,210 @@ export function DashboardClient({
         </div>
       </div>
 
-      {/* Bloque 1 — Funnel visual */}
-      <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          {funnelSteps.map((step, i) => (
-            <div key={step.label} className="flex items-center gap-2">
-              <div className={`rounded-2xl ${step.bg} px-6 py-5 text-center min-w-[120px]`}>
-                <p className={`text-4xl font-black ${step.text}`}>{step.count}</p>
-                <p className="mt-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{step.label}</p>
-                {i > 0 && (() => {
-                  const prev = funnelSteps[i - 1].count
-                  const pct = prev > 0 ? Math.round((step.count / prev) * 100) : null
-                  return pct !== null ? (
-                    <p className={`mt-1 text-sm font-bold ${pct >= 50 ? 'text-emerald-500' : pct >= 25 ? 'text-amber-500' : 'text-red-400'}`}>
-                      {pct}%
-                    </p>
-                  ) : null
-                })()}
-              </div>
-              {i < funnelSteps.length - 1 && (
-                <ArrowRight className="h-5 w-5 text-slate-300 shrink-0" />
-              )}
-            </div>
-          ))}
+      {/* ── Fila 1: 4 KPIs ───────────────────────────────────────────────── */}
+      <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 transition-opacity ${isPending ? 'opacity-50' : ''}`}>
+
+        {/* KPI 1: Ingresos */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Ingresos estimados</p>
+          <p className="mt-1.5 text-2xl font-bold text-slate-900">{formatCOP(m.revenueTotal)}</p>
+          {revChangePct !== null ? (
+            <p className={`text-xs font-semibold mt-1 ${revChangeDir === 'up' ? 'text-emerald-600' : 'text-red-500'}`}>
+              {revChangeDir === 'up' ? '↑' : '↓'} {revChangePct}% vs período anterior
+            </p>
+          ) : (
+            <p className="text-xs text-slate-400 mt-1">Citas completadas</p>
+          )}
         </div>
-        <div className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-1">
-          <p className="text-xs text-slate-400">
-            Canceladas en el período: <span className="font-semibold text-slate-600">{m.cancelledCount}</span>
-            {m.citasCount > 0 && (
-              <span className="ml-1 font-semibold text-red-400">
-                ({Math.round((m.cancelledCount / m.citasCount) * 100)}%)
-              </span>
-            )}
+
+        {/* KPI 2: Citas del período */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Citas del período</p>
+          <p className="mt-1.5 text-2xl font-bold text-slate-900">{m.citasCount}</p>
+          <p className="text-xs text-slate-400 mt-1">
+            <span className="text-emerald-600 font-semibold">{m.completedCount}</span> completadas ·{' '}
+            <span className="text-blue-600 font-semibold">{m.pendingCount}</span> pendientes
+          </p>
+        </div>
+
+        {/* KPI 3: Tasa de asistencia */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Tasa de asistencia</p>
+          {m.attendanceRate !== null ? (
+            <>
+              <p className={`mt-1.5 text-2xl font-bold ${
+                m.attendanceRate >= 80 ? 'text-emerald-600' :
+                m.attendanceRate >= 60 ? 'text-amber-500' : 'text-red-500'
+              }`}>{m.attendanceRate}%</p>
+              <p className="text-xs text-slate-400 mt-1">
+                <span className="text-red-500 font-semibold">{m.noShowCount}</span> no asistieron
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="mt-1.5 text-2xl font-bold text-slate-300">—</p>
+              <p className="text-xs text-slate-400 mt-1">Sin citas finalizadas</p>
+            </>
+          )}
+        </div>
+
+        {/* KPI 4: Leads nuevos */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Leads nuevos</p>
+          <p className="mt-1.5 text-2xl font-bold text-slate-900">{m.leadsCount}</p>
+          <p className="text-xs text-slate-400 mt-1">
+            <span className="text-amber-500 font-semibold">{m.leadsWithoutAppointment}</span> sin cita agendada
           </p>
         </div>
       </div>
 
-      {/* Bloque 2 — Tendencia mensual (ancho completo) */}
-      <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
-        <h2 className="text-base font-semibold text-slate-900">Tendencia mensual</h2>
-        <p className="mt-0.5 mb-4 text-xs text-slate-400">Agendadas vs Asistencias · año completo</p>
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={m.monthlyLines} margin={{ top: 20, right: 16, left: -20, bottom: 0 }} barCategoryGap="20%" barGap={2}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-            <Tooltip content={<BarTooltip />} cursor={{ fill: '#f8fafc' }} />
-            <Legend wrapperStyle={{ fontSize: 11, paddingTop: 12 }} />
-            {m.avgAsistencias > 0 && (
-              <ReferenceLine y={m.avgAsistencias} stroke="#10b981" strokeDasharray="5 5" strokeWidth={1.5}
-                label={{ value: `Prom. ${m.avgAsistencias}`, position: 'insideTopLeft', fontSize: 10, fill: '#10b981' }} />
-            )}
-            <Bar dataKey="agendadas" name="Agendadas" fill="#6366f1" radius={[4,4,0,0]}>
-              <LabelList dataKey="agendadas" position="top" style={{ fontSize: 9, fill: '#6366f1', fontWeight: 600 }} />
-            </Bar>
-            <Bar dataKey="asistencias" name="Asistencias" fill="#10b981" radius={[4,4,0,0]}>
-              <LabelList dataKey="asistencias" position="top" style={{ fontSize: 9, fill: '#10b981', fontWeight: 600 }} />
-            </Bar>
-            <Bar dataKey="procedimiento" name="Procedimiento" fill="#f59e0b" radius={[4,4,0,0]}>
-              <LabelList dataKey="procedimiento" position="top" style={{ fontSize: 9, fill: '#f59e0b', fontWeight: 600 }} />
-            </Bar>
-            <Bar dataKey="finalizados" name="Finalizados" fill="#3b82f6" radius={[4,4,0,0]}>
-              <LabelList dataKey="finalizados" position="top" style={{ fontSize: 9, fill: '#3b82f6', fontWeight: 600 }} />
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      {/* ── Fila 2: Hoy + Ingresos por mes ───────────────────────────────── */}
+      <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 transition-opacity ${isPending ? 'opacity-50' : ''}`}>
 
-      {/* Bloque 3 — Agendamiento semanal (ancho completo) */}
-      <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
-        <h2 className="text-base font-semibold text-slate-900">Agendamiento semanal</h2>
-        <p className="mt-0.5 mb-5 text-xs text-slate-400">Citas no canceladas</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {[
-            { label: 'Esta semana',     value: m.thisWeek, bg: 'bg-blue-50',   text: 'text-blue-700',   bar: 'bg-blue-500' },
-            { label: 'Semana anterior', value: m.lastWeek, bg: 'bg-slate-50',  text: 'text-slate-700',  bar: 'bg-slate-400' },
-            { label: 'Prom. del mes',   value: m.monthAvg, bg: 'bg-violet-50', text: 'text-violet-700', bar: 'bg-violet-500', suffix: '/sem' },
-          ].map(item => (
-            <div key={item.label} className={`rounded-2xl ${item.bg} px-4 py-3.5`}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-medium text-slate-500">{item.label}</p>
-                <p className={`text-xl font-bold ${item.text}`}>{item.value}{item.suffix ?? ''}</p>
-              </div>
-              <div className="h-1.5 bg-white/60 rounded-full overflow-hidden">
-                <div
-                  className={`h-full ${item.bar} rounded-full transition-all`}
-                  style={{ width: `${Math.round((item.value / weekMax) * 100)}%` }}
-                />
-              </div>
+        {/* Citas de hoy */}
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-base font-semibold text-slate-900">Hoy, {TODAY_LABEL}</h2>
+          <p className="text-xs text-slate-400 mt-0.5 mb-4">Citas del día</p>
+          {rawData.todayAppointments.length === 0 ? (
+            <div className="flex items-center justify-center py-10">
+              <p className="text-sm text-slate-400">No hay citas programadas para hoy</p>
             </div>
-          ))}
+          ) : (
+            <div className="space-y-2">
+              {rawData.todayAppointments.map(apt => {
+                const badge = APT_STATUS_BADGE[apt.status] ?? { text: apt.status, cls: 'bg-slate-100 text-slate-600' }
+                return (
+                  <div key={apt.id} className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2.5">
+                    <span className="text-xs font-bold text-slate-700 w-[68px] shrink-0 tabular-nums">
+                      {formatTime12h(apt.scheduled_at)}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-900 truncate">
+                        {apt.patientName || 'Sin nombre'}
+                      </p>
+                      {apt.doctorName && (
+                        <p className="text-[10px] text-slate-400 truncate">{apt.doctorName}</p>
+                      )}
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${badge.cls}`}>
+                      {badge.text}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
-        {m.lastWeek > 0 && (
-          <p className={`mt-3 text-xs font-semibold text-center ${m.thisWeek >= m.lastWeek ? 'text-emerald-600' : 'text-red-500'}`}>
-            {m.thisWeek >= m.lastWeek ? '↑' : '↓'} {Math.abs(m.thisWeek - m.lastWeek)} vs sem. anterior
-          </p>
-        )}
+
+        {/* Ingresos por mes */}
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-base font-semibold text-slate-900">Ingresos por mes</h2>
+          <p className="text-xs text-slate-400 mt-0.5 mb-4">Citas completadas · año completo</p>
+          {!hasRevenue ? (
+            <div className="flex items-center justify-center py-12">
+              <p className="text-sm text-slate-400">Sin ingresos registrados aún</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={m.monthlyRevenue} margin={{ top: 16, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <YAxis tickFormatter={formatRevAxis} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={44} />
+                <Tooltip content={<RevenueTooltip />} cursor={{ fill: '#f8fafc' }} />
+                {m.avgMonthlyRevenue > 0 && (
+                  <ReferenceLine y={m.avgMonthlyRevenue} stroke="#10b981" strokeDasharray="5 5" strokeWidth={1.5}
+                    label={{ value: `Prom. ${formatRevAxis(m.avgMonthlyRevenue)}`, position: 'insideTopLeft', fontSize: 10, fill: '#10b981' }} />
+                )}
+                <Bar dataKey="revenue" name="Ingresos" fill="#10b981" radius={[4,4,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
 
-      {/* Bloque 4 — Por médico */}
+      {/* ── Fila 3: Funnel + No-shows ─────────────────────────────────────── */}
+      <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 transition-opacity ${isPending ? 'opacity-50' : ''}`}>
+
+        {/* Funnel de conversión */}
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-base font-semibold text-slate-900">Funnel de conversión</h2>
+          <p className="text-xs text-slate-400 mt-0.5 mb-5">Del período seleccionado</p>
+          {m.leadsCount === 0 ? (
+            <div className="flex items-center justify-center py-10">
+              <p className="text-sm text-slate-400">Sin leads en el período</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {funnelData.map((step, i) => {
+                const prevCount = i > 0 ? funnelData[i - 1].count : null
+                const pct = prevCount !== null && prevCount > 0
+                  ? Math.round((step.count / prevCount) * 100)
+                  : null
+                const barWidth = Math.round((step.count / funnelMax) * 100)
+                return (
+                  <div key={step.label}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-medium text-slate-600">{step.label}</span>
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-sm font-bold text-slate-900">{step.count}</span>
+                        {pct !== null && (
+                          <span className={`text-xs font-semibold ${
+                            pct >= 50 ? 'text-emerald-600' : pct >= 25 ? 'text-amber-600' : 'text-red-500'
+                          }`}>{pct}%</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="h-5 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full ${step.color} rounded-full transition-all duration-500`}
+                        style={{ width: `${barWidth}%` }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* No-shows y cancelaciones */}
+        <div className={`rounded-3xl border bg-white p-6 shadow-sm transition-all ${
+          isHighNoShow ? 'border-red-300' : 'border-slate-200'
+        }`}>
+          <div className="flex items-start justify-between mb-1">
+            <h2 className="text-base font-semibold text-slate-900">No-shows y cancelaciones</h2>
+            {isHighNoShow && <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />}
+          </div>
+          <div className="flex items-end gap-5 mb-4">
+            <div>
+              <p className={`text-3xl font-black ${
+                m.noShowRate !== null && m.noShowRate > 15 ? 'text-red-500' :
+                m.noShowRate !== null && m.noShowRate > 5  ? 'text-amber-500' : 'text-slate-700'
+              }`}>
+                {m.noShowRate !== null ? `${m.noShowRate}%` : '—'}
+              </p>
+              <p className="text-xs text-slate-400">tasa no-show del período</p>
+            </div>
+            <div className="text-xs text-slate-500 space-y-0.5 mb-0.5">
+              <p><span className="font-semibold text-red-500">{m.noShowCount}</span> no asistieron</p>
+              <p><span className="font-semibold text-orange-500">{m.cancelledCount}</span> canceladas</p>
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={m.monthlyNoShows} margin={{ top: 4, right: 8, left: -20, bottom: 0 }} barGap={2} barCategoryGap="20%">
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip content={<BarTooltip />} cursor={{ fill: '#f8fafc' }} />
+              <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
+              <Bar dataKey="no_shows"  name="No asistió"  fill="#ef4444" radius={[3,3,0,0]} />
+              <Bar dataKey="cancelled" name="Cancelada"   fill="#f97316" radius={[3,3,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* ── Fila 4: Por médico ────────────────────────────────────────────── */}
       <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
         <h2 className="mb-4 text-base font-semibold text-slate-900">Por médico</h2>
         {m.doctorStats.length === 0 ? (
@@ -406,12 +646,13 @@ export function DashboardClient({
               <thead>
                 <tr className="border-b border-slate-100">
                   <th className="py-2 pr-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Médico</th>
+                  <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Ingresos</th>
                   <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Citas</th>
                   <th className="py-2 px-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400">Asistencias</th>
-                  <th className="py-2 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 w-36">Progreso asistencia</th>
+                  <th className="py-2 px-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 w-36">Progreso</th>
                   <th className="py-2 px-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Paciente / Auto
-                    <InfoTooltip text="Paciente: el paciente eligió este médico. Auto: el sistema lo asignó automáticamente. Útil para medir demanda real por médico." />
+                    <InfoTooltip text="Paciente: el paciente eligió este médico. Auto: el sistema lo asignó automáticamente." />
                   </th>
                   <th className="py-2 px-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-400">Procedimientos</th>
                 </tr>
@@ -420,6 +661,9 @@ export function DashboardClient({
                 {m.doctorStats.map(d => (
                   <tr key={d.name} className="hover:bg-slate-50 transition-colors">
                     <td className="py-3 pr-4 font-medium text-slate-800 text-xs leading-tight">{d.name}</td>
+                    <td className="py-3 px-3 text-right text-xs font-semibold text-emerald-700">
+                      {d.revenue > 0 ? formatCOP(d.revenue) : <span className="text-slate-300">—</span>}
+                    </td>
                     <td className="py-3 px-3 text-right font-semibold text-slate-700">{d.total}</td>
                     <td className="py-3 px-3 text-right">
                       <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
@@ -430,7 +674,9 @@ export function DashboardClient({
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden min-w-[60px]">
                           <div
-                            className={`h-full rounded-full transition-all ${d.pct >= 70 ? 'bg-emerald-500' : d.pct >= 40 ? 'bg-amber-400' : 'bg-red-400'}`}
+                            className={`h-full rounded-full transition-all ${
+                              d.pct >= 70 ? 'bg-emerald-500' : d.pct >= 40 ? 'bg-amber-400' : 'bg-red-400'
+                            }`}
                             style={{ width: `${d.pct}%` }}
                           />
                         </div>
@@ -438,20 +684,21 @@ export function DashboardClient({
                       </div>
                     </td>
                     <td className="py-3 px-3 text-center text-xs text-slate-600">
-                      {d.patientChosen > 0 || d.autoAssigned > 0
-                        ? <span>
-                            <span className="text-blue-600 font-semibold">{d.patientChosen}</span>
-                            <span className="text-slate-400"> / {d.autoAssigned}</span>
-                            {d.total > 0 && (
-                              <span className={`ml-1.5 text-xs font-bold ${
-                                Math.round((d.patientChosen / d.total) * 100) >= 50 ? 'text-emerald-600' : 'text-amber-500'
-                              }`}>
-                                {Math.round((d.patientChosen / d.total) * 100)}%
-                              </span>
-                            )}
-                          </span>
-                        : <span className="text-slate-300">—</span>
-                      }
+                      {d.patientChosen > 0 || d.autoAssigned > 0 ? (
+                        <span>
+                          <span className="text-blue-600 font-semibold">{d.patientChosen}</span>
+                          <span className="text-slate-400"> / {d.autoAssigned}</span>
+                          {d.total > 0 && (
+                            <span className={`ml-1.5 text-xs font-bold ${
+                              Math.round((d.patientChosen / d.total) * 100) >= 50 ? 'text-emerald-600' : 'text-amber-500'
+                            }`}>
+                              {Math.round((d.patientChosen / d.total) * 100)}%
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
                     </td>
                     <td className="py-3 px-3 text-center">
                       <span className="inline-flex rounded-full bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700">
@@ -464,6 +711,39 @@ export function DashboardClient({
             </table>
           </div>
         )}
+      </div>
+
+      {/* ── Fila 5: Agendamiento semanal (compacto) ───────────────────────── */}
+      <div className={`rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">Agendamiento semanal</h2>
+            <p className="text-xs text-slate-400">Citas no canceladas</p>
+          </div>
+          {m.lastWeek > 0 && (
+            <p className={`text-xs font-semibold ${m.thisWeek >= m.lastWeek ? 'text-emerald-600' : 'text-red-500'}`}>
+              {m.thisWeek >= m.lastWeek ? '↑' : '↓'} {Math.abs(m.thisWeek - m.lastWeek)} vs sem. anterior
+            </p>
+          )}
+        </div>
+        <div className="flex gap-3">
+          {[
+            { label: 'Esta semana',  value: m.thisWeek, textColor: 'text-blue-700',   bg: 'bg-blue-50',   bar: 'bg-blue-500' },
+            { label: 'Sem. anterior', value: m.lastWeek, textColor: 'text-slate-700',  bg: 'bg-slate-50',  bar: 'bg-slate-400' },
+            { label: 'Prom. mes',    value: m.monthAvg, textColor: 'text-violet-700', bg: 'bg-violet-50', bar: 'bg-violet-500', suffix: '/sem' },
+          ].map(item => (
+            <div key={item.label} className={`flex-1 rounded-xl ${item.bg} px-3 py-2.5`}>
+              <p className={`text-xl font-bold ${item.textColor}`}>{item.value}{item.suffix ?? ''}</p>
+              <p className="text-[10px] text-slate-500 mt-0.5">{item.label}</p>
+              <div className="mt-1.5 h-1 bg-white/60 rounded-full overflow-hidden">
+                <div
+                  className={`h-full ${item.bar} rounded-full`}
+                  style={{ width: `${Math.round((item.value / weekMax) * 100)}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
     </div>

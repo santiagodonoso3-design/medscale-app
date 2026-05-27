@@ -44,6 +44,9 @@ export interface RawAppointment {
   lead_id: string
   doctor_assignment_type: string | null
   ym: string  // YYYY-MM in Bogota tz, pre-computed server-side
+  price: number | null
+  modality: string | null
+  appointment_type_id: string | null
 }
 
 export interface RawLead {
@@ -90,7 +93,7 @@ export async function getDashboardRawData(year: number, orgId: string): Promise<
       { data: apptTypesRaw },
     ] = await Promise.all([
       admin.from('appointments')
-        .select('id, scheduled_at, status, doctor_id, lead_id, doctor_assignment_type')
+        .select('id, scheduled_at, status, doctor_id, lead_id, doctor_assignment_type, price, modality, appointment_type_id')
         .eq('organization_id', orgId)
         .gte('scheduled_at', fromDate)
         .lt('scheduled_at', toDate),
@@ -123,6 +126,9 @@ export async function getDashboardRawData(year: number, orgId: string): Promise<
       lead_id: a.lead_id ?? '',
       doctor_assignment_type: a.doctor_assignment_type ?? null,
       ym: toBogotaYM(a.scheduled_at),
+      price: typeof a.price === 'number' ? a.price : null,
+      modality: a.modality ?? null,
+      appointment_type_id: a.appointment_type_id ?? null,
     }))
 
     const yearLeads: RawLead[] = (yearLeadsRaw ?? []).map((l: any) => ({
