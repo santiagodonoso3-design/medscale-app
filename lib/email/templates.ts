@@ -222,6 +222,47 @@ export function bookingNotificationClinic(p: {
   </body></html>`
 }
 
+// ── Team invitation email ─────────────────────────────────────────────────────
+
+interface InvitationEmailParams {
+  orgName: string
+  inviteLink: string
+  role: string
+}
+
+const ROLE_DISPLAY: Record<string, string> = {
+  owner:  'Administrador',
+  staff:  'Colaborador',
+  doctor: 'Médico',
+}
+
+export function invitationEmail(p: InvitationEmailParams): string {
+  const SG = `font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif`
+  const IN = `font-family:'Inter',Helvetica,Arial,sans-serif`
+  const roleDisplay = ROLE_DISPLAY[p.role] ?? p.role
+
+  const bodyHtml = `
+    <h1 style="${SG};font-size:24px;font-weight:700;color:${C.fg};margin:0 0 16px;text-align:center">
+      Te han invitado a unirte
+    </h1>
+    <p style="${IN};font-size:15px;color:${C.muted};margin:0 0 28px;line-height:1.6;text-align:center">
+      Has sido invitado a unirte a <strong style="color:${C.fg}">${p.orgName}</strong>
+      en MedScale AI como <strong style="color:${C.fg}">${roleDisplay}</strong>.
+    </p>
+    <div style="text-align:center;margin-bottom:28px">
+      <a href="${p.inviteLink}"
+         style="display:inline-block;background:${C.primary};color:#ffffff;${SG};font-size:15px;font-weight:600;padding:12px 32px;border-radius:10px;text-decoration:none;letter-spacing:0.01em">
+        Aceptar invitación
+      </a>
+    </div>
+    <p style="${IN};font-size:12px;color:${C.muted};text-align:center;margin:0;line-height:1.6">
+      Si no esperabas esta invitación, puedes ignorar este correo.<br/>
+      El enlace expirará en 24 horas.
+    </p>
+  `
+  return brandShell('es', p.orgName, bodyHtml, C.primary)
+}
+
 // ── Internal clinic notification (legacy) ─────────────────────────────────────
 
 export function bookingNotificationDoctor(p: BookingEmailParams): string {
