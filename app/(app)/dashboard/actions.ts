@@ -5,10 +5,6 @@ import { createServiceClient } from '@/lib/supabase/server'
 
 // ── Timezone helpers (Bogotá = UTC-5, no DST) ────────────────────────────────
 
-function todayBogota(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
-}
-
 function toBogotaYM(iso: string): string {
   // en-CA gives "YYYY-MM-DD" — same reliable format as todayBogota()
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date(iso)).slice(0, 7)
@@ -22,14 +18,6 @@ function currentBogotaYear(): number {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export interface TodayAppointment {
-  id: string
-  scheduled_at: string
-  status: string
-  patientName: string | null
-  doctorName: string | null
-}
-
 export interface RawAppointment {
   id: string
   scheduled_at: string
@@ -41,6 +29,7 @@ export interface RawAppointment {
   price: number | null
   modality: string | null
   appointment_type_id: string | null
+  cancellationReason: string | null
 }
 
 export interface RawLead {
@@ -65,7 +54,6 @@ export interface RawDashboardData {
   appointments: RawAppointment[]
   yearLeads: RawLead[]
   doctors: RawDoctor[]
-  todayAppointments: TodayAppointment[]
   appointmentTypes: AppointmentTypeInfo[]
 }
 
@@ -74,20 +62,18 @@ export interface RawDashboardData {
 export async function getDashboardRawData(year: number, orgId: string): Promise<RawDashboardData | null> {
   noStore()
   try {
-    const admin  = createServiceClient()
-    const today  = todayBogota()
+    const admin    = createServiceClient()
     const fromDate = `${year}-01-01`
     const toDate   = `${year + 1}-01-01`
 
     const [
-      { data: apts, error: _aptError },
+      { data: apts },
       { data: yearLeadsRaw },
       { data: doctorsRaw },
-      { data: todayRaw },
       { data: apptTypesRaw },
     ] = await Promise.all([
       admin.from('appointments')
-        .select('id, scheduled_at, status, doctor_id, lead_id, doctor_assignment_type, price, modality, appointment_type_id')
+        .select('id, scheduled_at, status, doctor_id, lead_id, doctor_assignment_type, price, modality, appointment_type_id, metadata')
         .eq('organization_id', orgId)
         .gte('scheduled_at', fromDate)
         .lt('scheduled_at', toDate),
@@ -100,17 +86,10 @@ export async function getDashboardRawData(year: number, orgId: string): Promise<
         .select('id, metadata')
         .eq('organization_id', orgId)
         .eq('is_active', true),
-      admin.from('appointments')
-        .select('id, scheduled_at, status, lead:lead_id(contact_name,contact_last_name), doctor:doctor_id(metadata)')
-        .eq('organization_id', orgId)
-        .gte('scheduled_at', today + 'T00:00:00')
-        .lte('scheduled_at', today + 'T23:59:59')
-        .order('scheduled_at', { ascending: true }),
       admin.from('appointment_types')
         .select('id, assignment_mode')
         .eq('organization_id', orgId),
     ])
-
 
     const appointments: RawAppointment[] = (apts ?? []).map((a: any) => ({
       id: a.id,
@@ -123,6 +102,8 @@ export async function getDashboardRawData(year: number, orgId: string): Promise<
       price: typeof a.price === 'number' ? a.price : null,
       modality: a.modality ?? null,
       appointment_type_id: a.appointment_type_id ?? null,
+      cancellationReason: typeof a.metadata?.cancellation_reason === 'string'
+        ? a.metadata.cancellation_reason : null,
     }))
 
     const yearLeads: RawLead[] = (yearLeadsRaw ?? []).map((l: any) => ({
@@ -134,24 +115,12 @@ export async function getDashboardRawData(year: number, orgId: string): Promise<
       id: d.id, name: String(d.metadata?.name ?? 'Médico'),
     }))
 
-    const todayAppointments: TodayAppointment[] = (todayRaw ?? []).map((a: any) => ({
-      id: a.id, scheduled_at: a.scheduled_at, status: a.status,
-      patientName: (() => {
-        const l = Array.isArray(a.lead) ? a.lead[0] : a.lead
-        return [l?.contact_name, l?.contact_last_name].filter(Boolean).join(' ') || null
-      })(),
-      doctorName: (Array.isArray(a.doctor) ? a.doctor[0]?.metadata?.name : a.doctor?.metadata?.name) ?? null,
-    }))
-
     const appointmentTypes: AppointmentTypeInfo[] = (apptTypesRaw ?? []).map((t: any) => ({
       id: t.id,
       assignment_mode: t.assignment_mode ?? 'hybrid',
     }))
 
-    return {
-      year, appointments, yearLeads,
-      doctors, todayAppointments, appointmentTypes,
-    }
+    return { year, appointments, yearLeads, doctors, appointmentTypes }
   } catch (e) {
     console.error('getDashboardRawData error:', e)
     return null
