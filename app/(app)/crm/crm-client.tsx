@@ -25,8 +25,16 @@ interface Lead {
   source: string | null
   status: string
   notes: string | null
+  metadata: Record<string, string> | null
   created_at: string
   updated_at: string
+}
+
+interface OrgField {
+  field_name: string
+  field_label: string
+  field_type: string
+  options: string[] | null
 }
 
 interface LeadAppointment {
@@ -312,9 +320,13 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
   const [selectedLead,     setSelectedLead]     = useState<Lead | null>(null)
   const [leadAppointments, setLeadAppointments] = useState<LeadAppointment[]>([])
   const [loadingApts,      setLoadingApts]      = useState(false)
-  const [editForm,         setEditForm]         = useState({
+  const [editForm,         setEditForm]         = useState<{
+    contact_name: string; contact_last_name: string; contact_phone: string; contact_email: string;
+    contact_cedula: string; notes: string; status: string; source: string;
+    metadata: Record<string, string>;
+  }>({
     contact_name: '', contact_last_name: '', contact_phone: '', contact_email: '',
-    contact_cedula: '', notes: '', status: '', source: '',
+    contact_cedula: '', notes: '', status: '', source: '', metadata: {},
   })
   const [savingLead,    setSavingLead]    = useState(false)
   const [saveLeadError, setSaveLeadError] = useState<string | null>(null)
@@ -336,6 +348,9 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
   const [savingComment,   setSavingComment]   = useState(false)
   const [currentUserId,   setCurrentUserId]   = useState<string | null>(null)
 
+  // custom fields
+  const [orgFields, setOrgFields] = useState<OrgField[]>([])
+
   const supabase = createClient()
 
   useEffect(() => {
@@ -347,6 +362,15 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
         .from('organization_members').select('organization_id').eq('user_id', user.id).single()
       const orgId = member?.organization_id ?? null
       setOrganizationId(orgId)
+      if (orgId) {
+        const { data: fields } = await supabase
+          .from('org_custom_fields')
+          .select('field_name, field_label, field_type, options')
+          .eq('organization_id', orgId)
+          .eq('active', true)
+          .order('sort_order', { ascending: true })
+        setOrgFields((fields ?? []) as OrgField[])
+      }
       await loadLeads()
     }
     init()
@@ -372,7 +396,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
     try {
       const { data, error: err } = await supabase
         .from('leads')
-        .select('id, contact_name, contact_last_name, contact_phone, contact_email, contact_cedula, source, status, notes, created_at, updated_at')
+        .select('id, contact_name, contact_last_name, contact_phone, contact_email, contact_cedula, source, status, notes, metadata, created_at, updated_at')
         .order('created_at', { ascending: false })
       if (err) { setError('Error cargando leads'); return }
       const normalized = (data ?? []).map(l => ({ ...l, status: STATUS_NORMALIZE[l.status] ?? l.status }))
@@ -477,6 +501,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
       notes:             lead.notes             ?? '',
       status:            lead.status,
       source:            lead.source            ?? '',
+      metadata:          (lead.metadata as Record<string, string>) ?? {},
     })
     setSaveLeadError(null); setNewComment('')
     setLeadAppointments([]); setLoadingApts(true)
@@ -495,6 +520,13 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
     if (!selectedLead) return
     setSavingLead(true); setSaveLeadError(null)
     const now = new Date().toISOString()
+    // Build merged metadata: keep existing non-orgField keys, overwrite orgField keys
+    const mergedMetadata: Record<string, string> = { ...(selectedLead.metadata ?? {}) }
+    for (const f of orgFields) {
+      const val = editForm.metadata[f.field_name]
+      if (val && val.trim()) mergedMetadata[f.field_name] = val.trim()
+      else delete mergedMetadata[f.field_name]
+    }
     const { error } = await supabase.from('leads').update({
       contact_name:      editForm.contact_name.trim()      || null,
       contact_last_name: editForm.contact_last_name.trim() || null,
@@ -504,6 +536,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
       notes:             editForm.notes.trim()             || null,
       status:            editForm.status,
       source:            editForm.source                   || null,
+      metadata:          Object.keys(mergedMetadata).length > 0 ? mergedMetadata : null,
       updated_at:        now,
     }).eq('id', selectedLead.id)
     if (error) { setSaveLeadError(error.message); setSavingLead(false); return }
@@ -538,7 +571,8 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
         lead.contact_last_name?.toLowerCase().includes(q) ||
         lead.contact_phone?.includes(search) ||
         lead.contact_email?.toLowerCase().includes(q) ||
-        lead.contact_cedula?.includes(search)
+        lead.contact_cedula?.includes(search) ||
+        Object.values(lead.metadata ?? {}).some(v => String(v).toLowerCase().includes(q))
       return matchStatus && matchSource && matchSearch
     })
 
@@ -766,15 +800,18 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                   <SortTh field="created_at" label="Creado"      sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
                   <SortTh field="updated_at" label="Actualizado" sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Notas</th>
+                  {orgFields.map(f => (
+                    <th key={f.field_name} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 whitespace-nowrap">{f.field_label}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
-                  <tr><td colSpan={11} className="px-3 py-12 text-center text-slate-400">
+                  <tr><td colSpan={11 + orgFields.length} className="px-3 py-12 text-center text-slate-400">
                     <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Cargando...</span>
                   </td></tr>
                 ) : filteredLeads.length === 0 ? (
-                  <tr><td colSpan={11} className="px-3 py-12 text-center text-slate-400">No hay leads con los filtros seleccionados.</td></tr>
+                  <tr><td colSpan={11 + orgFields.length} className="px-3 py-12 text-center text-slate-400">No hay leads con los filtros seleccionados.</td></tr>
                 ) : filteredLeads.map(lead => {
                   const aptCount = aptCounts[lead.id] ?? 0
                   return (
@@ -854,6 +891,15 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                             </span>
                           : <span className="text-xs text-slate-300">—</span>}
                       </td>
+                      {orgFields.map(f => (
+                        <td key={f.field_name} className="px-3 py-2 max-w-[180px]">
+                          {lead.metadata?.[f.field_name]
+                            ? <span className="block truncate text-xs text-slate-500" title={String(lead.metadata[f.field_name])}>
+                                {String(lead.metadata[f.field_name]).length > 40 ? String(lead.metadata[f.field_name]).slice(0, 40) + '…' : String(lead.metadata[f.field_name])}
+                              </span>
+                            : <span className="text-xs text-slate-300">—</span>}
+                        </td>
+                      ))}
                     </tr>
                   )
                 })}
@@ -972,6 +1018,36 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                     {STATUS_PIPELINE.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                   </select>
                 </div>
+                {orgFields.length > 0 && orgFields.map(f => (
+                  <div key={f.field_name} className={f.field_type === 'textarea' ? 'col-span-2' : ''}>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">{f.field_label}</label>
+                    {f.field_type === 'select' && f.options ? (
+                      <select
+                        value={editForm.metadata[f.field_name] ?? ''}
+                        onChange={e => setEditForm(p => ({ ...p, metadata: { ...p.metadata, [f.field_name]: e.target.value } }))}
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">—</option>
+                        {f.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    ) : f.field_type === 'textarea' ? (
+                      <textarea
+                        value={editForm.metadata[f.field_name] ?? ''}
+                        onChange={e => setEditForm(p => ({ ...p, metadata: { ...p.metadata, [f.field_name]: e.target.value } }))}
+                        rows={2} placeholder="—"
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    ) : (
+                      <input
+                        type={f.field_type === 'number' ? 'number' : 'text'}
+                        value={editForm.metadata[f.field_name] ?? ''}
+                        onChange={e => setEditForm(p => ({ ...p, metadata: { ...p.metadata, [f.field_name]: e.target.value } }))}
+                        placeholder="—"
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    )}
+                  </div>
+                ))}
                 <div className="col-span-2">
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Notas</label>
                   <textarea value={editForm.notes} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))}
