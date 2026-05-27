@@ -16,13 +16,8 @@ export const metadata: Metadata = {
   title: "MedScale",
   description: "El sistema de crecimiento para tu consultorio",
   icons: {
-    icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon.png", type: "image/png", sizes: "512x512" },
-    ],
-    apple: [
-      { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
-    ],
+    icon: { url: "/favicon.png", type: "image/png" },
+    apple: { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
   },
 };
 

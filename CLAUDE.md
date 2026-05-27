@@ -1,4 +1,4 @@
-# MedScale App — Estado del proyecto (13 Mayo 2026)
+# MedScale App — Estado del proyecto (20 Mayo 2026)
 
 ---
 
@@ -310,15 +310,51 @@ app/
 - ✅ Retención 48h: pg_cron `cleanup_old_messages` corre a las 3am diario, borra mensajes > 2 días
 - ✅ Aviso retención en términos del agente y footer del chat
 
+### Sistema de Permisos Granulares (20 Mayo 2026)
+- ✅ Columna `permissions` JSONB en `organization_members`
+- ✅ Helper `lib/permissions.ts`: getUserPermissions(), canAccess(), canEdit()
+- ✅ `getSession()` devuelve permissions
+- ✅ Sidebar filtra módulos por permisos reales (ya no por array de roles)
+- ✅ 5 páginas protegidas con canAccess() + redirect (dashboard, crm, scheduling, conversations, doctors)
+- ✅ readOnly en CRM, Agenda y Doctores (oculta botones CRUD cuando permiso es 'read')
+- ✅ Modal de permisos en /team con radio buttons (Sin acceso / Solo lectura / Completo)
+- ✅ API /api/team/permissions protegida (owner-only, misma org)
+- ✅ 3 niveles: none | read | full — 5 módulos configurables (sin team ni settings)
+- ✅ Owner siempre full, doctor siempre filtrado por doctor_id (reglas fijas)
+- ✅ Backwards compatible: permissions NULL = defaults del rol
+
+### Auditoría de Seguridad (20 Mayo 2026)
+- ✅ Multi-tenant: team/invite validado por sesión y org_id
+- ✅ RLS activado en tabla organizations
+- ✅ APIs públicas verificadas: secrets + UUID tokens
+- ✅ Settings layout protegido server-side: staff redirect, doctor solo /settings/integrations
+- ✅ /team protegido: owner-only con getSession()
+- ✅ Eliminado write a tabla legacy `users` en team/invite
+
+### Sincronización Lead ↔ Cita (20 Mayo 2026)
+- ✅ Cita completada → lead status: asistio_a_cita
+- ✅ Cita cancelada → lead status: cancelo_cita
+- ✅ Cita no_show → lead status: cancelo_cita
+- ✅ Cita reagendada → lead no cambia
+- ✅ Aplica en scheduling/actions.ts y api/appointment/manage/route.ts
+- ✅ Solo actualiza si la cita tiene lead_id asociado
+
+### UX (20 Mayo 2026)
+- ✅ Empty states en Dashboard, CRM y Calendario
+- ✅ Favicon actualizado a MedScale brand (MS AI)
+
 ---
 
 ## 🔴 PRIORIDAD 1 — MVP Autoservicio
 - [ ] Stripe billing con trial 14 días (pospuesto — cobro manual desde superadmin por ahora)
 
 ## 🟡 PRIORIDAD 2
+- [ ] Favicon en alta resolución (reemplazar con PNG/SVG 512x512+)
 - [ ] Tour opcional post-onboarding
 - [ ] Verificar buffer_before/after_min con citas reales
-- [ ] Estandarizar respuestas API (lib/api/response.ts)
+- [ ] Estados custom del CRM (lead_statuses por organización)
+- [ ] Campos custom del CRM (custom_fields + custom_field_values)
+- [ ] Limpiar temp_register.txt del repo
 
 ## 🟢 PRIORIDAD 3 — Superadmin evolución
 - [ ] Dashboard superadmin con métricas avanzadas (MRR, churn, uso por org)
@@ -404,6 +440,10 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 
 **Logo upload va al bucket `organizations` (path: `logos/{orgId}.{ext}`), NO al bucket `logos`**
 
+**Permisos por módulo:** usar canAccess(perms, module) para visibilidad, canEdit(perms, module) para CRUD. Importar de lib/permissions.ts. Nunca filtrar sidebar por array de roles — usar getUserPermissions() + canAccess().
+
+**Sincronización lead ↔ cita:** al cambiar status de appointment a completed/cancelled/no_show, actualizar el lead correspondiente. Ver scheduling/actions.ts.
+
 ### Roles — Protección
 - Protección por rol en `layout.tsx` y páginas vía `getSession()`
 - Doctor permitido: /scheduling, /doctors, /settings/integrations
@@ -457,6 +497,7 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 - `organizations.sidebar_theme` TEXT (dark/light, default dark)
 - `organizations.is_active` BOOLEAN (default true)
 - `platform_admins`: user_id, email, role (owner/admin/support) — controla acceso a superadmin
+- `organization_members.permissions` JSONB (null = defaults del rol)
 
 ### Modos de asignación
 | UI label | assignment_mode | rr_count_all |
