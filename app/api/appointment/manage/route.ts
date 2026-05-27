@@ -27,7 +27,7 @@ export async function PATCH(request: Request) {
         id, lead_id, scheduled_at, ends_at, status, notes, manage_token, organization_id,
         doctor:doctor_id(metadata),
         lead:lead_id(contact_name, contact_last_name, contact_email),
-        org:organization_id(name)
+        org:organization_id(name, slug)
       `)
       .eq('manage_token', token)
       .single()
@@ -45,6 +45,7 @@ export async function PATCH(request: Request) {
     const org      = Array.isArray(apt.org)    ? apt.org[0]    : apt.org
     const doctor   = Array.isArray(apt.doctor) ? apt.doctor[0] : apt.doctor
     const orgName     = (org as any)?.name ?? ''
+    const orgSlug     = (org as any)?.slug ?? ''
     const clinicEmail = orgData?.contact_email as string | null
     const patientEmail = lead?.contact_email
     const patientName  = [lead?.contact_name, lead?.contact_last_name].filter(Boolean).join(' ') || 'Paciente'
@@ -128,6 +129,9 @@ export async function PATCH(request: Request) {
         performed_by: 'patient',
       })
 
+      const feedbackUrl = apt.manage_token ? `https://app.medscale.app/appointment/${apt.manage_token}/feedback` : undefined
+      const bookingUrl  = orgSlug ? `https://app.medscale.app/book/${orgSlug}` : undefined
+
       if (patientEmail && process.env.RESEND_API_KEY) {
         await resend.emails.send({
           from: 'citas@medscale.app',
@@ -137,6 +141,8 @@ export async function PATCH(request: Request) {
             patientName, orgName, appointmentTypeName: null,
             date: fmtDate(apt.scheduled_at),
             time: fmtTime(apt.scheduled_at),
+            feedbackUrl,
+            bookingUrl,
           }),
         }).catch(err => console.error('[manage] cancel email error:', err))
       }

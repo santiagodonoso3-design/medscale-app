@@ -130,11 +130,15 @@ interface SimpleEmailParams {
   date: string
   time: string
   language?: string
+  feedbackUrl?: string
+  bookingUrl?: string
 }
 
 export function cancellationEmail(p: SimpleEmailParams): string {
   const lang = p.language ?? 'es'
   const isEs = lang !== 'en'
+  const SG = `font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif`
+  const IN = `font-family:'Inter',Helvetica,Arial,sans-serif`
   const heading  = isEs ? 'Tu cita ha sido cancelada' : 'Your appointment has been cancelled'
   const body     = isEs
     ? `Hola <strong>${p.patientName}</strong>, tu cita en <strong>${p.orgName}</strong> ha sido cancelada. Si deseas reagendar, contacta a la clínica directamente.`
@@ -143,8 +147,55 @@ export function cancellationEmail(p: SimpleEmailParams): string {
   const lDate    = isEs ? 'Fecha'        : 'Date'
   const lTime    = isEs ? 'Hora'         : 'Time'
   const typeRow  = p.appointmentTypeName ? `<tr style="border-bottom:1px solid ${C.border}">${apptCell(lType, p.appointmentTypeName)}<td></td></tr>` : ''
-  const bodyHtml = `<h1 style="font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif;font-size:22px;font-weight:700;color:#DC3545;margin:0 0 16px">${heading}</h1><p style="font-family:'Inter',Helvetica,Arial,sans-serif;font-size:15px;color:${C.muted};margin:0 0 24px;line-height:1.6">${body}</p><div style="border:1px solid ${C.border};border-radius:12px;overflow:hidden"><table style="width:100%;border-collapse:collapse">${typeRow}<tr>${apptCell(lDate, p.date)}${apptCell(lTime, p.time)}</tr></table></div>`
+
+  const ctaSection = (p.feedbackUrl && p.bookingUrl) ? `
+    <hr style="border:none;border-top:1px solid ${C.border};margin:24px 0"/>
+    <p style="${IN};font-size:14px;color:${C.muted};margin:0 0 12px;text-align:center">¿Nos ayudas a mejorar?</p>
+    <div style="text-align:center;margin-bottom:16px">
+      <a href="${p.feedbackUrl}" style="display:inline-block;background:${C.primary};color:#ffffff;${SG};font-size:14px;font-weight:600;padding:11px 28px;border-radius:10px;text-decoration:none">Cuéntanos la razón</a>
+    </div>
+    <p style="${IN};font-size:14px;color:${C.muted};margin:0 0 12px;text-align:center">¿Quieres reagendar?</p>
+    <div style="text-align:center">
+      <a href="${p.bookingUrl}" style="display:inline-block;background:#ffffff;color:${C.primary};border:1.5px solid ${C.primary};${SG};font-size:14px;font-weight:600;padding:10px 28px;border-radius:10px;text-decoration:none">Reagendar cita</a>
+    </div>
+  ` : ''
+
+  const bodyHtml = `<h1 style="${SG};font-size:22px;font-weight:700;color:#DC3545;margin:0 0 16px">${heading}</h1><p style="${IN};font-size:15px;color:${C.muted};margin:0 0 24px;line-height:1.6">${body}</p><div style="border:1px solid ${C.border};border-radius:12px;overflow:hidden"><table style="width:100%;border-collapse:collapse">${typeRow}<tr>${apptCell(lDate, p.date)}${apptCell(lTime, p.time)}</tr></table></div>${ctaSection}`
   return brandShell(lang, p.orgName, bodyHtml, '#DC3545')
+}
+
+// ── No-show follow-up email ───────────────────────────────────────────────────
+
+export function noShowFollowUpEmail(p: {
+  patientName: string
+  orgName: string
+  feedbackUrl: string
+  bookingUrl: string
+}): string {
+  const SG = `font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif`
+  const IN = `font-family:'Inter',Helvetica,Arial,sans-serif`
+  const bodyHtml = `
+    <h1 style="${SG};font-size:22px;font-weight:700;color:${C.fg};margin:0 0 16px;text-align:center">¿No pudiste asistir a tu cita?</h1>
+    <p style="${IN};font-size:15px;color:${C.muted};margin:0 0 24px;line-height:1.6">
+      Hola <strong style="color:${C.fg}">${p.patientName}</strong>, notamos que no pudiste asistir a tu cita en
+      <strong style="color:${C.fg}">${p.orgName}</strong>. No te preocupes, queremos ayudarte.
+    </p>
+    <div style="text-align:center;margin-bottom:28px">
+      <a href="${p.feedbackUrl}"
+         style="display:inline-block;background:${C.primary};color:#ffffff;${SG};font-size:14px;font-weight:600;padding:12px 32px;border-radius:10px;text-decoration:none">
+        Cuéntanos qué pasó
+      </a>
+    </div>
+    <hr style="border:none;border-top:1px solid ${C.border};margin:24px 0"/>
+    <p style="${IN};font-size:14px;color:${C.muted};margin:0 0 16px;text-align:center">¿Quieres reagendar tu cita?</p>
+    <div style="text-align:center">
+      <a href="${p.bookingUrl}"
+         style="display:inline-block;background:#ffffff;color:${C.primary};border:1.5px solid ${C.primary};${SG};font-size:14px;font-weight:600;padding:10px 28px;border-radius:10px;text-decoration:none">
+        Reagendar cita
+      </a>
+    </div>
+  `
+  return brandShell('es', p.orgName, bodyHtml, C.primary)
 }
 
 // ── Reschedule notification ───────────────────────────────────────────────────

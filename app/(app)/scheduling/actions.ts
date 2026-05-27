@@ -4,7 +4,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getOrgIdFromUser } from '@/lib/get-org-id'
 import { revalidatePath } from 'next/cache'
 import { resend } from '@/lib/email/resend'
-import { cancellationEmail, rescheduleEmail } from '@/lib/email/templates'
+import { cancellationEmail, rescheduleEmail, noShowFollowUpEmail } from '@/lib/email/templates'
 import { deleteGoogleCalendarEvent } from '@/lib/google/calendar'
 
 // ── Email helper (fire-and-forget, never throws) ──────────────────────────────
@@ -14,7 +14,7 @@ async function fetchAptForEmail(id: string) {
     const admin = createServiceClient()
     const { data } = await admin
       .from('appointments')
-      .select('scheduled_at, lead:lead_id(contact_name, contact_last_name, contact_email), org:organization_id(name)')
+      .select('scheduled_at, manage_token, lead:lead_id(contact_name, contact_last_name, contact_email), org:organization_id(name, slug)')
       .eq('id', id)
       .single()
     return data
@@ -80,8 +80,12 @@ export async function cancelAppointment(id: string): Promise<{ error?: string }>
         const lead = Array.isArray(apt.lead) ? apt.lead[0] : apt.lead
         const patientEmail = lead?.contact_email
         if (!patientEmail) return
-        const orgName = (Array.isArray(apt.org) ? apt.org[0] : apt.org as any)?.name ?? ''
+        const org = (Array.isArray(apt.org) ? apt.org[0] : apt.org as any)
+        const orgName = org?.name ?? ''
+        const orgSlug = org?.slug ?? ''
         const patientName = [lead.contact_name, lead.contact_last_name].filter(Boolean).join(' ') || 'Paciente'
+        const feedbackUrl = apt.manage_token ? `https://app.medscale.app/appointment/${apt.manage_token}/feedback` : undefined
+        const bookingUrl  = orgSlug ? `https://app.medscale.app/book/${orgSlug}` : undefined
         await resend.emails.send({
           from:    'citas@medscale.app',
           to:      patientEmail,
@@ -92,6 +96,8 @@ export async function cancelAppointment(id: string): Promise<{ error?: string }>
             appointmentTypeName: null,
             date: fmtDate(apt.scheduled_at),
             time: fmtTime(apt.scheduled_at),
+            feedbackUrl,
+            bookingUrl,
           }),
         })
       })().catch(err => console.error('[email] cancellation error:', err)),
@@ -151,12 +157,36 @@ export async function updateAppointmentStatus(
   if (status === 'completed' || status === 'cancelled' || status === 'no_show') {
     const { data: apt } = await admin
       .from('appointments')
-      .select('lead_id')
+      .select('lead_id, manage_token, lead:lead_id(contact_name, contact_last_name, contact_email), org:organization_id(name, slug)')
       .eq('id', id)
       .single()
     if (apt?.lead_id) {
       const leadStatus = status === 'completed' ? 'asistio_a_cita' : 'cancelo_cita'
       await admin.from('leads').update({ status: leadStatus }).eq('id', apt.lead_id)
+    }
+
+    // Send no-show follow-up email
+    if (status === 'no_show' && process.env.RESEND_API_KEY && apt) {
+      Promise.allSettled([
+        (async () => {
+          const lead = Array.isArray(apt.lead) ? apt.lead[0] : apt.lead as any
+          const org  = Array.isArray(apt.org)  ? apt.org[0]  : apt.org  as any
+          const patientEmail = lead?.contact_email
+          if (!patientEmail) return
+          const patientName = [lead?.contact_name, lead?.contact_last_name].filter(Boolean).join(' ') || 'Paciente'
+          const orgName     = org?.name ?? ''
+          const orgSlug     = org?.slug ?? ''
+          const feedbackUrl = apt.manage_token ? `https://app.medscale.app/appointment/${apt.manage_token}/feedback` : ''
+          const bookingUrl  = orgSlug ? `https://app.medscale.app/book/${orgSlug}` : ''
+          if (!feedbackUrl) return
+          await resend.emails.send({
+            from:    'citas@medscale.app',
+            to:      patientEmail,
+            subject: `¿No pudiste asistir? — ${orgName}`,
+            html:    noShowFollowUpEmail({ patientName, orgName, feedbackUrl, bookingUrl }),
+          })
+        })().catch(err => console.error('[email] no_show follow-up error:', err)),
+      ])
     }
   }
 
