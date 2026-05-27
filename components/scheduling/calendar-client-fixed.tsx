@@ -210,7 +210,7 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
   const [showReschedule,    setShowReschedule]    = useState(false)
 
   // ── Inline status popover
-  const [statusPopover, setStatusPopover] = useState<{ aptId: string; top: number; left: number } | null>(null)
+  const [statusPopover, setStatusPopover] = useState<{ aptId: string; top: number; bottom: number; left: number; openUpward: boolean } | null>(null)
   const [statusToast,   setStatusToast]   = useState<string | null>(null)
 
   const supabase = createClient()
@@ -792,7 +792,14 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
                                 onClick={e => {
                                   if (statusPopover?.aptId === apt.id) { setStatusPopover(null); return }
                                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                                  setStatusPopover({ aptId: apt.id, top: rect.bottom + 4, left: rect.left })
+                                  const openUpward = window.innerHeight - rect.bottom < 200
+                                  setStatusPopover({
+                                    aptId: apt.id,
+                                    top:        rect.bottom + 4,
+                                    bottom:     window.innerHeight - rect.top + 4,
+                                    left:       rect.left,
+                                    openUpward,
+                                  })
                                 }}
                                 className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold transition hover:opacity-75 ${STATUS_BADGE[apt.status] ?? 'bg-slate-100 text-slate-600'}`}
                               >
@@ -1320,7 +1327,9 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
           <div className="fixed inset-0 z-40" onClick={() => setStatusPopover(null)} />
           <div
             className="fixed z-50 min-w-[150px] overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
-            style={{ top: statusPopover.top, left: statusPopover.left }}
+            style={statusPopover.openUpward
+              ? { bottom: statusPopover.bottom, left: statusPopover.left }
+              : { top: statusPopover.top,       left: statusPopover.left }}
           >
             {(STATUS_TRANSITIONS[appointments.find(a => a.id === statusPopover.aptId)?.status ?? ''] ?? []).map(opt => (
               <button
