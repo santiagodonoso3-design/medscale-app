@@ -350,6 +350,9 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
 
   // custom fields
   const [orgFields, setOrgFields] = useState<OrgField[]>([])
+  const [addFieldOpen,  setAddFieldOpen]  = useState(false)
+  const [newFieldForm,  setNewFieldForm]  = useState({ field_label: '', field_type: 'text', options: '' })
+  const [savingField,   setSavingField]   = useState(false)
 
   const supabase = createClient()
 
@@ -363,13 +366,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
       const orgId = member?.organization_id ?? null
       setOrganizationId(orgId)
       if (orgId) {
-        const { data: fields } = await supabase
-          .from('org_custom_fields')
-          .select('field_name, field_label, field_type, options')
-          .eq('organization_id', orgId)
-          .eq('active', true)
-          .order('sort_order', { ascending: true })
-        setOrgFields((fields ?? []) as OrgField[])
+        await reloadOrgFields(orgId)
       }
       await loadLeads()
     }
@@ -390,6 +387,16 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
   }, [leads, autoOpenLeadId])
 
   // ── Data loading ─────────────────────────────────────────────────────────────
+
+  const reloadOrgFields = async (orgId: string) => {
+    const { data: fields } = await supabase
+      .from('org_custom_fields')
+      .select('field_name, field_label, field_type, options')
+      .eq('organization_id', orgId)
+      .eq('active', true)
+      .order('sort_order', { ascending: true })
+    setOrgFields((fields ?? []) as OrgField[])
+  }
 
   const loadLeads = async () => {
     setIsLoading(true); setError(null)
@@ -557,6 +564,35 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
     })
     if (!error) { setNewComment(''); loadComments(selectedLead.id) }
     setSavingComment(false)
+  }
+
+  const handleAddField = async () => {
+    if (!organizationId || !newFieldForm.field_label.trim()) return
+    setSavingField(true)
+    const slug = newFieldForm.field_label.trim()
+      .toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '') // remove accents
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+    const { error } = await supabase.from('org_custom_fields').insert({
+      organization_id: organizationId,
+      field_name:  slug,
+      field_label: newFieldForm.field_label.trim(),
+      field_type:  newFieldForm.field_type,
+      options:     newFieldForm.field_type === 'select'
+        ? newFieldForm.options.split(',').map(o => o.trim()).filter(Boolean)
+        : null,
+      source:      'crm',
+      sort_order:  orgFields.length,
+      active:      true,
+    })
+    setSavingField(false)
+    if (!error) {
+      await reloadOrgFields(organizationId)
+      setAddFieldOpen(false)
+      setNewFieldForm({ field_label: '', field_type: 'text', options: '' })
+    }
   }
 
   // ── Filtered + sorted leads ──────────────────────────────────────────────────
@@ -803,15 +839,26 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                   {orgFields.map(f => (
                     <th key={f.field_name} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 whitespace-nowrap">{f.field_label}</th>
                   ))}
+                  {!readOnly && (
+                    <th className="px-2 py-2 w-10">
+                      <button
+                        onClick={() => setAddFieldOpen(true)}
+                        className="rounded-lg p-1 text-slate-300 hover:text-slate-600 hover:bg-slate-100 transition"
+                        title="Agregar campo"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
-                  <tr><td colSpan={11 + orgFields.length} className="px-3 py-12 text-center text-slate-400">
+                  <tr><td colSpan={11 + orgFields.length + (readOnly ? 0 : 1)} className="px-3 py-12 text-center text-slate-400">
                     <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Cargando...</span>
                   </td></tr>
                 ) : filteredLeads.length === 0 ? (
-                  <tr><td colSpan={11 + orgFields.length} className="px-3 py-12 text-center text-slate-400">No hay leads con los filtros seleccionados.</td></tr>
+                  <tr><td colSpan={11 + orgFields.length + (readOnly ? 0 : 1)} className="px-3 py-12 text-center text-slate-400">No hay leads con los filtros seleccionados.</td></tr>
                 ) : filteredLeads.map(lead => {
                   const aptCount = aptCounts[lead.id] ?? 0
                   return (
@@ -900,6 +947,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                             : <span className="text-xs text-slate-300">—</span>}
                         </td>
                       ))}
+                      {!readOnly && <td className="px-2 py-2 w-10" />}
                     </tr>
                   )
                 })}
@@ -1236,6 +1284,73 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
           setTimeout(() => setSuccessToast(null), 4000)
         }}
       />
+
+      {/* Add field modal */}
+      {addFieldOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="text-base font-semibold text-slate-900 mb-4">Agregar campo</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Nombre del campo *</label>
+                <input
+                  type="text"
+                  value={newFieldForm.field_label}
+                  onChange={e => setNewFieldForm(p => ({ ...p, field_label: e.target.value }))}
+                  placeholder="Ej: Diagnóstico, Seguro, Referido por..."
+                  autoFocus
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Tipo</label>
+                <select
+                  value={newFieldForm.field_type}
+                  onChange={e => setNewFieldForm(p => ({ ...p, field_type: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="text">Texto</option>
+                  <option value="email">Email</option>
+                  <option value="tel">Teléfono</option>
+                  <option value="number">Número</option>
+                  <option value="date">Fecha</option>
+                  <option value="textarea">Área de texto</option>
+                  <option value="select">Desplegable</option>
+                </select>
+              </div>
+              {newFieldForm.field_type === 'select' && (
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Opciones (separadas por coma)</label>
+                  <input
+                    type="text"
+                    value={newFieldForm.options}
+                    onChange={e => setNewFieldForm(p => ({ ...p, options: e.target.value }))}
+                    placeholder="Opción 1, Opción 2, Opción 3"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              )}
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => { setAddFieldOpen(false); setNewFieldForm({ field_label: '', field_type: 'text', options: '' }) }}
+                disabled={savingField}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleAddField}
+                disabled={savingField || !newFieldForm.field_label.trim()}
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition disabled:opacity-50"
+              >
+                {savingField && <Loader2 className="h-4 w-4 animate-spin" />}
+                Agregar campo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation dialog */}
       {deleteConfirm && (
