@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, ContactRound, CalendarDays, Settings, LogOut,
-  Stethoscope, Users, MessageCircle, User, ChevronDown, ChevronLeft, ChevronRight,
+  Stethoscope, Users, MessageCircle, User, ChevronDown, ChevronLeft, ChevronRight, Plug,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useEffect, useState } from 'react'
@@ -236,6 +236,30 @@ export function OrgSidebar({
             </div>
           )
         })}
+
+        {/* Integrations — only visible for doctor role (owner/staff reach it via Configuración) */}
+        {userRole === 'doctor' && (
+          <div className="group relative">
+            <Link
+              href="/settings/integrations"
+              className={`flex items-center rounded-xl py-2.5 text-sm font-medium transition-colors ${
+                collapsed ? 'justify-center px-0' : 'gap-3 px-3'
+              } ${
+                pathname.startsWith('/settings/integrations')
+                  ? theme.activeItem
+                  : `${theme.textMuted} ${theme.hoverItem}`
+              }`}
+            >
+              <Plug className="shrink-0" style={{ width: '18px', height: '18px' }} />
+              {!collapsed && <span>Integraciones</span>}
+            </Link>
+            {collapsed && (
+              <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs text-white opacity-0 transition group-hover:opacity-100">
+                Integraciones
+              </span>
+            )}
+          </div>
+        )}
       </nav>
 
       {/* Mi cuenta */}
