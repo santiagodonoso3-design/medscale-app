@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Building2, Users, Settings, LogOut, BarChart3, ChevronDown } from 'lucide-react'
+import { LayoutDashboard, Building2, Users, Settings, LogOut, BarChart3, ChevronDown, Gift } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -18,6 +18,7 @@ const navItems = [
   { name: 'Dashboard',       href: '/admin',               icon: LayoutDashboard },
   { name: 'Organizaciones',  href: '/admin/organizations', icon: Building2 },
   { name: 'Usuarios',        href: '/admin/users',         icon: Users },
+  { name: 'Referidos',       href: '/admin/referrals',     icon: Gift },
   { name: 'Configuración',   href: '/admin/settings',      icon: Settings },
 ]
 

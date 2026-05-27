@@ -418,6 +418,15 @@ app/
 
 ---
 
+### Sistema de Referidos (27 Mayo 2026)
+- ✅ Tabla `referral_codes`: CRUD completo desde superadmin `/admin/referrals`
+- ✅ Tabla `referral_uses`: registro de uso por organización (created en `/api/register/complete`)
+- ✅ `organizations.referral_code_id`: FK al código usado en el registro
+- ✅ API `/api/referrals`: GET/POST/PATCH — superadmin only (verifica SUPERADMIN_EMAILS)
+- ✅ API `/api/referrals/validate?code=XXX`: endpoint público — valida código activo, no expirado, con cupo
+- ✅ `/register`: campo opcional "Código de referido" con validación en tiempo real (debounce 500ms), badge verde si válido
+- ✅ `/api/register/complete`: re-valida código server-side, guarda `referral_code_id` en org, inserta en `referral_uses`, incrementa `times_used`
+
 ## 🔴 PRIORIDAD 1 — MVP Autoservicio
 _(cobro manual desde superadmin por ahora — sin tareas activas)_
 
@@ -586,6 +595,9 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 - `appointments.metadata` JSONB (cancellation_reason, custom data)
 - `leads.metadata` JSONB (custom fields del formulario de agendamiento)
 - `org_custom_fields`: organization_id, field_name, field_label, field_type, options[], source, sort_order, active
+- `referral_codes`: code (unique, uppercase), referrer_name, referrer_email, referrer_phone, discount_type (percentage|fixed_amount), discount_value, discount_duration_months, commission_type, commission_value, commission_duration_months, max_uses, times_used, is_active, expires_at
+- `referral_uses`: referral_code_id, organization_id, discount_applied, status (active|expired|cancelled), applied_at
+- `organizations.referral_code_id` UUID FK → referral_codes (código usado en el registro)
 
 ### Modos de asignación
 | UI label | assignment_mode | rr_count_all |

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -67,6 +67,36 @@ export default function RegisterPage() {
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
 
+  const [referralCode, setReferralCode]   = useState('')
+  const [referralStatus, setReferralStatus] = useState<null | 'validating' | 'valid' | 'invalid'>(null)
+  const [referralData, setReferralData]   = useState<{ referrer_name: string; discount_type: string; discount_value: number } | null>(null)
+
+  useEffect(() => {
+    if (!referralCode.trim()) {
+      setReferralStatus(null)
+      setReferralData(null)
+      return
+    }
+    setReferralStatus('validating')
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/referrals/validate?code=${encodeURIComponent(referralCode)}`)
+        const data = await res.json()
+        if (data.valid) {
+          setReferralStatus('valid')
+          setReferralData({ referrer_name: data.referrer_name, discount_type: data.discount_type, discount_value: data.discount_value })
+        } else {
+          setReferralStatus('invalid')
+          setReferralData(null)
+        }
+      } catch {
+        setReferralStatus('invalid')
+        setReferralData(null)
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [referralCode])
+
   const {
     register,
     handleSubmit,
@@ -104,7 +134,12 @@ export default function RegisterPage() {
     const res = await fetch('/api/register/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan: selectedPlan, clinic_name: data.clinic_name, user_id: userId }),
+      body: JSON.stringify({
+        plan: selectedPlan,
+        clinic_name: data.clinic_name,
+        user_id: userId,
+        referral_code: referralStatus === 'valid' ? referralCode.toUpperCase().trim() : undefined,
+      }),
     })
 
     if (!res.ok) {
@@ -281,6 +316,37 @@ export default function RegisterPage() {
                     {...register('email')}
                   />
                   {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email.message}</p>}
+                </div>
+
+                <div>
+                  <label htmlFor="referral_code" className={labelCls}>
+                    Código de referido{' '}
+                    <span className="text-[#4A6B7A] font-normal normal-case tracking-normal">(opcional)</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="referral_code"
+                      type="text"
+                      value={referralCode}
+                      onChange={e => setReferralCode(e.target.value.toUpperCase())}
+                      placeholder="Ej: DRGARCIA20"
+                      className={`${inputCls} font-mono pr-10`}
+                      autoComplete="off"
+                    />
+                    {referralStatus === 'validating' && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-400" />
+                    )}
+                  </div>
+                  {referralStatus === 'valid' && referralData && (
+                    <p className="mt-1 text-xs text-emerald-600 font-semibold">
+                      ✓ Descuento de {referralData.discount_type === 'percentage'
+                        ? `${referralData.discount_value}%`
+                        : `$${referralData.discount_value.toLocaleString('es-CO')}`} aplicado · Referido por {referralData.referrer_name}
+                    </p>
+                  )}
+                  {referralStatus === 'invalid' && (
+                    <p className="mt-1 text-xs text-red-500">Código no válido</p>
+                  )}
                 </div>
 
                 <div>
