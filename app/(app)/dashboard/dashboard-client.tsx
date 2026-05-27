@@ -13,6 +13,22 @@ import { getDashboardRawData } from './actions'
 
 const MONTH_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
+const STATUS_COLORS: Record<string, string> = {
+  cita_valoracion_agendada: '#3b82f6',
+  asistio_a_cita:           '#10b981',
+  en_tratamiento_medico:    '#f59e0b',
+  cancelo_cita:             '#ef4444',
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  nuevo_lead:               'Nuevo lead',
+  cita_valoracion_agendada: 'Cita agendada',
+  asistio_a_cita:           'Asistió a cita',
+  en_tratamiento_medico:    'En tratamiento',
+  cancelo_cita:             'Canceló cita',
+  finalizado:               'Finalizado',
+}
+
 const _nowBogota    = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', timeZone: 'America/Bogota' }).format(new Date())
 const CURRENT_YEAR  = Number(_nowBogota.slice(0, 4))
 const CURRENT_MONTH = Number(_nowBogota.slice(5, 7))
@@ -68,6 +84,7 @@ interface Metrics {
   monthlyRevenue: { label: string; revenue: number }[]
   avgMonthlyRevenue: number
   cancellationReasons: { reason: string; count: number }[]
+  leadsByStatus: { status: string; count: number }[]
   monthlyLines: { label: string; agendadas: number; asistencias: number; procedimiento: number; finalizados: number }[]
   doctorStats: {
     name: string
@@ -178,6 +195,15 @@ function computeMetrics(
     .sort((x, y) => y.count - x.count)
     .slice(0, 5)
 
+  // Leads by status for the period
+  const leadStatusMap = new Map<string, number>()
+  yearLeads.filter(l => inPeriod(l.ym)).forEach(l => {
+    leadStatusMap.set(l.status, (leadStatusMap.get(l.status) ?? 0) + 1)
+  })
+  const leadsByStatus = Array.from(leadStatusMap.entries())
+    .map(([status, count]) => ({ status, count }))
+    .sort((a, b) => b.count - a.count)
+
   // Doctor stats
   const leadDoctorMap = new Map<string, Set<string>>()
   periodApts.forEach(a => {
@@ -267,6 +293,7 @@ function computeMetrics(
     leadsCount, leadsWithoutAppointment,
     monthlyRevenue, avgMonthlyRevenue,
     cancellationReasons,
+    leadsByStatus,
     monthlyLines,
     doctorStats,
     heatmapDays,
@@ -607,41 +634,40 @@ export function DashboardClient({
                   <ReferenceLine y={m.avgMonthlyRevenue} stroke="#10b981" strokeDasharray="5 5" strokeWidth={1.5}
                     label={{ value: `Prom. ${formatRevAxis(m.avgMonthlyRevenue)}`, position: 'insideTopLeft', fontSize: 10, fill: '#10b981' }} />
                 )}
-                <Bar dataKey="revenue" name="Ingresos" fill="#10b981" radius={[4,4,0,0]} />
+                <Bar dataKey="revenue" name="Ingresos" fill="#10b981" radius={[4,4,0,0]}>
+                  <LabelList dataKey="revenue" position="top" style={{ fontSize: 9, fill: '#10b981', fontWeight: 600 }}
+                    formatter={(v: any) => v > 0 ? formatRevAxis(v) : ''} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
         </div>
 
-        {/* Razones de cancelación y no-show */}
+        {/* Leads por estado */}
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-900">Razones de cancelación y no-show</h2>
-          <p className="text-xs text-slate-400 mt-0.5 mb-5">
-            Del período · {m.noShowCount + m.cancelledCount} cita{m.noShowCount + m.cancelledCount !== 1 ? 's' : ''} afectada{m.noShowCount + m.cancelledCount !== 1 ? 's' : ''}
-          </p>
-          {m.cancellationReasons.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2">
-              <p className="text-sm font-medium text-slate-500">Sin datos de feedback aún</p>
-              <p className="text-xs text-slate-400 text-center max-w-xs">
-                Cuando los pacientes dejen feedback desde el email de cancelación, aparecerá aquí.
-              </p>
+          <h2 className="text-base font-semibold text-slate-900">Leads por estado</h2>
+          <p className="text-xs text-slate-400 mt-0.5 mb-5">Distribución del período</p>
+          {m.leadsByStatus.length === 0 ? (
+            <div className="flex items-center justify-center py-10">
+              <p className="text-sm text-slate-400">Sin leads en el período</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {m.cancellationReasons.map((r) => {
-                const maxCount = m.cancellationReasons[0].count
-                const pct = Math.round((r.count / maxCount) * 100)
+            <div className="space-y-3.5">
+              {m.leadsByStatus.map(({ status, count }) => {
+                const total = m.leadsCount || 1
+                const pct = Math.round((count / total) * 100)
+                const maxCount = m.leadsByStatus[0]?.count || 1
+                const barWidth = Math.round((count / maxCount) * 100)
+                const color = STATUS_COLORS[status] ?? '#94a3b8'
+                const label = STATUS_LABELS[status] ?? status
                 return (
-                  <div key={r.reason}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs text-slate-600 truncate mr-3 max-w-[75%]">{r.reason}</span>
-                      <span className="text-xs font-bold text-slate-800 shrink-0">{r.count}</span>
+                  <div key={status}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-slate-600 truncate mr-3">{label}</span>
+                      <span className="text-xs font-bold text-slate-800 shrink-0">{count} · {pct}%</span>
                     </div>
-                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-red-400 rounded-full transition-all duration-300"
-                        style={{ width: `${pct}%` }}
-                      />
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, backgroundColor: color }} />
                     </div>
                   </div>
                 )
@@ -787,6 +813,42 @@ export function DashboardClient({
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Fila 6: Razones de cancelación (ancho completo, compacto) ──────── */}
+      <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
+        <div className="flex items-baseline gap-3 mb-4">
+          <h2 className="text-base font-semibold text-slate-900">Razones de cancelación y no-show</h2>
+          <span className="text-xs text-slate-400">
+            Del período · {m.noShowCount + m.cancelledCount} cita{m.noShowCount + m.cancelledCount !== 1 ? 's' : ''} afectada{m.noShowCount + m.cancelledCount !== 1 ? 's' : ''}
+          </span>
+        </div>
+        {m.cancellationReasons.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-5 gap-1.5">
+            <p className="text-sm font-medium text-slate-500">Sin datos de feedback aún</p>
+            <p className="text-xs text-slate-400 text-center max-w-xs">
+              Cuando los pacientes dejen feedback desde el email de cancelación, aparecerá aquí.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3.5">
+            {m.cancellationReasons.map((r) => {
+              const maxCount = m.cancellationReasons[0].count
+              const pct = Math.round((r.count / maxCount) * 100)
+              return (
+                <div key={r.reason}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-slate-600 truncate mr-3 max-w-[75%]">{r.reason}</span>
+                    <span className="text-xs font-bold text-slate-800 shrink-0">{r.count}</span>
+                  </div>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-red-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
