@@ -201,6 +201,7 @@ export function bookingNotificationClinic(p: {
   return `<!DOCTYPE html><html><body style="${BASE}">
     <div style="${CARD}">
       <div style="${HEADER}">
+        <img src="https://app.medscale.app/logo-white.png" alt="MedScale AI" height="28" style="height:28px;width:auto;display:block;margin:0 auto 12px;" />
         <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#94a3b8">Nueva cita agendada</p>
         <p style="margin:6px 0 0;font-size:20px;font-weight:700;color:#ffffff">${p.orgName}</p>
       </div>
@@ -274,7 +275,7 @@ export function bookingNotificationDoctor(p: BookingEmailParams): string {
 <body style="${BASE}">
 <div style="${CARD}">
   <div style="${HEADER}">
-    <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:#64748b">MedScale · Notificación interna</p>
+    <img src="https://app.medscale.app/logo-white.png" alt="MedScale AI" height="28" style="height:28px;width:auto;display:block;margin:0 auto 12px;" />
     <h1 style="margin:6px 0 0;font-size:20px;font-weight:700;color:#ffffff">Nueva cita agendada</h1>
   </div>
   <div style="${BODY}">

@@ -104,9 +104,11 @@ export function OrgSidebar({
               )}
               {!collapsed && (
                 <div className="min-w-0 flex-1">
-                  <p className={`text-[10px] font-semibold uppercase tracking-[0.2em] ${theme.accentText}`}>
-                    {isImpersonating ? 'Medscale AI' : 'Superadmin'}
-                  </p>
+                  {isImpersonating ? (
+                    <img src={isDark ? '/logo-compact-white.png' : '/logo-compact-dark.png'} alt="MedScale AI" className="h-5 w-auto mb-0.5" />
+                  ) : (
+                    <p className={`text-[10px] font-semibold uppercase tracking-[0.2em] ${theme.accentText}`}>Superadmin</p>
+                  )}
                   <h1 className={`text-sm font-bold tracking-tight truncate ${theme.text}`}>
                     {isImpersonating ? orgName : 'Panel de control'}
                   </h1>
@@ -186,7 +188,7 @@ export function OrgSidebar({
             )}
             {!collapsed && (
               <div className="min-w-0">
-                <p className={`text-[10px] font-semibold uppercase tracking-[0.2em] ${theme.accentText}`}>Medscale AI</p>
+                <img src={isDark ? '/logo-compact-white.png' : '/logo-compact-dark.png'} alt="MedScale AI" className="h-5 w-auto mb-0.5" />
                 <h1 className={`text-sm font-bold tracking-tight truncate ${theme.text}`}>{orgName || 'Mi clínica'}</h1>
               </div>
             )}
