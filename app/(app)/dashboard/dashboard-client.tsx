@@ -99,6 +99,7 @@ interface Metrics {
     revenue: number
   }[]
   heatmapDays: { date: string; count: number }[]
+  dailyApts: { date: string; label: string; count: number }[]
   thisWeek: number
   lastWeek: number
   thisMonthApts: number
@@ -305,6 +306,21 @@ function computeMetrics(
     heatmapDays.push({ date: dateStr, count })
   }
 
+  const dailyApts: { date: string; label: string; count: number }[] = []
+  for (let i = 13; i >= 0; i--) {
+    const dd = new Date(todayStr + 'T12:00:00')
+    dd.setDate(dd.getDate() - i)
+    const dateStr = bogotaDateStr(dd)
+    const dateObj = new Date(dateStr + 'T12:00:00')
+    const weekday = new Intl.DateTimeFormat('es-CO', { weekday: 'short', timeZone: 'America/Bogota' })
+      .format(dateObj).replace('.', '').replace(/^\S/, c => c.toUpperCase())
+    const dayNum = Number(dateStr.slice(8, 10))
+    const count = appointments.filter(
+      a => bogotaDateStr(new Date(a.scheduled_at)) === dateStr && a.status !== 'cancelled'
+    ).length
+    dailyApts.push({ date: dateStr, label: `${weekday} ${dayNum}`, count })
+  }
+
   // Weekly stats
   const thisWeekRange = getWeekRange(0)
   const lastWeekRange = getWeekRange(-1)
@@ -351,7 +367,7 @@ function computeMetrics(
     leadsByStatus,
     monthlyLines,
     doctorStats,
-    heatmapDays,
+    heatmapDays, dailyApts,
     thisWeek, lastWeek,
     thisMonthApts, dayOfMonth, projectedMonthly, vsLastMonthPct,
     prevMonthName, thisMonthName,
@@ -743,69 +759,7 @@ export function DashboardClient({
         </div>
       </div>
 
-      {/* ── Fila 4: Actividad de citas — heatmap compacto + métricas ─────── */}
-      <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
-        <h2 className="text-base font-semibold text-slate-900">Actividad de citas</h2>
-        <p className="text-xs text-slate-400 mt-0.5 mb-5">Últimos 30 días · citas no canceladas</p>
-
-        <HeatmapStrip days={m.heatmapDays} />
-
-        <div className="grid grid-cols-3 gap-3 mt-5">
-
-          {/* Esta semana vs anterior */}
-          <div className="rounded-xl bg-slate-50 px-4 py-3">
-            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">Esta semana</p>
-            <div className="flex items-baseline gap-1.5 mt-1.5">
-              <p className="text-2xl font-bold text-blue-700">{m.thisWeek}</p>
-              {m.lastWeek > 0 && (
-                <p className={`text-xs font-semibold ${m.thisWeek >= m.lastWeek ? 'text-emerald-600' : 'text-red-500'}`}>
-                  {m.thisWeek >= m.lastWeek ? '↑' : '↓'}{Math.abs(m.thisWeek - m.lastWeek)}
-                </p>
-              )}
-            </div>
-            <div className="mt-2 flex items-center gap-2">
-              <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-400 rounded-full"
-                  style={{ width: `${Math.round((m.thisWeek / weekMax) * 100)}%` }} />
-              </div>
-              <span className="text-[10px] text-slate-400 shrink-0">{m.lastWeek} ant.</span>
-            </div>
-          </div>
-
-          {/* Progreso del mes */}
-          <div className="rounded-xl bg-slate-50 px-4 py-3">
-            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">
-              {m.thisMonthName} · día {m.dayOfMonth}
-            </p>
-            <p className="text-2xl font-bold text-slate-800 mt-1.5">{m.thisMonthApts}</p>
-            <p className="text-[10px] text-emerald-600 font-semibold mt-1.5">
-              → ritmo ~{m.projectedMonthly}/mes
-            </p>
-          </div>
-
-          {/* vs mes anterior */}
-          <div className="rounded-xl bg-slate-50 px-4 py-3">
-            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">
-              vs {m.prevMonthName}
-            </p>
-            {m.vsLastMonthPct !== null ? (
-              <>
-                <p className={`text-2xl font-bold mt-1.5 ${m.vsLastMonthPct >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                  {m.vsLastMonthPct >= 0 ? '+' : ''}{m.vsLastMonthPct}%
-                </p>
-                <p className="text-[10px] text-slate-400 mt-1.5">primeros {m.dayOfMonth} días</p>
-              </>
-            ) : (
-              <>
-                <p className="text-2xl font-bold text-slate-300 mt-1.5">—</p>
-                <p className="text-[10px] text-slate-400 mt-1.5">sin datos anteriores</p>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Fila 5: Por médico ────────────────────────────────────────────── */}
+      {/* ── Por médico ───────────────────────────────────────────────────── */}
       <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
         <h2 className="mb-4 text-base font-semibold text-slate-900">Por médico</h2>
         {m.doctorStats.length === 0 ? (
@@ -883,7 +837,91 @@ export function DashboardClient({
         )}
       </div>
 
-      {/* ── Fila 6: Razones de cancelación (ancho completo, compacto) ──────── */}
+      {/* ── Actividad de citas — heatmap compacto + métricas ────────────── */}
+      <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
+        <h2 className="text-base font-semibold text-slate-900">Actividad de citas</h2>
+        <p className="text-xs text-slate-400 mt-0.5 mb-5">Últimos 30 días · citas no canceladas</p>
+
+        <HeatmapStrip days={m.heatmapDays} />
+
+        <div className="grid grid-cols-3 gap-3 mt-5">
+
+          {/* Esta semana vs anterior */}
+          <div className="rounded-xl bg-slate-50 px-4 py-3">
+            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">Esta semana</p>
+            <div className="flex items-baseline gap-1.5 mt-1.5">
+              <p className="text-2xl font-bold text-blue-700">{m.thisWeek}</p>
+              {m.lastWeek > 0 && (
+                <p className={`text-xs font-semibold ${m.thisWeek >= m.lastWeek ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {m.thisWeek >= m.lastWeek ? '↑' : '↓'}{Math.abs(m.thisWeek - m.lastWeek)}
+                </p>
+              )}
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                <div className="h-full bg-blue-400 rounded-full"
+                  style={{ width: `${Math.round((m.thisWeek / weekMax) * 100)}%` }} />
+              </div>
+              <span className="text-[10px] text-slate-400 shrink-0">{m.lastWeek} ant.</span>
+            </div>
+          </div>
+
+          {/* Progreso del mes */}
+          <div className="rounded-xl bg-slate-50 px-4 py-3">
+            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">
+              {m.thisMonthName} · día {m.dayOfMonth}
+            </p>
+            <p className="text-2xl font-bold text-slate-800 mt-1.5">{m.thisMonthApts}</p>
+            <p className="text-[10px] text-emerald-600 font-semibold mt-1.5">
+              → ritmo ~{m.projectedMonthly}/mes
+            </p>
+          </div>
+
+          {/* vs mes anterior */}
+          <div className="rounded-xl bg-slate-50 px-4 py-3">
+            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">
+              vs {m.prevMonthName}
+            </p>
+            {m.vsLastMonthPct !== null ? (
+              <>
+                <p className={`text-2xl font-bold mt-1.5 ${m.vsLastMonthPct >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {m.vsLastMonthPct >= 0 ? '+' : ''}{m.vsLastMonthPct}%
+                </p>
+                <p className="text-[10px] text-slate-400 mt-1.5">primeros {m.dayOfMonth} días</p>
+              </>
+            ) : (
+              <>
+                <p className="text-2xl font-bold text-slate-300 mt-1.5">—</p>
+                <p className="text-[10px] text-slate-400 mt-1.5">sin datos anteriores</p>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Citas por día ────────────────────────────────────────────────── */}
+      <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
+        <h2 className="text-base font-semibold text-slate-900">Citas por día</h2>
+        <p className="text-xs text-slate-400 mt-0.5 mb-4">Últimos 14 días · citas no canceladas</p>
+        <ResponsiveContainer width="100%" height={160}>
+          <BarChart data={m.dailyApts} margin={{ top: 18, right: 4, left: 4, bottom: 0 }} barCategoryGap="30%">
+            <defs>
+              <linearGradient id="dailyBarGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#6366f1" />
+                <stop offset="100%" stopColor="#3b82f6" />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+            <Tooltip content={<BarTooltip />} cursor={{ fill: '#f8fafc' }} />
+            <Bar dataKey="count" name="Citas" fill="url(#dailyBarGrad)" radius={[4,4,0,0]}>
+              <LabelList dataKey="count" position="top" style={{ fontSize: 9, fill: '#6366f1', fontWeight: 600 }}
+                formatter={(v: any) => v || ''} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* ── Razones de cancelación (ancho completo, compacto) ────────────── */}
       <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
         <div className="flex items-baseline gap-3 mb-4">
           <h2 className="text-base font-semibold text-slate-900">Razones de cancelación y no-show</h2>
