@@ -581,73 +581,31 @@ export default function AppointmentTypesPage() {
           </button>
         </div>
       ) : (
-        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100">
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Tipo</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Duración</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Modalidad</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Precio</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Link público</th>
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Estado</th>
-                <th className="px-5 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {types.map(t => (
-                <tr key={t.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className="h-3 w-3 rounded-full shrink-0"
-                        style={{ backgroundColor: t.color }}
-                      />
-                      <span className="font-medium text-slate-900">{t.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5 text-slate-600">{t.duration_minutes} min</td>
-                  <td className="px-5 py-3.5">
-                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      t.modality === 'presencial'   ? 'bg-blue-100 text-blue-700' :
-                      t.modality === 'virtual'      ? 'bg-emerald-100 text-emerald-700' :
-                                                      'bg-slate-100 text-slate-600'
-                    }`}>
-                      {t.modality === 'presencial' ? 'Solo presencial' :
-                       t.modality === 'virtual'    ? 'Solo virtual' :
-                                                     'Paciente elige'}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-slate-600 text-xs">
-                    {(() => {
-                      const fmt = (n: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
-                      if (t.modality === 'presencial') return t.price_presencial != null ? fmt(t.price_presencial) : '—'
-                      if (t.modality === 'virtual')    return t.price_virtual    != null ? fmt(t.price_virtual)    : '—'
-                      const parts = [
-                        t.price_presencial != null ? `Pres: ${fmt(t.price_presencial)}` : null,
-                        t.price_virtual    != null ? `Virt: ${fmt(t.price_virtual)}`    : null,
-                      ].filter(Boolean)
-                      return parts.length > 0 ? parts.join(' / ') : '—'
-                    })()}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <span className="max-w-[200px] truncate text-xs text-slate-500 font-mono">
-                        /book/{org?.slug}/{t.slug}
-                      </span>
-                      <button
-                        onClick={() => copyLink(t)}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
-                        title="Copiar link"
-                      >
-                        {copiedId === t.id
-                          ? <Check className="h-4 w-4 text-emerald-500" />
-                          : <Copy className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {types.map(t => {
+            const fmt = (n: number) =>
+              new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
+
+            const priceLabel = (() => {
+              if (t.modality === 'presencial') return t.price_presencial != null ? fmt(t.price_presencial) : null
+              if (t.modality === 'virtual')    return t.price_virtual    != null ? fmt(t.price_virtual)    : null
+              const parts = [
+                t.price_presencial != null ? `Pres: ${fmt(t.price_presencial)}` : null,
+                t.price_virtual    != null ? `Virt: ${fmt(t.price_virtual)}`    : null,
+              ].filter(Boolean)
+              return parts.length > 0 ? parts.join(' / ') : null
+            })()
+
+            return (
+              <div key={t.id} className="rounded-2xl border border-slate-200 bg-white p-5 hover:shadow-md transition">
+
+                {/* Card Header */}
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: t.color }} />
+                    <span className="font-semibold text-slate-900 truncate">{t.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
                     <button
                       onClick={() => toggleActive(t)}
                       className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
@@ -658,20 +616,57 @@ export default function AppointmentTypesPage() {
                         t.active ? 'translate-x-4.5' : 'translate-x-0.5'
                       }`} />
                     </button>
-                  </td>
-                  <td className="px-5 py-3.5">
                     <button
                       onClick={() => openEdit(t)}
                       className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+                      title="Editar"
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
+                  </div>
+                </div>
+
+                {/* Card Body */}
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1 text-xs text-slate-500">
+                      <Clock className="h-3.5 w-3.5" />
+                      {t.duration_minutes} min
+                    </span>
+                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      t.modality === 'presencial' ? 'bg-blue-100 text-blue-700' :
+                      t.modality === 'virtual'    ? 'bg-emerald-100 text-emerald-700' :
+                                                    'bg-slate-100 text-slate-600'
+                    }`}>
+                      {t.modality === 'presencial' ? 'Solo presencial' :
+                       t.modality === 'virtual'    ? 'Solo virtual' :
+                                                     'Paciente elige'}
+                    </span>
+                  </div>
+                  {priceLabel && (
+                    <p className="text-sm font-medium text-slate-700">{priceLabel}</p>
+                  )}
+                </div>
+
+                {/* Card Footer */}
+                <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <span className="flex-1 min-w-0 text-xs text-slate-400 font-mono truncate">
+                    /book/{org?.slug}/{t.slug}
+                  </span>
+                  <button
+                    onClick={() => copyLink(t)}
+                    className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+                    title="Copiar link"
+                  >
+                    {copiedId === t.id
+                      ? <Check className="h-4 w-4 text-emerald-500" />
+                      : <Copy className="h-4 w-4" />}
+                  </button>
+                </div>
+
+              </div>
+            )
+          })}
         </div>
       )}
 
