@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 const PUBLIC_ROUTES = [
   '/login', '/register', '/reset-password', '/auth/callback', '/invite', '/setup',
   '/api/webhooks', '/api/dev', '/api/book', '/api/appointment', '/api/cron',
-  '/api/google', '/api/register', '/api/onboarding', '/api/conversations',
+  '/api/google', '/api/register', '/api/onboarding', '/api/conversations', '/api/referrals/validate',
   '/book', '/appointment', '/onboarding',
 ]
 
