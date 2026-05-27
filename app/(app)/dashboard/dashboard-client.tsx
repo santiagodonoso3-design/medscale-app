@@ -316,7 +316,7 @@ function computeMetrics(
       .format(dateObj).replace('.', '').replace(/^\S/, c => c.toUpperCase())
     const dayNum = Number(dateStr.slice(8, 10))
     const count = appointments.filter(
-      a => bogotaDateStr(new Date(a.scheduled_at)) === dateStr && a.status !== 'cancelled'
+      a => bogotaDateStr(new Date(a.created_at)) === dateStr && a.status !== 'cancelled'
     ).length
     dailyApts.push({ date: dateStr, label: `${weekday} ${dayNum}`, count })
   }
@@ -901,8 +901,8 @@ export function DashboardClient({
 
       {/* ── Citas por día ────────────────────────────────────────────────── */}
       <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
-        <h2 className="text-base font-semibold text-slate-900">Citas por día</h2>
-        <p className="text-xs text-slate-400 mt-0.5 mb-4">Últimos 14 días · citas no canceladas</p>
+        <h2 className="text-base font-semibold text-slate-900">Agendamientos por día</h2>
+        <p className="text-xs text-slate-400 mt-0.5 mb-4">Últimos 14 días · citas creadas</p>
         <ResponsiveContainer width="100%" height={160}>
           <BarChart data={m.dailyApts} margin={{ top: 18, right: 4, left: 4, bottom: 0 }} barCategoryGap="30%">
             <defs>

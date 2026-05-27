@@ -21,6 +21,7 @@ function currentBogotaYear(): number {
 export interface RawAppointment {
   id: string
   scheduled_at: string
+  created_at: string
   status: string
   doctor_id: string
   lead_id: string
@@ -81,7 +82,7 @@ export async function getDashboardRawData(year: number, orgId: string): Promise<
       { data: procLeadsRaw },
     ] = await Promise.all([
       admin.from('appointments')
-        .select('id, scheduled_at, status, doctor_id, lead_id, doctor_assignment_type, price, modality, appointment_type_id, metadata')
+        .select('id, scheduled_at, created_at, status, doctor_id, lead_id, doctor_assignment_type, price, modality, appointment_type_id, metadata')
         .eq('organization_id', orgId)
         .gte('scheduled_at', fromDate)
         .lt('scheduled_at', toDate),
@@ -132,6 +133,7 @@ export async function getDashboardRawData(year: number, orgId: string): Promise<
     const appointments: RawAppointment[] = (apts ?? []).map((a: any) => ({
       id: a.id,
       scheduled_at: a.scheduled_at,
+      created_at: a.created_at,
       status: a.status,
       doctor_id: a.doctor_id,
       lead_id: a.lead_id ?? '',
