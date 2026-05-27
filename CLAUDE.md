@@ -403,6 +403,10 @@ app/
 #### Integraciones
 - ✅ n8n webhook conectado para WhatsApp e Instagram de Bariatric Latam
 
+#### Auth y CRM
+- ✅ Estados custom del CRM: lead_statuses por organización
+- ✅ Google OAuth en registro crea organización correctamente
+
 ### Cliente Bariatric Latam (27 Mayo 2026)
 - org_id: f9ca61f7-49bb-4d1e-9d02-d5c77fc9bb87
 - slug: dr-carlos-lopera
@@ -413,16 +417,14 @@ app/
 ---
 
 ## 🔴 PRIORIDAD 1 — MVP Autoservicio
-- [ ] Stripe billing con trial 14 días (pospuesto — cobro manual desde superadmin por ahora)
+_(cobro manual desde superadmin por ahora — sin tareas activas)_
 
 ## 🟡 PRIORIDAD 2
 - [ ] Tour opcional post-onboarding
 - [ ] Verificar buffer_before/after_min con citas reales
-- [ ] Estados custom del CRM (lead_statuses por organización)
 - [ ] Limpiar temp_register.txt del repo
 - [ ] "FOR HEALTHCARE GROWTH" duplicado en emails (sale en logo y como texto)
 - [ ] Dropdown de estado se corta en borde inferior de pantalla (scheduling)
-- [ ] Google OAuth en registro NO crea organización (solo email+password funciona)
 
 ## 🟢 PRIORIDAD 3 — Superadmin evolución
 - [ ] Dashboard superadmin con métricas avanzadas (MRR, churn, uso por org)
@@ -432,6 +434,7 @@ app/
 - [ ] Logs/auditoría
 
 ## 🔵 Fase 2
+- [ ] Stripe billing con trial 14 días
 - [ ] Google Calendar bidireccional
 - [ ] WhatsApp via Meta Cloud API
 - [ ] Módulo historia clínica
