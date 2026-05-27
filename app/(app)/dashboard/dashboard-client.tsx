@@ -212,7 +212,7 @@ function computeMetrics(
     leadDoctorMap.get(a.lead_id)!.add(a.doctor_id)
   })
   const docMap = new Map(doctors.map(d => [
-    d.id, { name: d.name, total: 0, completed: 0, autoAssigned: 0, patientChosen: 0, inProcedure: 0, revenue: 0 },
+    d.id, { name: d.name, total: 0, completed: 0, noShow: 0, cancelled: 0, autoAssigned: 0, patientChosen: 0, inProcedure: 0, revenue: 0 },
   ]))
   periodApts.forEach(a => {
     const e = docMap.get(a.doctor_id)
@@ -222,6 +222,8 @@ function computeMetrics(
       e.completed++
       if (a.price != null) e.revenue += a.price
     }
+    if (a.status === 'no_show')   e.noShow++
+    if (a.status === 'cancelled') e.cancelled++
     if (a.doctor_assignment_type === 'patient_choice') e.patientChosen++
     else e.autoAssigned++
   })
@@ -234,7 +236,10 @@ function computeMetrics(
   })
   const doctorStats = Array.from(docMap.values())
     .filter(d => d.total > 0)
-    .map(d => ({ ...d, pct: Math.round((d.completed / d.total) * 100) }))
+    .map(d => {
+      const resolved = d.completed + d.noShow + d.cancelled
+      return { ...d, pct: resolved > 0 ? Math.round((d.completed / resolved) * 100) : 0 }
+    })
     .sort((a, b) => b.total - a.total)
 
   // Heatmap: last 30 days (always current, ignores year/month filter)
