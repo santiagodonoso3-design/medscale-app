@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo, useRef } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, ReferenceLine, Legend,
+  Tooltip, ResponsiveContainer, ReferenceLine, Legend, LabelList,
 } from 'recharts'
 import { Loader2 } from 'lucide-react'
 import type { RawDashboardData } from './actions'
@@ -336,27 +336,9 @@ function RevenueTooltip({ active, payload, label }: any) {
   )
 }
 
-function HeatmapGrid({ days }: { days: { date: string; count: number }[] }) {
+// Compact horizontal strip — 30 squares in one row
+function HeatmapStrip({ days }: { days: { date: string; count: number }[] }) {
   const [tooltip, setTooltip] = useState<{ date: string; count: number; x: number; y: number } | null>(null)
-
-  // Show labels on alternating rows to avoid clutter (L, M, V, D)
-  const DAY_LABELS = ['L', '', 'M', '', 'V', '', 'D']
-
-  const startDate    = days[0]?.date ?? ''
-  const startWeekday = startDate
-    ? (() => { const w = new Date(startDate + 'T12:00:00').getDay(); return w === 0 ? 6 : w - 1 })()
-    : 0
-  const numCols = Math.ceil((startWeekday + days.length) / 7)
-
-  const grid: ({ date: string; count: number } | null)[][] = Array.from(
-    { length: numCols }, () => Array(7).fill(null)
-  )
-  days.forEach((day, i) => {
-    const absPos = startWeekday + i
-    const col    = Math.floor(absPos / 7)
-    const row    = absPos % 7
-    if (col < numCols) grid[col][row] = day
-  })
 
   function cellColor(count: number): string {
     if (count === 0) return 'bg-slate-100'
@@ -366,60 +348,61 @@ function HeatmapGrid({ days }: { days: { date: string; count: number }[] }) {
     return 'bg-emerald-600'
   }
 
-  function fmtHeatDate(dateStr: string): string {
+  function fmtShort(dateStr: string): string {
+    return new Intl.DateTimeFormat('es-CO', {
+      day: 'numeric', month: 'short', timeZone: 'America/Bogota',
+    }).format(new Date(dateStr + 'T12:00:00'))
+  }
+
+  function fmtFull(dateStr: string): string {
     return new Intl.DateTimeFormat('es-CO', {
       weekday: 'short', day: 'numeric', month: 'short', timeZone: 'America/Bogota',
     }).format(new Date(dateStr + 'T12:00:00'))
   }
 
+  const firstDate = days[0]?.date ?? ''
+  const lastDate  = days[days.length - 1]?.date ?? ''
+
   return (
     <div className="relative select-none">
-      <div className="flex gap-1 overflow-x-auto pb-1">
-        {/* Day-of-week labels */}
-        <div className="flex flex-col gap-1 mr-1 shrink-0">
-          {DAY_LABELS.map((l, i) => (
-            <div key={i} className="h-4 w-3 flex items-center justify-end text-[9px] text-slate-400 font-medium leading-none">
-              {l}
-            </div>
-          ))}
-        </div>
-        {/* Weekly columns */}
-        {grid.map((col, ci) => (
-          <div key={ci} className="flex flex-col gap-1 shrink-0">
-            {col.map((day, ri) => (
-              <div
-                key={ri}
-                className={`h-4 w-4 rounded-sm ${
-                  day
-                    ? `${cellColor(day.count)} cursor-pointer hover:opacity-70 transition-opacity`
-                    : 'bg-transparent'
-                }`}
-                onMouseEnter={day ? (e) => {
-                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                  setTooltip({ ...day, x: rect.left + rect.width / 2, y: rect.top })
-                } : undefined}
-                onMouseLeave={() => setTooltip(null)}
-              />
-            ))}
-          </div>
+      {/* 30-square horizontal strip */}
+      <div className="flex gap-0.5 flex-wrap">
+        {days.map(day => (
+          <div
+            key={day.date}
+            style={{ width: 14, height: 14 }}
+            className={`rounded-sm shrink-0 ${cellColor(day.count)} cursor-pointer hover:opacity-70 transition-opacity`}
+            onMouseEnter={(e) => {
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+              setTooltip({ ...day, x: rect.left + rect.width / 2, y: rect.top })
+            }}
+            onMouseLeave={() => setTooltip(null)}
+          />
         ))}
       </div>
 
-      {/* Color scale legend */}
-      <div className="flex items-center gap-1.5 mt-3">
+      {/* First / last date labels */}
+      <div className="flex justify-between mt-1.5 px-0.5">
+        <span className="text-[10px] text-slate-400 capitalize">{fmtShort(firstDate)}</span>
+        <span className="text-[10px] text-slate-400 capitalize">{fmtShort(lastDate)}</span>
+      </div>
+
+      {/* Color scale */}
+      <div className="flex items-center gap-1.5 mt-2">
         <span className="text-[10px] text-slate-400">Menos</span>
         {['bg-slate-100','bg-emerald-200','bg-emerald-300','bg-emerald-500','bg-emerald-600'].map(c => (
-          <div key={c} className={`h-3 w-3 rounded-sm ${c}`} />
+          <div key={c} style={{ width: 10, height: 10 }} className={`rounded-sm ${c}`} />
         ))}
         <span className="text-[10px] text-slate-400">Más</span>
       </div>
 
+      {/* Hover tooltip */}
       {tooltip && (
         <div
           className="fixed z-[9999] pointer-events-none -translate-x-1/2 -translate-y-full rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs text-white shadow-lg"
           style={{ left: tooltip.x, top: tooltip.y - 8 }}
         >
-          <p className="font-semibold capitalize">{fmtHeatDate(tooltip.date)}</p>
+          <p className="font-semibold capitalize">{fmtFull(tooltip.date)}</p>
           <p className="text-slate-300">{tooltip.count} cita{tooltip.count !== 1 ? 's' : ''}</p>
           <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
         </div>
@@ -575,7 +558,34 @@ export function DashboardClient({
         </div>
       </div>
 
-      {/* ── Fila 2: Ingresos por mes + Razones cancelación ───────────────── */}
+      {/* ── Fila 2: Tendencia mensual (ancho completo) ────────────────────── */}
+      <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
+        <h2 className="text-base font-semibold text-slate-900">Tendencia mensual</h2>
+        <p className="text-xs text-slate-400 mt-0.5 mb-4">Evolución del año completo · cantidad de citas y leads</p>
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={m.monthlyLines} margin={{ top: 20, right: 8, left: -20, bottom: 0 }} barGap={2} barCategoryGap="25%">
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
+            <Tooltip content={<BarTooltip />} cursor={{ fill: '#f8fafc' }} />
+            <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
+            <Bar dataKey="agendadas" name="Agendadas" fill="#6366f1" radius={[3,3,0,0]}>
+              <LabelList dataKey="agendadas" position="top" style={{ fontSize: 9, fill: '#6366f1', fontWeight: 600 }} formatter={(v: any) => v || ''} />
+            </Bar>
+            <Bar dataKey="asistencias" name="Asistencias" fill="#10b981" radius={[3,3,0,0]}>
+              <LabelList dataKey="asistencias" position="top" style={{ fontSize: 9, fill: '#10b981', fontWeight: 600 }} formatter={(v: any) => v || ''} />
+            </Bar>
+            <Bar dataKey="finalizados" name="Finalizados" fill="#8b5cf6" radius={[3,3,0,0]}>
+              <LabelList dataKey="finalizados" position="top" style={{ fontSize: 9, fill: '#8b5cf6', fontWeight: 600 }} formatter={(v: any) => v || ''} />
+            </Bar>
+            <Bar dataKey="procedimiento" name="Procedimiento" fill="#f59e0b" radius={[3,3,0,0]}>
+              <LabelList dataKey="procedimiento" position="top" style={{ fontSize: 9, fill: '#f59e0b', fontWeight: 600 }} formatter={(v: any) => v || ''} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* ── Fila 3: Ingresos por mes + Razones cancelación ───────────────── */}
       <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 transition-opacity ${isPending ? 'opacity-50' : ''}`}>
 
         {/* Ingresos por mes */}
@@ -641,33 +651,14 @@ export function DashboardClient({
         </div>
       </div>
 
-      {/* ── Fila 3: Tendencia mensual ─────────────────────────────────────── */}
-      <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
-        <h2 className="text-base font-semibold text-slate-900">Tendencia mensual</h2>
-        <p className="text-xs text-slate-400 mt-0.5 mb-4">Evolución del año completo · cantidad de citas y leads</p>
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={m.monthlyLines} margin={{ top: 8, right: 8, left: -20, bottom: 0 }} barGap={2} barCategoryGap="25%">
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-            <Tooltip content={<BarTooltip />} cursor={{ fill: '#f8fafc' }} />
-            <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
-            <Bar dataKey="agendadas"     name="Agendadas"     fill="#64748b" radius={[3,3,0,0]} />
-            <Bar dataKey="asistencias"   name="Asistencias"   fill="#10b981" radius={[3,3,0,0]} />
-            <Bar dataKey="procedimiento" name="Procedimiento" fill="#f59e0b" radius={[3,3,0,0]} />
-            <Bar dataKey="finalizados"   name="Finalizados"   fill="#8b5cf6" radius={[3,3,0,0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* ── Fila 4: Actividad de citas — heatmap + métricas ──────────────── */}
+      {/* ── Fila 4: Actividad de citas — heatmap compacto + métricas ─────── */}
       <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
         <h2 className="text-base font-semibold text-slate-900">Actividad de citas</h2>
         <p className="text-xs text-slate-400 mt-0.5 mb-5">Últimos 30 días · citas no canceladas</p>
 
-        <HeatmapGrid days={m.heatmapDays} />
+        <HeatmapStrip days={m.heatmapDays} />
 
-        <div className="grid grid-cols-3 gap-3 mt-6">
+        <div className="grid grid-cols-3 gap-3 mt-5">
 
           {/* Esta semana vs anterior */}
           <div className="rounded-xl bg-slate-50 px-4 py-3">
