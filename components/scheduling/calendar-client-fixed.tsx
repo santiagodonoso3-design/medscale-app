@@ -36,7 +36,7 @@ const STATUS_LABELS: Record<string, string> = {
   confirmed: 'Confirmada',
   completed: 'Completada',
   cancelled: 'Cancelada',
-  no_show: 'No show',
+  no_show: 'No asistió',
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -51,6 +51,7 @@ const STATUS_BADGE: Record<string, string> = {
 const ALL_STATUSES = [
   { value: 'scheduled',  label: 'Programada'  },
   { value: 'completed',  label: 'Completada'  },
+  { value: 'no_show',    label: 'No asistió'  },
   { value: 'cancelled',  label: 'Cancelada'   },
 ]
 const STATUS_TRANSITIONS = Object.fromEntries(
