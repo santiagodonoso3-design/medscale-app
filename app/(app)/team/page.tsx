@@ -2,12 +2,17 @@
 import { redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getSession } from '@/lib/auth/session'
+import { getUserPermissions, canAccess, canEdit } from '@/lib/permissions'
 import { TeamClient } from './team-client'
 
 export default async function TeamPage() {
   const session = await getSession()
   if (!session) redirect('/login')
-  if (session.role !== 'owner') redirect('/dashboard')
+
+  const perms = getUserPermissions(session.role, session.permissions)
+  if (!canAccess(perms, 'team')) redirect('/crm')
+
+  const readOnly = !canEdit(perms, 'team')
 
   const admin = createServiceClient()
   const orgId = session.orgId
@@ -63,6 +68,7 @@ export default async function TeamPage() {
       doctors={doctors ?? []}
       currentUserId={user.id}
       doctorsWithSchedules={doctorsWithSchedules}
+      readOnly={readOnly}
     />
     </div>
   )

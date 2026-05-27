@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { getSession } from '@/lib/auth/session'
+import { getUserPermissions, canAccess } from '@/lib/permissions'
 import { SettingsNav } from './settings-nav'
 
 export default async function SettingsLayout({ children }: { children: ReactNode }) {
@@ -12,10 +13,12 @@ export default async function SettingsLayout({ children }: { children: ReactNode
   const pathname = headersList.get('x-pathname') ?? ''
 
   const { role } = session
+  const perms = getUserPermissions(role, session.permissions)
 
-  if (role !== 'owner') {
+  if (!canAccess(perms, 'settings')) {
+    // Doctor special case: allowed on /settings/integrations even though settings is 'none'
     if (role !== 'doctor' || !pathname.startsWith('/settings/integrations')) {
-      redirect('/dashboard')
+      redirect('/crm')
     }
   }
 

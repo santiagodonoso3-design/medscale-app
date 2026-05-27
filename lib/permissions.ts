@@ -23,13 +23,13 @@ const DEFAULTS: Record<Role, ModulePermissions> = {
     settings: 'full',
   },
   staff: {
-    dashboard: 'read',
+    dashboard: 'none',
     crm: 'full',
     scheduling: 'full',
     conversations: 'full',
     doctors: 'read',
-    team: 'none',
-    settings: 'none',
+    team: 'read',
+    settings: 'full',
   },
   doctor: {
     dashboard: 'none',

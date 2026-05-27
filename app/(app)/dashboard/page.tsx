@@ -20,7 +20,7 @@ export default async function DashboardPage() {
   if (!session.orgId) redirect('/onboarding')
 
   const perms = getUserPermissions(session.role, session.permissions)
-  if (!canAccess(perms, 'dashboard')) redirect('/scheduling/calendar')
+  if (!canAccess(perms, 'dashboard')) redirect('/crm')
 
   const admin = createServiceClient()
   const { data: org } = await admin

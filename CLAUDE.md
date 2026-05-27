@@ -197,13 +197,13 @@ app/
 - ✅ Permisos por módulo según rol:
   | Módulo | Owner | Staff | Doctor |
   |---|---|---|---|
-  | Dashboard | ✅✅ | ✅❌ | ❌❌ |
+  | Dashboard | ✅✅ | ❌❌ | ❌❌ |
   | CRM | ✅✅ | ✅✅ | ❌❌ |
   | Agenda | ✅✅ | ✅✅ | ✅ solo suyas |
   | Doctores | ✅✅ | ✅ ver+disponibilidad | ✅ solo su perfil |
   | Conversaciones | ✅✅ | ✅✅ | ❌❌ |
-  | Equipo | ✅✅ | ❌❌ | ❌❌ |
-  | Configuración | ✅✅ | ❌❌ | Solo Integraciones |
+  | Equipo | ✅✅ | ✅ solo lectura | ❌❌ |
+  | Configuración | ✅✅ | ✅✅ | Solo Integraciones |
 
 ### Onboarding Wizard (13 Mayo 2026)
 - ✅ Wizard 4 pasos: Datos clínica → Primer médico → Disponibilidad → Link listo
@@ -522,7 +522,9 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 ### Roles — Protección
 - Protección por rol en `layout.tsx` y páginas vía `getSession()`
 - Doctor permitido: /scheduling, /doctors, /settings/integrations
-- Staff bloqueado: /team, /settings/*, /admin
+- Staff bloqueado: /dashboard, /admin
+- Staff solo lectura: /team (puede ver lista, no invitar/editar/eliminar)
+- Staff acceso completo: /crm, /scheduling, /conversations, /settings/*
 - Doctor en /dashboard → redirect a /scheduling/calendar
 - **NO hay verificación de roles en middleware**
 
