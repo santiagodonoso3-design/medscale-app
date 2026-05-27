@@ -472,6 +472,7 @@ app/
 _(cobro manual desde superadmin por ahora — sin tareas activas)_
 
 ## 🟡 PRIORIDAD 2
+- [ ] Moneda configurable por organización: columna `currency` en organizations (default 'COP'). Monedas soportadas: COP, USD, MXN, ARS, CLP, PEN, BRL, UYU, BOB, PYG, CRC, PAB, DOP, GTQ, HNL, NIO, SVC. Aplicar formato de moneda en dashboard, booking, settings, CRM. Helper `formatCurrency(amount, currency)` centralizado.
 - [ ] Tour opcional post-onboarding
 - [ ] Verificar buffer_before/after_min con citas reales
 - [ ] Limpiar temp_register.txt del repo
