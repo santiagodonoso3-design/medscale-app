@@ -49,12 +49,19 @@ export interface AppointmentTypeInfo {
   assignment_mode: string
 }
 
+export interface RawProcedureLead {
+  lead_id: string
+  procedure_price: number
+  procedure_month: string  // YYYY-MM in Bogota tz
+}
+
 export interface RawDashboardData {
   year: number
   appointments: RawAppointment[]
   yearLeads: RawLead[]
   doctors: RawDoctor[]
   appointmentTypes: AppointmentTypeInfo[]
+  procedureLeads: RawProcedureLead[]
 }
 
 // ── Fetch all data for a given year ──────────────────────────────────────────
@@ -71,6 +78,7 @@ export async function getDashboardRawData(year: number, orgId: string): Promise<
       { data: yearLeadsRaw },
       { data: doctorsRaw },
       { data: apptTypesRaw },
+      { data: procLeadsRaw },
     ] = await Promise.all([
       admin.from('appointments')
         .select('id, scheduled_at, status, doctor_id, lead_id, doctor_assignment_type, price, modality, appointment_type_id, metadata')
@@ -89,7 +97,37 @@ export async function getDashboardRawData(year: number, orgId: string): Promise<
       admin.from('appointment_types')
         .select('id, assignment_mode')
         .eq('organization_id', orgId),
+      admin.from('leads')
+        .select('id, procedure_price')
+        .eq('organization_id', orgId)
+        .not('procedure_id', 'is', null)
+        .not('procedure_price', 'is', null),
     ])
+
+    // Procedure revenue: resolve each lead's date from its last completed appointment
+    let procedureLeads: RawProcedureLead[] = []
+    if (procLeadsRaw && (procLeadsRaw as any[]).length > 0) {
+      const leadIds = (procLeadsRaw as any[]).map((l: any) => l.id)
+      const { data: procApts } = await admin
+        .from('appointments')
+        .select('lead_id, scheduled_at')
+        .in('lead_id', leadIds)
+        .eq('status', 'completed')
+        .order('scheduled_at', { ascending: false })
+      const latestByLead = new Map<string, string>()
+      for (const a of (procApts ?? [])) {
+        if (a.lead_id && !latestByLead.has(a.lead_id)) {
+          latestByLead.set(a.lead_id, a.scheduled_at)
+        }
+      }
+      procedureLeads = (procLeadsRaw as any[])
+        .filter((l: any) => latestByLead.has(l.id))
+        .map((l: any) => ({
+          lead_id: l.id,
+          procedure_price: Number(l.procedure_price),
+          procedure_month: toBogotaYM(latestByLead.get(l.id)!),
+        }))
+    }
 
     const appointments: RawAppointment[] = (apts ?? []).map((a: any) => ({
       id: a.id,
@@ -120,7 +158,7 @@ export async function getDashboardRawData(year: number, orgId: string): Promise<
       assignment_mode: t.assignment_mode ?? 'hybrid',
     }))
 
-    return { year, appointments, yearLeads, doctors, appointmentTypes }
+    return { year, appointments, yearLeads, doctors, appointmentTypes, procedureLeads }
   } catch (e) {
     console.error('getDashboardRawData error:', e)
     return null

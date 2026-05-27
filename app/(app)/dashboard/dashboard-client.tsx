@@ -72,6 +72,8 @@ function prevPeriodMonths(months: number[]): number[] | null {
 
 interface Metrics {
   revenueTotal: number
+  revenueApts: number
+  revenueProcs: number
   revenuePrev: number | null
   citasCount: number
   completedCount: number
@@ -81,7 +83,7 @@ interface Metrics {
   attendanceRate: number | null
   leadsCount: number
   leadsWithoutAppointment: number
-  monthlyRevenue: { label: string; revenue: number }[]
+  monthlyRevenue: { label: string; revenueCitas: number; revenueProcs: number; total: number }[]
   avgMonthlyRevenue: number
   cancellationReasons: { reason: string; count: number }[]
   leadsByStatus: { status: string; count: number }[]
@@ -117,6 +119,7 @@ function computeMetrics(
   currentMonth: number,
 ): Metrics {
   const { appointments, yearLeads, doctors } = data
+  const procedureLeads = data.procedureLeads ?? []
   const monthSet = new Set(months)
   const inPeriod = (ym: string) => {
     const [y, mo] = ym.split('-').map(Number)
@@ -124,11 +127,14 @@ function computeMetrics(
   }
 
   const periodApts = appointments.filter(a => inPeriod(a.ym))
+  const periodProcLeads = procedureLeads.filter(pl => inPeriod(pl.procedure_month))
 
-  // KPI 1: Revenue — completed appointments only
-  const revenueTotal = periodApts
+  // KPI 1: Revenue — completed appointments + procedure revenue
+  const revenueApts = periodApts
     .filter(a => a.status === 'completed' && a.price != null)
     .reduce((s, a) => s + (a.price ?? 0), 0)
+  const revenueProcs = periodProcLeads.reduce((s, pl) => s + pl.procedure_price, 0)
+  const revenueTotal = revenueApts + revenueProcs
 
   const prevMs = prevPeriodMonths(months)
   const revenuePrev = prevMs !== null
@@ -138,6 +144,12 @@ function computeMetrics(
           return y === year && prevMs.includes(mo) && a.status === 'completed' && a.price != null
         })
         .reduce((s, a) => s + (a.price ?? 0), 0)
+      + procedureLeads
+          .filter(pl => {
+            const [y, mo] = pl.procedure_month.split('-').map(Number)
+            return y === year && prevMs.includes(mo)
+          })
+          .reduce((s, pl) => s + pl.procedure_price, 0)
     : null
 
   // KPI 2: Counts
@@ -162,14 +174,17 @@ function computeMetrics(
 
   const monthlyRevenue = allYearMonths.map(m => {
     const ym = `${year}-${pad(m)}`
-    const rev = appointments
+    const revenueCitas = appointments
       .filter(a => a.ym === ym && a.status === 'completed' && a.price != null)
       .reduce((s, a) => s + (a.price ?? 0), 0)
-    return { label: MONTH_LABELS[m - 1], revenue: rev }
+    const revenueProcsMonth = procedureLeads
+      .filter(pl => pl.procedure_month === ym)
+      .reduce((s, pl) => s + pl.procedure_price, 0)
+    return { label: MONTH_LABELS[m - 1], revenueCitas, revenueProcs: revenueProcsMonth, total: revenueCitas + revenueProcsMonth }
   })
-  const activeRevMonths = monthlyRevenue.filter(mr => mr.revenue > 0)
+  const activeRevMonths = monthlyRevenue.filter(mr => mr.total > 0)
   const avgMonthlyRevenue = activeRevMonths.length > 0
-    ? Math.round(activeRevMonths.reduce((s, mr) => s + mr.revenue, 0) / activeRevMonths.length)
+    ? Math.round(activeRevMonths.reduce((s, mr) => s + mr.total, 0) / activeRevMonths.length)
     : 0
 
   const monthlyLines = allYearMonths.map(m => {
@@ -234,6 +249,24 @@ function computeMetrics(
       leadDoctorMap.get(l.id)?.has(doctorId)
     ).length
   })
+
+  // Attribute procedure revenue to the doctor of the last completed apt in this year
+  const lastCompletedDoctorByLead = new Map<string, string>()
+  appointments
+    .filter(a => a.status === 'completed')
+    .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
+    .forEach(a => {
+      if (a.lead_id && !lastCompletedDoctorByLead.has(a.lead_id)) {
+        lastCompletedDoctorByLead.set(a.lead_id, a.doctor_id)
+      }
+    })
+  periodProcLeads.forEach(pl => {
+    const doctorId = lastCompletedDoctorByLead.get(pl.lead_id)
+    if (!doctorId) return
+    const e = docMap.get(doctorId)
+    if (e) e.revenue += pl.procedure_price
+  })
+
   const doctorStats = Array.from(docMap.values())
     .filter(d => d.total > 0)
     .map(d => {
@@ -292,7 +325,7 @@ function computeMetrics(
   const thisMonthName = MONTH_LABELS[todayObj.getMonth()]
 
   return {
-    revenueTotal, revenuePrev,
+    revenueTotal, revenueApts, revenueProcs, revenuePrev,
     citasCount, completedCount, noShowCount, cancelledCount, pendingCount,
     attendanceRate,
     leadsCount, leadsWithoutAppointment,
@@ -358,12 +391,17 @@ function BarTooltip({ active, payload, label }: any) {
 
 function RevenueTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
+  const nonZero = payload.filter((p: any) => p.value > 0)
+  const total = payload.reduce((s: number, p: any) => s + (p.value || 0), 0)
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-lg text-sm space-y-1">
       <p className="font-semibold text-slate-700">{label}</p>
-      {payload.map((p: any) => (
+      {nonZero.map((p: any) => (
         <p key={p.dataKey} style={{ color: p.color }}>{p.name}: <strong>{formatCOP(p.value)}</strong></p>
       ))}
+      {nonZero.length > 1 && (
+        <p className="text-slate-700 border-t border-slate-100 pt-1">Total: <strong>{formatCOP(total)}</strong></p>
+      )}
     </div>
   )
 }
@@ -490,7 +528,7 @@ export function DashboardClient({
     [rawData, selectedMonths, selectedYear],
   )
 
-  const hasRevenue   = m.monthlyRevenue.some(mr => mr.revenue > 0)
+  const hasRevenue   = m.monthlyRevenue.some(mr => mr.total > 0)
   const weekMax      = Math.max(m.thisWeek, m.lastWeek, 1)
 
   const revChangeDir = m.revenuePrev != null && m.revenuePrev > 0 && m.revenueTotal !== m.revenuePrev
@@ -543,13 +581,17 @@ export function DashboardClient({
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Ingresos estimados</p>
           <p className="mt-1.5 text-2xl font-bold text-slate-900">{formatCOP(m.revenueTotal)}</p>
-          {revChangePct !== null ? (
-            <p className={`text-xs font-semibold mt-1 ${revChangeDir === 'up' ? 'text-emerald-600' : 'text-red-500'}`}>
+          {revChangePct !== null && (
+            <p className={`text-xs font-semibold mt-0.5 ${revChangeDir === 'up' ? 'text-emerald-600' : 'text-red-500'}`}>
               {revChangeDir === 'up' ? '↑' : '↓'} {revChangePct}% vs período anterior
             </p>
-          ) : (
-            <p className="text-xs text-slate-400 mt-1">Citas completadas</p>
           )}
+          <p className="text-xs text-slate-400 mt-0.5">
+            {m.revenueTotal > 0
+              ? `${formatCOP(m.revenueApts)} citas · ${formatCOP(m.revenueProcs)} proced.`
+              : 'Citas + procedimientos'
+            }
+          </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -623,24 +665,26 @@ export function DashboardClient({
         {/* Ingresos por mes */}
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-base font-semibold text-slate-900">Ingresos por mes</h2>
-          <p className="text-xs text-slate-400 mt-0.5 mb-4">Citas completadas · año completo</p>
+          <p className="text-xs text-slate-400 mt-0.5 mb-4">Citas + procedimientos · año completo</p>
           {!hasRevenue ? (
             <div className="flex items-center justify-center py-12">
               <p className="text-sm text-slate-400">Sin ingresos registrados aún</p>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={m.monthlyRevenue} margin={{ top: 16, right: 8, left: 0, bottom: 0 }}>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={m.monthlyRevenue} margin={{ top: 20, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <YAxis tickFormatter={formatRevAxis} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={44} />
                 <Tooltip content={<RevenueTooltip />} cursor={{ fill: '#f8fafc' }} />
+                <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
                 {m.avgMonthlyRevenue > 0 && (
-                  <ReferenceLine y={m.avgMonthlyRevenue} stroke="#10b981" strokeDasharray="5 5" strokeWidth={1.5}
-                    label={{ value: `Prom. ${formatRevAxis(m.avgMonthlyRevenue)}`, position: 'insideTopLeft', fontSize: 10, fill: '#10b981' }} />
+                  <ReferenceLine y={m.avgMonthlyRevenue} stroke="#475569" strokeDasharray="5 5" strokeWidth={1.5}
+                    label={{ value: `Prom. ${formatRevAxis(m.avgMonthlyRevenue)}`, position: 'insideTopLeft', fontSize: 10, fill: '#475569' }} />
                 )}
-                <Bar dataKey="revenue" name="Ingresos" fill="#10b981" radius={[4,4,0,0]}>
-                  <LabelList dataKey="revenue" position="top" style={{ fontSize: 9, fill: '#10b981', fontWeight: 600 }}
+                <Bar dataKey="revenueCitas" name="Citas" stackId="rev" fill="#10b981" radius={[0,0,0,0]} />
+                <Bar dataKey="revenueProcs" name="Procedimientos" stackId="rev" fill="#8b5cf6" radius={[4,4,0,0]}>
+                  <LabelList dataKey="total" position="top" style={{ fontSize: 9, fill: '#475569', fontWeight: 600 }}
                     formatter={(v: any) => v > 0 ? formatRevAxis(v) : ''} />
                 </Bar>
               </BarChart>
