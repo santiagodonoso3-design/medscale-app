@@ -30,25 +30,53 @@ export async function GET(request: NextRequest) {
       return Response.redirect('https://app.medscale.app/settings/integrations?google_error=true')
     }
 
-    const calRes = await fetch(
-      'https://www.googleapis.com/calendar/v3/users/me/calendarList/primary',
-      { headers: { Authorization: `Bearer ${tokens.access_token}` } }
-    )
-    const calData = await calRes.json()
-    const calendarId = calData.id ?? 'primary'
+    // List all calendars the user has write access to
+    const listRes = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    })
+    const listData = await listRes.json()
+    const calendars: { id: string; summary: string }[] = (listData.items ?? [])
+      .filter((c: any) => c.accessRole === 'owner' || c.accessRole === 'writer')
+      .map((c: any) => ({ id: c.id as string, summary: c.summary as string }))
+
+    const tokenPayload = {
+      access_token:  tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expiry_date:   Date.now() + (tokens.expires_in * 1000),
+    }
 
     const admin = createServiceClient()
+
+    if (calendars.length <= 1) {
+      // Single calendar — connect directly, no selection needed
+      const calendarId = calendars[0]?.id ?? 'primary'
+      await admin.from('doctors').update({
+        google_calendar_token:        tokenPayload,
+        google_calendar_id:           calendarId,
+        google_calendar_connected_at: new Date().toISOString(),
+      }).eq('id', state)
+
+      return Response.redirect('https://app.medscale.app/settings/integrations?google_success=true')
+    }
+
+    // Multiple calendars — store token + list temporarily, let doctor pick
+    const { data: doctorData } = await admin
+      .from('doctors')
+      .select('metadata')
+      .eq('id', state)
+      .single()
+
+    const existingMetadata = (doctorData?.metadata as Record<string, unknown>) ?? {}
+
     await admin.from('doctors').update({
-      google_calendar_token: {
-        access_token:  tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expiry_date:   Date.now() + (tokens.expires_in * 1000),
-      },
-      google_calendar_id:           calendarId,
-      google_calendar_connected_at: new Date().toISOString(),
+      google_calendar_token: tokenPayload,
+      google_calendar_id:    null,           // not set until doctor picks
+      metadata:              { ...existingMetadata, google_calendars: calendars },
     }).eq('id', state)
 
-    return Response.redirect('https://app.medscale.app/settings/integrations?google_success=true')
+    return Response.redirect(
+      `https://app.medscale.app/settings/integrations?google_select_calendar=${state}`
+    )
   } catch (e) {
     console.error('[google/callback] error:', e)
     return Response.redirect('https://app.medscale.app/settings/integrations?google_error=true')

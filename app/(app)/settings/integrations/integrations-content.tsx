@@ -5,11 +5,17 @@ import { createClient } from '@/lib/supabase/client'
 import { Loader2, Calendar, MessageCircle, CheckCircle2 } from 'lucide-react'
 import { useSearchParams, useRouter } from 'next/navigation'
 
+interface CalendarOption {
+  id: string
+  summary: string
+}
+
 interface Doctor {
   id: string
   name: string
   google_calendar_connected_at: string | null
   google_calendar_id: string | null
+  google_calendars: CalendarOption[]
 }
 
 interface IntegrationsContentProps {
@@ -21,21 +27,47 @@ function IntegrationsInner({ isDoctor, userDoctorId }: IntegrationsContentProps)
   const supabase = createClient()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [doctors, setDoctors] = useState<Doctor[]>([])
-  const [loading, setLoading] = useState(true)
-  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
-  const [disconnecting, setDisconnecting] = useState<string | null>(null)
 
+  const [doctors,               setDoctors]               = useState<Doctor[]>([])
+  const [loading,               setLoading]               = useState(true)
+  const [toast,                 setToast]                 = useState<{ msg: string; ok: boolean } | null>(null)
+  const [disconnecting,         setDisconnecting]         = useState<string | null>(null)
+
+  // Calendar selection state
+  const [selectCalendarDoctorId, setSelectCalendarDoctorId] = useState<string | null>(null)
+  const [availableCalendars,     setAvailableCalendars]     = useState<CalendarOption[]>([])
+  const [selectedCalendarId,     setSelectedCalendarId]     = useState<string>('')
+  const [savingCalendar,         setSavingCalendar]         = useState(false)
+
+  // Handle query params from OAuth callback
   useEffect(() => {
-    if (searchParams.get('google_success') === 'true') {
+    const success = searchParams.get('google_success')
+    const err     = searchParams.get('google_error')
+    const selCal  = searchParams.get('google_select_calendar')
+
+    if (success === 'true') {
       setToast({ msg: 'Google Calendar conectado exitosamente', ok: true })
       router.replace('/settings/integrations')
-    } else if (searchParams.get('google_error') === 'true') {
+    } else if (err === 'true') {
       setToast({ msg: 'Error conectando Google Calendar', ok: false })
       router.replace('/settings/integrations')
+    } else if (selCal) {
+      setSelectCalendarDoctorId(selCal)
+      // Keep the param in the URL until the doctor actually picks a calendar
     }
   }, [searchParams])
 
+  // Once doctors load, hydrate available calendars if a doctor ID is pending
+  useEffect(() => {
+    if (!selectCalendarDoctorId || doctors.length === 0) return
+    const doctor = doctors.find(d => d.id === selectCalendarDoctorId)
+    if (doctor?.google_calendars?.length) {
+      setAvailableCalendars(doctor.google_calendars)
+      setSelectedCalendarId(doctor.google_calendars[0]?.id ?? '')
+    }
+  }, [selectCalendarDoctorId, doctors])
+
+  // Auto-dismiss toast
   useEffect(() => {
     if (!toast) return
     const t = setTimeout(() => setToast(null), 4000)
@@ -68,10 +100,11 @@ function IntegrationsInner({ isDoctor, userDoctorId }: IntegrationsContentProps)
     const { data } = await q
 
     setDoctors((data ?? []).map((d: any) => ({
-      id: d.id,
-      name: d.metadata?.name ?? 'Médico',
+      id:                           d.id,
+      name:                         d.metadata?.name ?? 'Médico',
       google_calendar_connected_at: d.google_calendar_connected_at,
-      google_calendar_id: d.google_calendar_id,
+      google_calendar_id:           d.google_calendar_id,
+      google_calendars:             d.metadata?.google_calendars ?? [],
     })))
     setLoading(false)
   }
@@ -86,6 +119,32 @@ function IntegrationsInner({ isDoctor, userDoctorId }: IntegrationsContentProps)
     await loadDoctors()
     setDisconnecting(null)
     setToast({ msg: 'Google Calendar desconectado', ok: true })
+  }
+
+  async function handleSelectCalendar() {
+    if (!selectCalendarDoctorId || !selectedCalendarId) return
+    setSavingCalendar(true)
+    const res = await fetch('/api/google/select-calendar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ doctor_id: selectCalendarDoctorId, calendar_id: selectedCalendarId }),
+    })
+    if (res.ok) {
+      setSelectCalendarDoctorId(null)
+      setAvailableCalendars([])
+      router.replace('/settings/integrations')
+      await loadDoctors()
+      setToast({ msg: 'Google Calendar conectado exitosamente', ok: true })
+    } else {
+      setToast({ msg: 'Error guardando el calendario. Intenta de nuevo.', ok: false })
+    }
+    setSavingCalendar(false)
+  }
+
+  function openCalendarPicker(doctor: Doctor) {
+    setSelectCalendarDoctorId(doctor.id)
+    setAvailableCalendars(doctor.google_calendars)
+    setSelectedCalendarId(doctor.google_calendars[0]?.id ?? '')
   }
 
   return (
@@ -141,46 +200,63 @@ function IntegrationsInner({ isDoctor, userDoctorId }: IntegrationsContentProps)
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">
                     Médicos
                   </p>
-                  {doctors.map(doctor => (
-                    <div key={doctor.id}
-                      className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${
-                          doctor.google_calendar_connected_at ? 'bg-emerald-500' : 'bg-slate-200'
-                        }`} />
-                        <div>
-                          <p className="text-sm font-medium text-slate-800">{doctor.name}</p>
-                          {doctor.google_calendar_connected_at && (
-                            <p className="text-xs text-slate-400">
-                              {doctor.google_calendar_id} · conectado {new Date(doctor.google_calendar_connected_at).toLocaleDateString('es-CO')}
-                            </p>
-                          )}
+                  {doctors.map(doctor => {
+                    const isConnected = !!doctor.google_calendar_connected_at
+                    const isPending   = !isConnected && doctor.google_calendars.length > 0
+
+                    return (
+                      <div key={doctor.id}
+                        className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full shrink-0 ${
+                            isConnected ? 'bg-emerald-500' :
+                            isPending   ? 'bg-amber-400' :
+                                          'bg-slate-200'
+                          }`} />
+                          <div>
+                            <p className="text-sm font-medium text-slate-800">{doctor.name}</p>
+                            {isConnected ? (
+                              <p className="text-xs text-slate-400">
+                                {doctor.google_calendar_id} · conectado {new Date(doctor.google_calendar_connected_at!).toLocaleDateString('es-CO')}
+                              </p>
+                            ) : isPending ? (
+                              <p className="text-xs text-amber-500">Pendiente: seleccionar calendario</p>
+                            ) : null}
+                          </div>
                         </div>
+
+                        {isConnected ? (
+                          <button
+                            onClick={() => handleDisconnect(doctor.id)}
+                            disabled={disconnecting === doctor.id}
+                            className="text-xs font-semibold text-red-500 hover:text-red-700 transition disabled:opacity-50"
+                          >
+                            {disconnecting === doctor.id ? 'Desconectando...' : 'Desconectar'}
+                          </button>
+                        ) : isPending ? (
+                          <button
+                            onClick={() => openCalendarPicker(doctor)}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition"
+                          >
+                            Seleccionar calendario
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => { window.location.href = `/api/google/auth?doctor_id=${doctor.id}` }}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                          >
+                            <svg viewBox="0 0 48 48" className="w-3.5 h-3.5">
+                              <path fill="#4285F4" d="M44 24c0-1.3-.1-2.5-.3-3.7H24v7h11.3c-.5 2.6-2 4.8-4.2 6.3v5.2h6.8C41.5 35.4 44 30.1 44 24z"/>
+                              <path fill="#34A853" d="M24 44c5.6 0 10.3-1.9 13.7-5.1l-6.8-5.2c-1.9 1.3-4.3 2-6.9 2-5.3 0-9.8-3.6-11.4-8.4H5.6v5.4C9 39.4 16 44 24 44z"/>
+                              <path fill="#FBBC05" d="M12.6 27.3c-.4-1.3-.7-2.6-.7-4s.2-2.7.7-4v-5.4H5.6C4.1 17 3 20.4 3 24s1.1 7 3.6 10.1l7-5.8z"/>
+                              <path fill="#EA4335" d="M24 10.6c3 0 5.7 1 7.8 3l5.8-5.8C34.3 4.5 29.6 2 24 2 16 2 9 6.6 5.6 13.9l7 5.4C14.2 14.2 18.7 10.6 24 10.6z"/>
+                            </svg>
+                            Conectar
+                          </button>
+                        )}
                       </div>
-                      {doctor.google_calendar_connected_at ? (
-                        <button
-                          onClick={() => handleDisconnect(doctor.id)}
-                          disabled={disconnecting === doctor.id}
-                          className="text-xs font-semibold text-red-500 hover:text-red-700 transition disabled:opacity-50"
-                        >
-                          {disconnecting === doctor.id ? 'Desconectando...' : 'Desconectar'}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => { window.location.href = `/api/google/auth?doctor_id=${doctor.id}` }}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
-                        >
-                          <svg viewBox="0 0 48 48" className="w-3.5 h-3.5">
-                            <path fill="#4285F4" d="M44 24c0-1.3-.1-2.5-.3-3.7H24v7h11.3c-.5 2.6-2 4.8-4.2 6.3v5.2h6.8C41.5 35.4 44 30.1 44 24z"/>
-                            <path fill="#34A853" d="M24 44c5.6 0 10.3-1.9 13.7-5.1l-6.8-5.2c-1.9 1.3-4.3 2-6.9 2-5.3 0-9.8-3.6-11.4-8.4H5.6v5.4C9 39.4 16 44 24 44z"/>
-                            <path fill="#FBBC05" d="M12.6 27.3c-.4-1.3-.7-2.6-.7-4s.2-2.7.7-4v-5.4H5.6C4.1 17 3 20.4 3 24s1.1 7 3.6 10.1l7-5.8z"/>
-                            <path fill="#EA4335" d="M24 10.6c3 0 5.7 1 7.8 3l5.8-5.8C34.3 4.5 29.6 2 24 2 16 2 9 6.6 5.6 13.9l7 5.4C14.2 14.2 18.7 10.6 24 10.6z"/>
-                          </svg>
-                          Conectar
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -256,6 +332,65 @@ function IntegrationsInner({ isDoctor, userDoctorId }: IntegrationsContentProps)
             </span>
           </div>
         </section>
+      )}
+
+      {/* ── Calendar selection modal ──────────────────────────────── */}
+      {selectCalendarDoctorId && availableCalendars.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div className="relative z-10 w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl space-y-4">
+
+            {/* Header */}
+            <div>
+              <div className="flex items-center gap-2.5 mb-1">
+                <svg viewBox="0 0 48 48" className="w-5 h-5 shrink-0">
+                  <path fill="#4285F4" d="M44 24c0-1.3-.1-2.5-.3-3.7H24v7h11.3c-.5 2.6-2 4.8-4.2 6.3v5.2h6.8C41.5 35.4 44 30.1 44 24z"/>
+                  <path fill="#34A853" d="M24 44c5.6 0 10.3-1.9 13.7-5.1l-6.8-5.2c-1.9 1.3-4.3 2-6.9 2-5.3 0-9.8-3.6-11.4-8.4H5.6v5.4C9 39.4 16 44 24 44z"/>
+                  <path fill="#FBBC05" d="M12.6 27.3c-.4-1.3-.7-2.6-.7-4s.2-2.7.7-4v-5.4H5.6C4.1 17 3 20.4 3 24s1.1 7 3.6 10.1l7-5.8z"/>
+                  <path fill="#EA4335" d="M24 10.6c3 0 5.7 1 7.8 3l5.8-5.8C34.3 4.5 29.6 2 24 2 16 2 9 6.6 5.6 13.9l7 5.4C14.2 14.2 18.7 10.6 24 10.6z"/>
+                </svg>
+                <h3 className="text-base font-semibold text-slate-900">Selecciona un calendario</h3>
+              </div>
+              <p className="text-sm text-slate-500">
+                Elige el calendario de Google donde se crearán las citas automáticamente.
+              </p>
+            </div>
+
+            {/* Dropdown */}
+            <select
+              value={selectedCalendarId}
+              onChange={e => setSelectedCalendarId(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {availableCalendars.map(c => (
+                <option key={c.id} value={c.id}>{c.summary}</option>
+              ))}
+            </select>
+
+            {/* Actions */}
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={handleSelectCalendar}
+                disabled={savingCalendar || !selectedCalendarId}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 transition disabled:opacity-50"
+              >
+                {savingCalendar && <Loader2 className="h-4 w-4 animate-spin" />}
+                Confirmar
+              </button>
+              <button
+                onClick={() => {
+                  setSelectCalendarDoctorId(null)
+                  setAvailableCalendars([])
+                  router.replace('/settings/integrations')
+                }}
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition"
+              >
+                Cancelar
+              </button>
+            </div>
+
+          </div>
+        </div>
       )}
 
       {toast && (
