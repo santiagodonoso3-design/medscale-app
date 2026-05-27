@@ -187,14 +187,31 @@ function computeMetrics(
     ? Math.round(activeRevMonths.reduce((s, mr) => s + mr.total, 0) / activeRevMonths.length)
     : 0
 
+  // Map: lead_id -> YM of last completed appointment (used to anchor procedure/finalizado counts)
+  const lastCompletedYMByLead = new Map<string, string>()
+  appointments
+    .filter(a => a.status === 'completed')
+    .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
+    .forEach(a => {
+      if (a.lead_id && !lastCompletedYMByLead.has(a.lead_id)) {
+        lastCompletedYMByLead.set(a.lead_id, a.ym)
+      }
+    })
+
   const monthlyLines = allYearMonths.map(m => {
     const ym = `${year}-${pad(m)}`
     return {
       label:         MONTH_LABELS[m - 1],
       agendadas:     appointments.filter(a => a.ym === ym).length,
       asistencias:   appointments.filter(a => a.ym === ym && a.status === 'completed').length,
-      procedimiento: yearLeads.filter(l => l.ym === ym && l.status === 'en_tratamiento_medico').length,
-      finalizados:   yearLeads.filter(l => l.ym === ym && l.status === 'finalizado').length,
+      procedimiento: yearLeads.filter(l =>
+        l.status === 'en_tratamiento_medico' &&
+        lastCompletedYMByLead.get(l.id) === ym
+      ).length,
+      finalizados:   yearLeads.filter(l =>
+        l.status === 'finalizado' &&
+        lastCompletedYMByLead.get(l.id) === ym
+      ).length,
     }
   })
 
@@ -244,9 +261,9 @@ function computeMetrics(
   })
   docMap.forEach((entry, doctorId) => {
     entry.inProcedure = yearLeads.filter(l =>
-      inPeriod(l.ym) &&
       l.status === 'en_tratamiento_medico' &&
-      leadDoctorMap.get(l.id)?.has(doctorId)
+      leadDoctorMap.get(l.id)?.has(doctorId) &&
+      inPeriod(lastCompletedYMByLead.get(l.id) ?? '')
     ).length
   })
 
