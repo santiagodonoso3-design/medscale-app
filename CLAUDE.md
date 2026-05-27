@@ -1,4 +1,4 @@
-# MedScale App — Estado del proyecto (20 Mayo 2026)
+# MedScale App — Estado del proyecto (27 Mayo 2026)
 
 ---
 
@@ -343,18 +343,86 @@ app/
 - ✅ Empty states en Dashboard, CRM y Calendario
 - ✅ Favicon actualizado a MedScale brand (MS AI)
 
+### Sesión 27 Mayo 2026
+
+#### Fixes y mejoras de booking
+- ✅ Fix RLS appointment_types: policy migrada de public.users a get_user_org_id()
+- ✅ Error amigable cuando slug de appointment_type duplicado
+- ✅ Duración correcta en booking: usa appointment_type.duration_minutes, no doctor metadata
+- ✅ Duración correcta en Google Calendar events (mismo fix)
+- ✅ Texto dinámico de pago en booking: presencial="Se paga en el consultorio", virtual="Te enviaremos los detalles por email"
+- ✅ Precios por modalidad: price_presencial y price_virtual en appointment_types (reemplaza price)
+
+#### Disponibilidad y calendario
+- ✅ Múltiples bloques horarios por día en disponibilidad de doctores
+- ✅ Google Calendar FreeBusy: booking público bloquea slots ocupados del calendario del doctor
+- ✅ Selección de calendario Google: si el doctor tiene múltiples calendarios, puede elegir cuál usar
+- ✅ google_calendar_id se guarda al elegir, google_calendars temporal en metadata
+
+#### CRM dinámico
+- ✅ Tabla org_custom_fields: campos custom por organización (field_name, field_label, field_type, options, source)
+- ✅ Custom fields se guardan en leads.metadata (JSONB) en vez de leads.notes
+- ✅ CRM muestra columnas dinámicas desde org_custom_fields
+- ✅ Botón "+" estilo Airtable para agregar campos desde el CRM
+- ✅ Campos editables en modal de detalle del lead
+- ✅ Búsqueda incluye valores de metadata
+- ✅ Campo tipo "select" (dropdown) con opciones custom en formularios de agendamiento
+- ✅ Options incluido en query de form fields para booking
+
+#### Emails y notificaciones
+- ✅ Fix: await en email a clínica (Vercel cerraba función antes de enviar)
+- ✅ Múltiples destinatarios: contact_email soporta emails separados por coma
+- ✅ Fix guardado de notification emails via API route (RLS bloqueaba update directo)
+- ✅ Campos custom con labels legibles en email de notificación a clínica
+- ✅ Cédula incluida en email a clínica
+- ✅ Email de invitación branded via Resend (reemplaza email genérico de Supabase)
+- ✅ Email de no_show: "¿No pudiste asistir?" con botón feedback + reagendar
+- ✅ Email de cancelación mejorado: agregados botones feedback + reagendar
+- ✅ Página de feedback: /appointment/[token]/feedback con razones predefinidas
+- ✅ API /api/appointment/feedback: guarda razón en appointments.metadata.cancellation_reason
+
+#### UX y diseño
+- ✅ Tipos de cita: rediseño de tabla a cards (grid responsivo)
+- ✅ Eliminar tipo de cita desde modal de edición (zona de peligro)
+- ✅ Toggle ojo en campos de contraseña (login + reset-password)
+- ✅ Términos y condiciones: checkbox en register, texto informativo en login, modal con contenido legal
+- ✅ Logo MedScale en login, register, reset-password y emails
+- ✅ Sidebar: solo muestra logo de la org (sin logo MedScale, branding correcto para SaaS)
+- ✅ Favicon MS AI en formato PNG RGBA
+- ✅ Integraciones visible en sidebar para rol doctor
+- ✅ No_show agregado al dropdown rápido de estado en lista de citas
+
+#### Superadmin
+- ✅ Soft delete de orgs: 24h gracia + email de aviso al owner + cron de limpieza
+- ✅ Acciones de desactivar/eliminar movidas dentro del modal de editar org
+
+#### Migración datos
+- ✅ Bariatric Latam: 99 leads + 99 citas migradas desde Airtable/Excel
+- ✅ Metadata (entidad, fecha_nacimiento) migrada correctamente
+
+#### Integraciones
+- ✅ n8n webhook conectado para WhatsApp e Instagram de Bariatric Latam
+
+### Cliente Bariatric Latam (27 Mayo 2026)
+- org_id: f9ca61f7-49bb-4d1e-9d02-d5c77fc9bb87
+- slug: dr-carlos-lopera
+- carlosloperadigital@gmail.com
+- 1 médico (Dr. Carlos Lopera), Google Calendar conectado
+- 100 leads, 100 citas, plan Growth
+
 ---
 
 ## 🔴 PRIORIDAD 1 — MVP Autoservicio
 - [ ] Stripe billing con trial 14 días (pospuesto — cobro manual desde superadmin por ahora)
 
 ## 🟡 PRIORIDAD 2
-- [ ] Favicon en alta resolución (reemplazar con PNG/SVG 512x512+)
 - [ ] Tour opcional post-onboarding
 - [ ] Verificar buffer_before/after_min con citas reales
 - [ ] Estados custom del CRM (lead_statuses por organización)
-- [ ] Campos custom del CRM (custom_fields + custom_field_values)
 - [ ] Limpiar temp_register.txt del repo
+- [ ] "FOR HEALTHCARE GROWTH" duplicado en emails (sale en logo y como texto)
+- [ ] Dropdown de estado se corta en borde inferior de pantalla (scheduling)
+- [ ] Google OAuth en registro NO crea organización (solo email+password funciona)
 
 ## 🟢 PRIORIDAD 3 — Superadmin evolución
 - [ ] Dashboard superadmin con métricas avanzadas (MRR, churn, uso por org)
@@ -405,7 +473,7 @@ const slug = resolvedParams['org-slug']
 
 **Upload a Storage siempre con service role**
 
-**await en resend.emails.send() — sin await Vercel cierra la función**
+**await en TODOS los resend.emails.send() — sin await Vercel cierra la función**
 
 **Cron plan Hobby:** máximo 1 vez/día, schedule "0 9 * * *"
 
@@ -443,6 +511,10 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 **Permisos por módulo:** usar canAccess(perms, module) para visibilidad, canEdit(perms, module) para CRUD. Importar de lib/permissions.ts. Nunca filtrar sidebar por array de roles — usar getUserPermissions() + canAccess().
 
 **Sincronización lead ↔ cita:** al cambiar status de appointment a completed/cancelled/no_show, actualizar el lead correspondiente. Ver scheduling/actions.ts.
+
+**Custom fields se guardan en leads.metadata** — NO en leads.notes
+
+**appointment_types usa price_presencial y price_virtual** — NO price
 
 ### Roles — Protección
 - Protección por rol en `layout.tsx` y páginas vía `getSession()`
@@ -496,8 +568,14 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 - `organizations.contact_email` TEXT
 - `organizations.sidebar_theme` TEXT (dark/light, default dark)
 - `organizations.is_active` BOOLEAN (default true)
+- `organizations.pending_deletion_at` TIMESTAMPTZ (soft delete — 24h gracia antes de borrar)
 - `platform_admins`: user_id, email, role (owner/admin/support) — controla acceso a superadmin
 - `organization_members.permissions` JSONB (null = defaults del rol)
+- `appointment_types.price_presencial` INT (reemplaza price)
+- `appointment_types.price_virtual` INT (reemplaza price)
+- `appointments.metadata` JSONB (cancellation_reason, custom data)
+- `leads.metadata` JSONB (custom fields del formulario de agendamiento)
+- `org_custom_fields`: organization_id, field_name, field_label, field_type, options[], source, sort_order, active
 
 ### Modos de asignación
 | UI label | assignment_mode | rr_count_all |
@@ -545,6 +623,12 @@ Ferttes: plan Growth (beta, sin restricciones)
 - Ferttes (org_id: 4270c9b0-cbaa-4a94-bea7-508387a2529c)
 - admin@ferttes.com | app.medscale.app
 - 5 médicos activos, 291 leads, 234 citas históricas
+
+### Cliente Bariatric Latam
+- org_id: f9ca61f7-49bb-4d1e-9d02-d5c77fc9bb87
+- slug: dr-carlos-lopera | carlosloperadigital@gmail.com | plan Growth
+- 1 médico (Dr. Carlos Lopera), Google Calendar conectado
+- 100 leads, 100 citas
 
 ### Cuenta de prueba
 - Clinica LAb 2 (org_id: 669ed7cb-3e4d-43a7-8065-cfd7ee8de47c)
