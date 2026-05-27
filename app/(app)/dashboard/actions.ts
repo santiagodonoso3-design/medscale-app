@@ -10,14 +10,8 @@ function todayBogota(): string {
 }
 
 function toBogotaYM(iso: string): string {
-  const d = new Date(iso)
-  const year = new Intl.DateTimeFormat('en', {
-    year: 'numeric', timeZone: 'America/Bogota',
-  }).format(d)
-  const month = new Intl.DateTimeFormat('en', {
-    month: '2-digit', timeZone: 'America/Bogota',
-  }).format(d)
-  return `${year}-${month}`
+  // en-CA gives "YYYY-MM-DD" — same reliable format as todayBogota()
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date(iso)).slice(0, 7)
 }
 
 function currentBogotaYear(): number {

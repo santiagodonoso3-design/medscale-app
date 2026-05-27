@@ -104,7 +104,7 @@ interface Metrics {
   lastWeek: number
   monthAvg: number
   avgAsistencias: number
-  monthlyLines: { label: string; agendadas: number; asistencias: number; procedimiento: number }[]
+  monthlyLines: { label: string; agendadas: number; asistencias: number; procedimiento: number; finalizados: number }[]
 }
 
 // ── computeMetrics ────────────────────────────────────────────────────────────
@@ -118,8 +118,10 @@ function computeMetrics(
 ): Metrics {
   const { appointments, yearLeads, doctors } = data
   const monthSet = new Set(months)
-  const inPeriod = (ym: string) =>
-    Number(ym.slice(0, 4)) === year && monthSet.has(Number(ym.slice(5)))
+  const inPeriod = (ym: string) => {
+    const [y, mo] = ym.split('-').map(Number)
+    return y === year && monthSet.has(mo)
+  }
 
   const periodApts = appointments.filter(a => inPeriod(a.ym))
 
@@ -196,6 +198,7 @@ function computeMetrics(
       agendadas:     appointments.filter(a => a.ym === ym).length,
       asistencias:   appointments.filter(a => a.ym === ym && a.status === 'completed').length,
       procedimiento: yearLeads.filter(l => l.ym === ym && l.status === 'en_tratamiento_medico').length,
+      finalizados:   yearLeads.filter(l => l.ym === ym && l.status === 'finalizado').length,
     }
   })
   const activeMths = monthlyLines.filter(ml => ml.agendadas > 0)
@@ -551,6 +554,25 @@ export function DashboardClient({
             </ResponsiveContainer>
           )}
         </div>
+      </div>
+
+      {/* ── Fila 2b: Tendencia mensual ───────────────────────────────────── */}
+      <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
+        <h2 className="text-base font-semibold text-slate-900">Tendencia mensual</h2>
+        <p className="text-xs text-slate-400 mt-0.5 mb-4">Evolución del año completo · cantidad de citas y leads</p>
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={m.monthlyLines} margin={{ top: 8, right: 8, left: -20, bottom: 0 }} barGap={2} barCategoryGap="25%">
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
+            <Tooltip content={<BarTooltip />} cursor={{ fill: '#f8fafc' }} />
+            <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
+            <Bar dataKey="agendadas"     name="Agendadas"     fill="#64748b" radius={[3,3,0,0]} />
+            <Bar dataKey="asistencias"   name="Asistencias"   fill="#10b981" radius={[3,3,0,0]} />
+            <Bar dataKey="procedimiento" name="Procedimiento" fill="#f59e0b" radius={[3,3,0,0]} />
+            <Bar dataKey="finalizados"   name="Finalizados"   fill="#8b5cf6" radius={[3,3,0,0]} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
 
       {/* ── Fila 3: Funnel + No-shows ─────────────────────────────────────── */}
