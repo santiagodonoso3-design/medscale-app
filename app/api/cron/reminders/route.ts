@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { resend } from '@/lib/email/resend'
 import { brandShell } from '@/lib/email/templates'
+import { processAutomationRules } from '@/lib/automations/process'
 
 const C = {
   fg:     '#0D2B3E',
@@ -138,5 +139,12 @@ export async function GET(request: Request) {
     }
   }
 
-  return Response.json({ sent: totalSent })
+  let automationsSent = 0
+  try {
+    automationsSent = await processAutomationRules(supabaseAdmin)
+  } catch (err) {
+    console.error('[cron] processAutomationRules failed:', err)
+  }
+
+  return Response.json({ reminders: totalSent, automations: automationsSent })
 }

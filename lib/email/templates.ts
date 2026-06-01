@@ -351,3 +351,29 @@ export function bookingNotificationDoctor(p: BookingEmailParams): string {
 </div>
 </body></html>`
 }
+
+// ── Generic automation email ───────────────────────────────────────────────────
+
+export function automationEmail(
+  orgName: string,
+  bodyText: string,
+  ctaButton?: { label: string; url: string },
+): string {
+  const SG = `font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif`
+  const IN = `font-family:'Inter',Helvetica,Arial,sans-serif`
+
+  const paragraphs = bodyText
+    .split('\n')
+    .map(line =>
+      line.trim()
+        ? `<p style="${IN};font-size:15px;color:${C.muted};margin:0 0 14px;line-height:1.7">${line}</p>`
+        : '<div style="margin:8px 0"></div>'
+    )
+    .join('')
+
+  const cta = ctaButton
+    ? `<div style="text-align:center;margin-top:24px"><a href="${ctaButton.url}" style="display:inline-block;background:${C.primary};color:#ffffff;${SG};font-size:14px;font-weight:600;padding:12px 32px;border-radius:10px;text-decoration:none">${ctaButton.label}</a></div>`
+    : ''
+
+  return brandShell('es', orgName, paragraphs + cta)
+}
