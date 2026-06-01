@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, Loader2, Pencil, X, Save, Zap, Calendar, Trash2 } from 'lucide-react'
+import { Plus, Loader2, Pencil, X, Save, Zap, Calendar, Trash2, Users } from 'lucide-react'
 
 interface AutomationRule {
   id: string
@@ -12,6 +12,7 @@ interface AutomationRule {
   trigger_date: string | null
   email_subject: string | null
   email_body: string | null
+  audience: string | null
   is_active: boolean
   created_at: string
 }
@@ -63,6 +64,21 @@ const BIRTHDAY_DEF: RuleTypeDef = {
   delayLabel: () => 'El día del cumpleaños',
 }
 
+const AUDIENCE_OPTIONS = [
+  { value: 'all',                      label: 'Todos los leads con email' },
+  { value: 'cita_valoracion_agendada', label: 'Leads con cita agendada' },
+  { value: 'asistio_cita',             label: 'Leads que asistieron a cita' },
+  { value: 'noshow',                   label: 'Leads que no asistieron (no-show)' },
+  { value: 'en_tratamiento_medico',    label: 'Leads en tratamiento médico' },
+  { value: 'finalizado',               label: 'Leads con procedimiento finalizado' },
+  { value: 'cancelo_cita',             label: 'Leads que cancelaron' },
+  { value: 'birthday',                 label: 'Cumpleañeros del día' },
+]
+
+const AUDIENCE_LABEL: Record<string, string> = Object.fromEntries(
+  AUDIENCE_OPTIONS.map(o => [o.value, o.label])
+)
+
 const EMPTY_FORM = {
   name: '',
   description: '',
@@ -70,6 +86,7 @@ const EMPTY_FORM = {
   trigger_date: '',
   email_subject: '',
   email_body: '',
+  audience: 'all',
 }
 
 function isEventBased(ruleType: string) {
@@ -89,6 +106,17 @@ function Toggle({ active, onClick }: { active: boolean; onClick: () => void }) {
     >
       <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${active ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
     </button>
+  )
+}
+
+function AudienceChip({ audience }: { audience: string | null }) {
+  if (!audience || audience === 'all') return null
+  const label = AUDIENCE_LABEL[audience] ?? audience
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 mt-1">
+      <Users className="h-3 w-3" />
+      {label}
+    </span>
   )
 }
 
@@ -135,6 +163,7 @@ function RuleCard({
               ? def.delayLabel(rule.delay_days)
               : def.delayLabel(0)}
           </p>
+          {rule.rule_type === 'birthday' && <AudienceChip audience={rule.audience} />}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Toggle active={rule.is_active} onClick={onToggle} />
@@ -155,15 +184,15 @@ function RuleCard({
 // ────────────────────────────────────────────────────────────────────────────
 
 export default function AutomationsPage() {
-  const [rules, setRules]           = useState<AutomationRule[]>([])
-  const [isLoading, setIsLoading]   = useState(true)
-  const [modalOpen, setModalOpen]   = useState(false)
-  const [editing, setEditing]       = useState<AutomationRule | null>(null)
+  const [rules, setRules]               = useState<AutomationRule[]>([])
+  const [isLoading, setIsLoading]       = useState(true)
+  const [modalOpen, setModalOpen]       = useState(false)
+  const [editing, setEditing]           = useState<AutomationRule | null>(null)
   const [creatingType, setCreatingType] = useState<string | null>(null)
-  const [form, setForm]             = useState(EMPTY_FORM)
-  const [isActive, setIsActive]     = useState(true)
-  const [saving, setSaving]         = useState(false)
-  const [formError, setFormError]   = useState<string | null>(null)
+  const [form, setForm]                 = useState(EMPTY_FORM)
+  const [isActive, setIsActive]         = useState(true)
+  const [saving, setSaving]             = useState(false)
+  const [formError, setFormError]       = useState<string | null>(null)
 
   const loadData = useCallback(async () => {
     setIsLoading(true)
@@ -184,6 +213,7 @@ export default function AutomationsPage() {
 
   function openCreate(ruleType: string) {
     const def = [...EVENT_RULE_DEFS, BIRTHDAY_DEF].find(d => d.rule_type === ruleType)
+    const defaultAudience = ruleType === 'birthday' ? 'birthday' : 'all'
     setEditing(null)
     setCreatingType(ruleType)
     setForm({
@@ -193,6 +223,7 @@ export default function AutomationsPage() {
       trigger_date: '',
       email_subject: '',
       email_body: '',
+      audience: defaultAudience,
     })
     setIsActive(true)
     setFormError(null)
@@ -209,6 +240,7 @@ export default function AutomationsPage() {
       trigger_date: rule.trigger_date ? rule.trigger_date.slice(0, 10) : '',
       email_subject: rule.email_subject ?? '',
       email_body: rule.email_body ?? '',
+      audience: rule.audience ?? 'all',
     })
     setIsActive(rule.is_active)
     setFormError(null)
@@ -239,9 +271,10 @@ export default function AutomationsPage() {
     if (!form.email_subject.trim()) { setFormError('El asunto del email es obligatorio'); return }
     if (!form.email_body.trim()) { setFormError('El cuerpo del email es obligatorio'); return }
 
-    const ruleType = editing?.rule_type ?? creatingType!
-    const eventBased = isEventBased(ruleType)
-    const isSpecial = ruleType === 'special_date'
+    const ruleType    = editing?.rule_type ?? creatingType!
+    const eventBased  = isEventBased(ruleType)
+    const isSpecial   = ruleType === 'special_date'
+    const hasAudience = !eventBased
 
     if (eventBased) {
       const days = Number(form.delay_days)
@@ -257,13 +290,14 @@ export default function AutomationsPage() {
     setFormError(null)
 
     const payload = {
-      name: form.name.trim(),
-      description: form.description.trim() || null,
+      name:          form.name.trim(),
+      description:   form.description.trim() || null,
       email_subject: form.email_subject.trim(),
-      email_body: form.email_body.trim(),
-      is_active: isActive,
-      delay_days: eventBased ? Number(form.delay_days) : null,
-      trigger_date: isSpecial ? form.trigger_date : null,
+      email_body:    form.email_body.trim(),
+      is_active:     isActive,
+      delay_days:    eventBased ? Number(form.delay_days) : null,
+      trigger_date:  isSpecial ? form.trigger_date : null,
+      audience:      hasAudience ? (form.audience || 'all') : null,
     }
 
     if (editing) {
@@ -313,10 +347,11 @@ export default function AutomationsPage() {
     )
   }
 
-  const modalRuleType = editing?.rule_type ?? creatingType ?? ''
-  const showDelay = isEventBased(modalRuleType)
+  const modalRuleType   = editing?.rule_type ?? creatingType ?? ''
+  const showDelay       = isEventBased(modalRuleType)
   const showTriggerDate = modalRuleType === 'special_date'
-  const showDelete = editing?.rule_type === 'special_date'
+  const showAudience    = !isEventBased(modalRuleType) && modalRuleType !== ''
+  const showDelete      = editing?.rule_type === 'special_date'
 
   return (
     <div className="space-y-8">
@@ -400,6 +435,7 @@ export default function AutomationsPage() {
                       })}
                     </p>
                   )}
+                  <AudienceChip audience={rule.audience} />
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Toggle active={rule.is_active} onClick={() => handleToggle(rule)} />
@@ -480,6 +516,21 @@ export default function AutomationsPage() {
                     onChange={e => setForm(p => ({ ...p, trigger_date: e.target.value }))}
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                </div>
+              )}
+
+              {showAudience && (
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Enviar a</label>
+                  <select
+                    value={form.audience}
+                    onChange={e => setForm(p => ({ ...p, audience: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {AUDIENCE_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
                 </div>
               )}
 

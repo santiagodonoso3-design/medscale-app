@@ -17,6 +17,7 @@ interface AutomationRule {
   trigger_date: string | null
   email_subject: string
   email_body: string
+  audience: string | null
 }
 
 interface OrgData {
@@ -300,23 +301,25 @@ async function processProcedureCompleted(
   return sent
 }
 
-// birthday: leads whose birth month+day == today in Bogotá, not yet sent this year
+// birthday: leads whose birth month+day == today, optionally filtered by status audience
 async function processBirthday(
   admin: Admin, rule: AutomationRule, org: OrgData, today: string, currentYear: string, remaining: number,
 ): Promise<number> {
   const [, todayMonthStr, todayDayStr] = today.split('-')
   const todayMonth = parseInt(todayMonthStr)
   const todayDay   = parseInt(todayDayStr)
+  const audience   = rule.audience ?? 'birthday'
 
-  const { data: leads } = await admin
+  const { data: allLeads } = await admin
     .from('leads')
-    .select('id, contact_name, contact_last_name, contact_email, metadata')
+    .select('id, contact_name, contact_last_name, contact_email, metadata, status')
     .eq('organization_id', rule.organization_id)
     .not('contact_email', 'is', null)
 
-  if (!leads?.length) return 0
+  if (!allLeads?.length) return 0
 
-  const birthdayLeads = (leads as LeadRow[]).filter(lead => {
+  // Filter: leads with birthday today
+  const birthdayLeads = (allLeads as (LeadRow & { status?: string })[]).filter(lead => {
     const meta = lead.metadata as Record<string, unknown> | null
     const dob  = meta?.fecha_de_nacimiento ?? meta?.['fecha-de-nacimiento'] ?? meta?.fecha_nacimiento
     const bd   = parseBirthday(dob)
@@ -325,19 +328,26 @@ async function processBirthday(
 
   if (!birthdayLeads.length) return 0
 
-  // Dedup: one email per lead per calendar year
+  // audience = 'all' | 'birthday' → no extra status filter
+  // audience = anything else → also filter by lead.status
+  const targetLeads = (audience === 'all' || audience === 'birthday')
+    ? birthdayLeads
+    : birthdayLeads.filter(l => l.status === audience)
+
+  if (!targetLeads.length) return 0
+
   const yearStart = `${currentYear}-01-01T00:00:00.000Z`
   const { data: existingLogs } = await admin
     .from('automation_logs')
     .select('lead_id')
     .eq('automation_rule_id', rule.id)
-    .in('lead_id', birthdayLeads.map(l => l.id))
+    .in('lead_id', targetLeads.map((l: LeadRow) => l.id))
     .gte('sent_at', yearStart)
 
   const logged = new Set<string>(existingLogs?.map((l: { lead_id: string }) => l.lead_id) ?? [])
 
   let sent = 0
-  for (const lead of birthdayLeads) {
+  for (const lead of targetLeads) {
     if (sent >= remaining) break
     if (logged.has(lead.id)) continue
 
@@ -355,34 +365,94 @@ async function processBirthday(
   return sent
 }
 
-// special_date: today == trigger_date → send to all leads, once per year
+// special_date: today == trigger_date → send to audience-filtered leads, once per year
 async function processSpecialDate(
   admin: Admin, rule: AutomationRule, org: OrgData, today: string, currentYear: string, remaining: number,
 ): Promise<number> {
   if (!rule.trigger_date || rule.trigger_date.slice(0, 10) !== today) return 0
 
-  const { data: leads } = await admin
-    .from('leads')
-    .select('id, contact_name, contact_last_name, contact_email')
-    .eq('organization_id', rule.organization_id)
-    .not('contact_email', 'is', null)
-    .limit(remaining + 50)
-
-  if (!leads?.length) return 0
-
-  // Dedup: one email per lead per calendar year (handles annual recurrence)
+  const audience  = rule.audience ?? 'all'
   const yearStart = `${currentYear}-01-01T00:00:00.000Z`
+  let leads: LeadRow[] = []
+
+  if (audience === 'birthday') {
+    // Leads with birthday today
+    const [, mm, dd] = today.split('-')
+    const todayMonth = parseInt(mm)
+    const todayDay   = parseInt(dd)
+
+    const { data: allLeads } = await admin
+      .from('leads')
+      .select('id, contact_name, contact_last_name, contact_email, metadata')
+      .eq('organization_id', rule.organization_id)
+      .not('contact_email', 'is', null)
+
+    leads = ((allLeads ?? []) as LeadRow[]).filter(lead => {
+      const meta = lead.metadata as Record<string, unknown> | null
+      const dob  = meta?.fecha_de_nacimiento ?? meta?.['fecha-de-nacimiento'] ?? meta?.fecha_nacimiento
+      const bd   = parseBirthday(dob)
+      return bd && bd.month === todayMonth && bd.day === todayDay
+    })
+  } else if (audience === 'noshow') {
+    // Leads with at least one no_show appointment
+    const { data: appts } = await admin
+      .from('appointments')
+      .select('lead_id')
+      .eq('organization_id', rule.organization_id)
+      .eq('status', 'no_show')
+      .not('lead_id', 'is', null)
+
+    const leadIds = [...new Set<string>(
+      ((appts ?? []) as { lead_id: string }[]).map(a => a.lead_id)
+    )]
+    if (!leadIds.length) return 0
+
+    const { data: rawLeads } = await admin
+      .from('leads')
+      .select('id, contact_name, contact_last_name, contact_email')
+      .eq('organization_id', rule.organization_id)
+      .in('id', leadIds)
+      .not('contact_email', 'is', null)
+      .limit(remaining + 50)
+
+    leads = (rawLeads ?? []) as LeadRow[]
+  } else if (audience !== 'all') {
+    // Filter by lead.status = audience
+    const { data: rawLeads } = await admin
+      .from('leads')
+      .select('id, contact_name, contact_last_name, contact_email')
+      .eq('organization_id', rule.organization_id)
+      .eq('status', audience)
+      .not('contact_email', 'is', null)
+      .limit(remaining + 50)
+
+    leads = (rawLeads ?? []) as LeadRow[]
+  } else {
+    // 'all': all leads with email
+    const { data: rawLeads } = await admin
+      .from('leads')
+      .select('id, contact_name, contact_last_name, contact_email')
+      .eq('organization_id', rule.organization_id)
+      .not('contact_email', 'is', null)
+      .limit(remaining + 50)
+
+    leads = (rawLeads ?? []) as LeadRow[]
+  }
+
+  if (!leads.length) return 0
+
+  // Dedup: one email per lead per calendar year
   const { data: existingLogs } = await admin
     .from('automation_logs')
     .select('lead_id')
     .eq('automation_rule_id', rule.id)
-    .in('lead_id', leads.map((l: { id: string }) => l.id))
+    .in('lead_id', leads.map(l => l.id))
     .gte('sent_at', yearStart)
 
   const logged = new Set<string>(existingLogs?.map((l: { lead_id: string }) => l.lead_id) ?? [])
 
   let sent = 0
-  for (const lead of leads as LeadRow[]) {
+  for (const lead of leads) {
     if (sent >= remaining) break
     if (logged.has(lead.id)) continue
 
@@ -409,7 +479,7 @@ export async function processAutomationRules(admin: Admin): Promise<number> {
 
   const { data: rules, error: rulesError } = await admin
     .from('automation_rules')
-    .select('id, organization_id, rule_type, delay_days, trigger_date, email_subject, email_body')
+    .select('id, organization_id, rule_type, delay_days, trigger_date, email_subject, email_body, audience')
     .eq('is_active', true)
 
   if (rulesError) {
