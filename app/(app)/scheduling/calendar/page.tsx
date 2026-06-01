@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth/session'
-import { getUserPermissions, canAccess, canEdit } from '@/lib/permissions'
+import { getUserPermissions, canAccess, canEdit, getFirstAccessibleRoute } from '@/lib/permissions'
 import { CalendarClient } from '@/components/scheduling/calendar-client-fixed'
 
 export default async function CalendarPage() {
@@ -8,7 +8,7 @@ export default async function CalendarPage() {
   if (!session) redirect('/login')
 
   const perms = getUserPermissions(session.role, session.permissions)
-  if (!canAccess(perms, 'scheduling')) redirect('/dashboard')
+  if (!canAccess(perms, 'scheduling')) redirect(getFirstAccessibleRoute(perms))
 
   const doctorId = session.role === 'doctor' ? session.doctorId : null
 

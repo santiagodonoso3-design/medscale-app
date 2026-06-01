@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth/session'
-import { getUserPermissions, canAccess, canEdit } from '@/lib/permissions'
+import { getUserPermissions, canAccess, canEdit, getFirstAccessibleRoute } from '@/lib/permissions'
 import { DoctorsPageClient } from '@/components/doctors/doctors-page-client'
 
 export default async function DoctorsPage() {
@@ -8,7 +8,7 @@ export default async function DoctorsPage() {
   if (!session) redirect('/login')
 
   const perms = getUserPermissions(session.role, session.permissions)
-  if (!canAccess(perms, 'doctors')) redirect('/dashboard')
+  if (!canAccess(perms, 'doctors')) redirect(getFirstAccessibleRoute(perms))
 
   return (
     <div className="p-6 xl:p-10">

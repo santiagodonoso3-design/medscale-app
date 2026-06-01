@@ -90,3 +90,11 @@ export function canEdit(perms: ModulePermissions, module: keyof ModulePermission
 export function getConfigurableModules(): (keyof ModulePermissions)[] {
   return CONFIGURABLE_MODULES
 }
+
+export function getFirstAccessibleRoute(perms: ModulePermissions): string {
+  if (canAccess(perms, 'dashboard')) return '/dashboard'
+  if (canAccess(perms, 'crm')) return '/crm'
+  if (canAccess(perms, 'scheduling')) return '/scheduling/calendar'
+  if (canAccess(perms, 'doctors')) return '/doctors'
+  return '/scheduling/calendar'
+}

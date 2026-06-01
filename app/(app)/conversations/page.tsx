@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth/session'
-import { getUserPermissions, canAccess } from '@/lib/permissions'
+import { getUserPermissions, canAccess, getFirstAccessibleRoute } from '@/lib/permissions'
 import { createServiceClient } from '@/lib/supabase/server'
 import { ConversationsPageClient } from '@/components/conversations/conversations-page-client'
 
@@ -9,7 +9,7 @@ export default async function ConversationsPage() {
   if (!session) redirect('/login')
 
   const perms = getUserPermissions(session.role, session.permissions)
-  if (!canAccess(perms, 'conversations')) redirect('/dashboard')
+  if (!canAccess(perms, 'conversations')) redirect(getFirstAccessibleRoute(perms))
 
   const admin = createServiceClient()
   const { data: org } = await admin

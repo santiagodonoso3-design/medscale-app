@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { LayoutDashboard } from 'lucide-react'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getSession } from '@/lib/auth/session'
-import { getUserPermissions, canAccess } from '@/lib/permissions'
+import { getUserPermissions, canAccess, getFirstAccessibleRoute } from '@/lib/permissions'
 import { getDashboardRawData, getDashboardYears } from './actions'
 import { DashboardClient } from './dashboard-client'
 
@@ -20,7 +20,7 @@ export default async function DashboardPage() {
   if (!session.orgId) redirect('/onboarding')
 
   const perms = getUserPermissions(session.role, session.permissions)
-  if (!canAccess(perms, 'dashboard')) redirect('/crm')
+  if (!canAccess(perms, 'dashboard')) redirect(getFirstAccessibleRoute(perms))
 
   const admin = createServiceClient()
   const { data: org } = await admin

@@ -2,7 +2,7 @@
 import { redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
 import { getSession } from '@/lib/auth/session'
-import { getUserPermissions, canAccess, canEdit } from '@/lib/permissions'
+import { getUserPermissions, canAccess, canEdit, getFirstAccessibleRoute } from '@/lib/permissions'
 import { TeamClient } from './team-client'
 
 export default async function TeamPage() {
@@ -10,7 +10,7 @@ export default async function TeamPage() {
   if (!session) redirect('/login')
 
   const perms = getUserPermissions(session.role, session.permissions)
-  if (!canAccess(perms, 'team')) redirect('/crm')
+  if (!canAccess(perms, 'team')) redirect(getFirstAccessibleRoute(perms))
 
   const readOnly = !canEdit(perms, 'team')
 
