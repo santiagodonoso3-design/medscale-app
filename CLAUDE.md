@@ -1,4 +1,4 @@
-# MedScale App — Estado del proyecto (27 Mayo 2026)
+# MedScale App — Estado del proyecto (1 Junio 2026)
 
 ---
 
@@ -245,7 +245,7 @@ app/
 - ✅ Filtrado por organization_id (seguridad multi-tenant)
 
 ### Settings /settings
-- ✅ General, Sedes, Tipos de cita, Procedimientos, Notificaciones (global), Integraciones
+- ✅ General, Sedes, Tipos de cita, Procedimientos, Notificaciones, Automatizaciones, Integraciones
 - ✅ Settings layout filtra tabs según rol (doctor solo ve Integraciones)
 - ✅ /settings/procedures: CRUD de procedimientos (nombre, precio COP, activo/inactivo) con cards UI
 - ✅ API /api/procedures: GET, POST, PATCH, DELETE — filtrado por organization_id, service role
@@ -466,6 +466,20 @@ app/
 - ✅ `appointments.created_at` corregido con fechas reales del CRM de Bariatric (99 registros)
 - ✅ `appointments.doctor_assignment_type` = patient_choice para todas las citas de Bariatric
 
+### Sesión 1 Junio 2026
+
+#### Módulo Automatizaciones
+- ✅ `/settings/automations`: UI de gestión de reglas (cards agrupadas por tipo, modal de edición)
+- ✅ Tab "Automatizaciones" agregado al sidebar de settings (visible owner + staff)
+- ✅ API `/api/automations`: GET, POST, PATCH, DELETE — filtrado por organization_id, service role
+- ✅ 6 rule_types soportados: followup_post_cita, noshow_recovery, procedure_followup, procedure_completed, birthday, special_date
+- ✅ Reglas fijas (una por org): followup_post_cita, noshow_recovery, procedure_followup, procedure_completed, birthday
+- ✅ Reglas múltiples: special_date (Día de madres, Navidad, fechas custom, etc.)
+- ✅ Modal con variables de template: {{nombre}}, {{nombre_clinica}}, {{nombre_doctor}}
+- ✅ Toggle activo/inactivo en card y en modal de edición
+- ✅ DELETE solo para special_date (reglas fijas no se pueden eliminar, solo desactivar)
+- ⏳ Cron de ejecución de reglas — pendiente próximo prompt
+
 ---
 
 ## 🔴 PRIORIDAD 1 — MVP Autoservicio
@@ -647,6 +661,9 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 - `referral_codes`: code (unique, uppercase), referrer_name, referrer_email, referrer_phone, discount_type (percentage|fixed_amount), discount_value, discount_duration_months, commission_type, commission_value, commission_duration_months, max_uses, times_used, is_active, expires_at
 - `referral_uses`: referral_code_id, organization_id, discount_applied, status (active|expired|cancelled), applied_at
 - `organizations.referral_code_id` UUID FK → referral_codes (código usado en el registro)
+- `automation_rules`: id, organization_id, rule_type, name, description, delay_days, trigger_date, email_subject, email_body, is_active, created_at, updated_at
+- `automation_logs`: id, organization_id, automation_rule_id, lead_id, email_sent_to, status, sent_at
+- `automation_rules.rule_type`: followup_post_cita | noshow_recovery | procedure_followup | procedure_completed | birthday | special_date
 
 ### Modos de asignación
 | UI label | assignment_mode | rr_count_all |

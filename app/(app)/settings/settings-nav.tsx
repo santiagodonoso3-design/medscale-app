@@ -13,6 +13,7 @@ const ALL_TABS = [
   { label: 'Tipos de cita',    href: '/settings/appointment-types' },
   { label: 'Procedimientos',   href: '/settings/procedures' },
   { label: 'Notificaciones',   href: '/settings/notifications' },
+  { label: 'Automatizaciones', href: '/settings/automations' },
   { label: 'Integraciones',    href: '/settings/integrations' },
 ]
 
