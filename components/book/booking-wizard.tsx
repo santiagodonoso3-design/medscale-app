@@ -418,6 +418,7 @@ export default function BookingWizard({
     phone:   '',
     email:   '',
     cedula:  '',
+    id_type: '',
     customFields: {} as Record<string, string>,
   })
   const [loading, setLoading] = useState(false)
@@ -470,7 +471,7 @@ export default function BookingWizard({
           phone:               formData.phone,
           email:               formData.email,
           cedula:              formData.cedula,
-          custom_fields:       formData.customFields,
+          custom_fields:       { ...formData.customFields, 'tipo-identificacion': formData.id_type },
         }),
       })
       const result = await response.json()
@@ -700,7 +701,7 @@ export default function BookingWizard({
   const renderStep3 = () => {
     const docName  = selectedDoctor ? String(selectedDoctor.metadata?.name ?? 'Médico') : 'Asignación automática'
     const photoUrl = selectedDoctor?.metadata?.photo_url as string | null | undefined
-    const canSubmit = !loading && !!formData.patient_first_name && !!formData.patient_last_name && !!formData.phone && !!formData.email && !!formData.cedula
+    const canSubmit = !loading && !!formData.patient_first_name && !!formData.patient_last_name && !!formData.phone && !!formData.email && !!formData.cedula && !!formData.id_type
 
     const inputCls = `w-full px-3 py-2.5 rounded-xl text-sm transition focus:outline-none focus:ring-2`
     const inputStyle = { border: `1px solid ${B.border}`, background: '#fff', color: B.fg }
@@ -793,7 +794,20 @@ export default function BookingWizard({
               className={inputCls} style={{ ...inputStyle, ...inputFocusRing }} required />
           </div>
           <div className="col-span-2">
-            <label className="block text-sm font-medium mb-2" style={{ color: B.fg }}>Cédula *</label>
+            <label className="block text-sm font-medium mb-2" style={{ color: B.fg }}>Tipo de Identificación *</label>
+            <select value={formData.id_type}
+              onChange={e => setFormData(p => ({ ...p, id_type: e.target.value }))}
+              className={inputCls} style={{ ...inputStyle, ...inputFocusRing }} required>
+              <option value="">Selecciona una opción</option>
+              <option value="Cédula de ciudadanía">Cédula de ciudadanía</option>
+              <option value="Cédula de extranjería">Cédula de extranjería</option>
+              <option value="Pasaporte">Pasaporte</option>
+              <option value="Tarjeta de identidad">Tarjeta de identidad</option>
+              <option value="Registro civil">Registro civil</option>
+            </select>
+          </div>
+          <div className="col-span-2">
+            <label className="block text-sm font-medium mb-2" style={{ color: B.fg }}>Número de Identificación *</label>
             <input type="text" value={formData.cedula}
               onChange={e => setFormData(p => ({ ...p, cedula: e.target.value }))}
               className={inputCls} style={{ ...inputStyle, ...inputFocusRing }} required />
