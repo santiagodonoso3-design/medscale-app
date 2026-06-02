@@ -23,8 +23,16 @@ type AppointmentRecord = {
   doctor_id: string
   lead_id: string | null
   location_id: string | null
+  appointment_type_id: string | null
   metadata: Record<string, unknown> | null
-  lead?: { contact_name: string | null; contact_last_name: string | null; contact_phone: string | null; contact_email: string | null } | null
+  lead?: {
+    contact_name: string | null
+    contact_last_name: string | null
+    contact_phone: string | null
+    contact_email: string | null
+    contact_cedula?: string | null
+    metadata?: Record<string, unknown> | null
+  } | null
   doctor?: { metadata: Record<string, unknown> | null } | null
   location?: { name: string } | null
 }
@@ -165,6 +173,7 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
   const [schedules, setSchedules] = useState<ScheduleOption[]>([])
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([])
   const [appointmentTypes, setAppointmentTypes] = useState<any[]>([])
+  const [formFieldsByType, setFormFieldsByType] = useState<Record<string, { field_name: string; field_label: string; sort_order: number }[]>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -229,18 +238,20 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
       { data: locationData, error: locationError },
       { data: aptData, error: aptError },
       { data: aptTypeData },
+      { data: formFieldsData },
     ] = await Promise.all([
       supabase.from('doctors').select('id, specialty, is_active, metadata').eq('is_active', true).order('created_at', { ascending: true }),
       supabase.from('locations').select('id, name').order('name', { ascending: true }),
       (() => {
         let q = supabase
           .from('appointments')
-          .select('id, scheduled_at, ends_at, status, doctor_id, lead_id, location_id, notes, doctor:doctor_id(metadata), lead:lead_id(contact_name,contact_last_name,contact_phone,contact_email), location:location_id(name)')
+          .select('id, scheduled_at, ends_at, status, doctor_id, lead_id, location_id, notes, appointment_type_id, doctor:doctor_id(metadata), lead:lead_id(contact_name,contact_last_name,contact_phone,contact_email,contact_cedula,metadata), location:location_id(name)')
           .order('scheduled_at', { ascending: true })
         if (doctorId) q = q.eq('doctor_id', doctorId)
         return q
       })(),
       supabase.from('appointment_types').select('id, name, duration_minutes, modality, price_presencial, price_virtual').eq('active', true).order('name', { ascending: true }),
+      supabase.from('appointment_form_fields').select('appointment_type_id, field_name, field_label, sort_order').eq('active', true).order('sort_order', { ascending: true }),
     ])
     if (doctorError || locationError || aptError) {
       setError(doctorError?.message || locationError?.message || aptError?.message || 'Error cargando datos')
@@ -251,6 +262,14 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
     setLocations(locationData || [])
     setAppointments((aptData as unknown as AppointmentRecord[]) || [])
     setAppointmentTypes(aptTypeData || [])
+    if (formFieldsData) {
+      const grouped: Record<string, { field_name: string; field_label: string; sort_order: number }[]> = {}
+      for (const f of formFieldsData as any[]) {
+        if (!grouped[f.appointment_type_id]) grouped[f.appointment_type_id] = []
+        grouped[f.appointment_type_id].push({ field_name: f.field_name, field_label: f.field_label, sort_order: f.sort_order })
+      }
+      setFormFieldsByType(grouped)
+    }
     if (doctorData && doctorData.length > 0) {
       const { data: schedData } = await supabase
         .from('schedules')
@@ -1244,6 +1263,56 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
                   </div>
                 )}
               </div>
+
+              {/* Form responses */}
+              {(() => {
+                const meta = selected.lead?.metadata as Record<string, unknown> | null | undefined
+                const aptTypeId = selected.appointment_type_id
+                const fields = aptTypeId ? (formFieldsByType[aptTypeId] ?? []) : []
+
+                function fmtVal(v: unknown): string {
+                  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+                    return new Date(v + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })
+                  }
+                  return String(v ?? '')
+                }
+                function fmtKey(k: string): string {
+                  return k.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+                }
+
+                const definedNames = new Set(fields.map(f => f.field_name))
+                const rows: { label: string; value: string }[] = []
+
+                for (const f of fields) {
+                  const v = meta?.[f.field_name]
+                  if (v !== null && v !== undefined && v !== '') rows.push({ label: f.field_label, value: fmtVal(v) })
+                }
+                if (meta) {
+                  for (const k of Object.keys(meta)) {
+                    if (definedNames.has(k)) continue
+                    const v = meta[k]
+                    if (v !== null && v !== undefined && v !== '') rows.push({ label: fmtKey(k), value: fmtVal(v) })
+                  }
+                }
+
+                return (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">Respuestas del formulario</p>
+                    {rows.length === 0 ? (
+                      <p className="text-xs italic text-slate-300">Sin respuestas de formulario</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {rows.map(row => (
+                          <div key={row.label}>
+                            <p className="text-xs text-slate-400">{row.label}</p>
+                            <p className="text-sm font-medium text-slate-700">{row.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Notes */}
               <div>
