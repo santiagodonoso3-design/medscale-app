@@ -5,25 +5,29 @@ import { usePathname } from 'next/navigation'
 
 interface SettingsNavProps {
   isDoctor: boolean
+  isOwner: boolean
 }
 
 const ALL_TABS = [
-  { label: 'General',          href: '/settings/general' },
-  { label: 'Sedes',            href: '/settings/locations' },
-  { label: 'Tipos de cita',    href: '/settings/appointment-types' },
-  { label: 'Procedimientos',   href: '/settings/procedures' },
-  { label: 'Notificaciones',   href: '/settings/notifications' },
-  { label: 'Automatizaciones', href: '/settings/automations' },
-  { label: 'Integraciones',    href: '/settings/integrations' },
+  { label: 'General',            href: '/settings/general',        ownerOnly: false },
+  { label: 'Sedes',              href: '/settings/locations',       ownerOnly: false },
+  { label: 'Tipos de cita',      href: '/settings/appointment-types', ownerOnly: false },
+  { label: 'Procedimientos',     href: '/settings/procedures',      ownerOnly: false },
+  { label: 'Notificaciones',     href: '/settings/notifications',   ownerOnly: false },
+  { label: 'Automatizaciones',   href: '/settings/automations',     ownerOnly: false },
+  { label: 'Integraciones',      href: '/settings/integrations',    ownerOnly: false },
+  { label: 'Plan y facturación', href: '/settings/billing',         ownerOnly: true  },
 ]
 
 const DOCTOR_TABS = [
-  { label: 'Integraciones', href: '/settings/integrations' },
+  { label: 'Integraciones', href: '/settings/integrations', ownerOnly: false },
 ]
 
-export function SettingsNav({ isDoctor }: SettingsNavProps) {
+export function SettingsNav({ isDoctor, isOwner }: SettingsNavProps) {
   const pathname = usePathname()
-  const tabs = isDoctor ? DOCTOR_TABS : ALL_TABS
+  const tabs = isDoctor
+    ? DOCTOR_TABS
+    : ALL_TABS.filter(tab => !tab.ownerOnly || isOwner)
 
   return (
     <aside className="w-52 shrink-0">
