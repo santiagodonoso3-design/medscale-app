@@ -480,6 +480,35 @@ app/
 - ✅ DELETE solo para special_date (reglas fijas no se pueden eliminar, solo desactivar)
 - ⏳ Cron de ejecución de reglas — pendiente próximo prompt
 
+### Sesión 2 Junio 2026
+
+#### Billing — Mercado Pago Suscripciones
+
+**Modelo:** cobro recurrente plataforma → clínica. Cuenta MP persona natural (User ID real 80169027). Checkout hosted vía init_point del preapproval_plan (NO se crea preapproval desde backend — eso exige card_token_id/PCI). MP captura tarjeta, crea suscripción, notifica por webhook.
+
+**Flujo:**
+1. `/settings/billing` (owner-only) → botón "Cambiar a X"
+2. POST `/api/billing/subscribe` { tier } → construye init_point del plan + external_reference=orgId → devuelve URL
+3. Cliente paga en MP (hosted)
+4. Webhook `/api/webhooks/mercadopago` → valida firma x-signature → re-consulta MP → actualiza plan
+
+**Webhook — claves técnicas:**
+- data.id viene en QUERY PARAMS de la URL, no en el body
+- manifest firma: `id:{dataId};request-id:{xRequestId};ts:{ts};` → HMAC-SHA256 con MP_WEBHOOK_SECRET → comparar vs v1
+- Idempotencia: subscription_events.mp_event_id = `{dataId}-{status}` (UNIQUE). Renovaciones mensuales se ignoran como duplicado (OK para MVP, revisar si se quiere histórico de cobros)
+- Status: authorized→plan+status, paused→solo status, cancelled→free. Si tier no matchea: NO toca plan, solo loguea
+- SIEMPRE 200 salvo firma inválida (401) y error DB (500) — MP reintenta agresivo
+
+**Planes pagos = objetos en MP. Free = estado solo en DB (sin ID MP).**
+
+**Precios COP:** Starter $119k / Growth $319k / Scale $599k
+
+**Env vars (valores en Vercel):** MP_ACCESS_TOKEN_TEST, MP_PLAN_STARTER/GROWTH/SCALE, MP_WEBHOOK_SECRET. NO confundir MP_WEBHOOK_SECRET (firma MP) con WEBHOOK_SECRET (n8n, header x-webhook-secret).
+
+**Sandbox MP:** no se pudo completar pago end-to-end porque el plan pertenece a cuenta real y el comprador es de prueba (mezcla de entornos, error "fatal"). Validado: checkout carga, firma webhook responde 200 (simulación oficial). Prueba real se hará en producción.
+
+**Pendiente producción:** MP_ACCESS_TOKEN prod + recrear planes con token prod (IDs distintos) + webhook Modo productivo (otro secret) + página /billing/success.
+
 ---
 
 ## 🔴 PRIORIDAD 1 — MVP Autoservicio
