@@ -509,6 +509,17 @@ app/
 
 **Pendiente producción:** MP_ACCESS_TOKEN prod + recrear planes con token prod (IDs distintos) + webhook Modo productivo (otro secret) + página /billing/success.
 
+### Billing MP — Producción lista (2 Junio 2026)
+- ✅ Credenciales de producción activadas (MP_ACCESS_TOKEN prod en Vercel)
+- ✅ 3 planes recreados en producción (IDs distintos a los de prueba, en MP_PLAN_* de Vercel)
+- ✅ Webhook configurado en Modo productivo (MP_WEBHOOK_SECRET actualizado a secret de prod)
+- ✅ Webhook usa MP_ACCESS_TOKEN (prod), no _TEST
+- ✅ Página /billing/success creada (server component, fuera de grupo (app), sin DB)
+- ⏳ Sin probar pago real end-to-end (decisión: no gastar plata; primer cliente real será la prueba)
+- Estrategia cobro: clientes actuales → manual (link de pago MP); clientes nuevos → autoservicio
+- Pendiente: simular webhook en modo productivo para confirmar firma prod responde 200
+- Pendiente menor: middleware.ts deprecado en Next.js 16 → migrar a proxy (futuro)
+
 ---
 
 ## 🔴 PRIORIDAD 1 — MVP Autoservicio
