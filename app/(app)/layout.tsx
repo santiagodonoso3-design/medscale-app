@@ -1,13 +1,21 @@
 import { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
-import { createServiceClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getSession } from '@/lib/auth/session'
 import { getImpersonatedOrgId } from '@/lib/admin/impersonate'
 import { OrgSidebar } from '@/components/org/sidebar'
 
 export default async function AppShell({ children }: { children: ReactNode }) {
   const session = await getSession()
-  if (!session) redirect('/login')
+  if (!session) {
+    // getSession() devuelve null tanto para "no autenticado" como para
+    // "autenticado sin organización" (ej. signup OAuth sin onboarding).
+    // Separar ambos casos evita el loop /login <-> /dashboard del middleware.
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) redirect('/onboarding')
+    redirect('/login')
+  }
 
   const impersonatedOrgId = await getImpersonatedOrgId()
 
