@@ -106,10 +106,11 @@ const EMPTY_FORM = {
 }
 
 const BASE_FIELDS = [
-  { label: 'Nombre completo', type: 'Texto' },
-  { label: 'Teléfono',        type: 'Teléfono' },
-  { label: 'Email',           type: 'Email' },
-  { label: 'Cédula',          type: 'Texto' },
+  { label: 'Nombre completo',        type: 'Texto' },
+  { label: 'Teléfono',               type: 'Teléfono' },
+  { label: 'Email',                  type: 'Email' },
+  { label: 'Tipo de Identificación', type: 'Dropdown' },
+  { label: 'Número de Identificación', type: 'Texto' },
 ]
 
 function toSlug(text: string): string {
