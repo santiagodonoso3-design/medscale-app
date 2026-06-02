@@ -129,8 +129,10 @@ export function BillingContent({ currentPlan, subscriptionStatus }: Props) {
 
               {/* Name & price */}
               <p className="font-bold text-slate-900 text-base">{plan.name}</p>
-              <p className="mt-1 text-lg font-bold" style={{ color: '#215F73' }}>
-                {plan.price === 0 ? 'Gratis' : `${formatCOP(plan.price)}/mes`}
+              <p className="mt-1 whitespace-nowrap text-base font-bold" style={{ color: '#215F73' }}>
+                {plan.price === 0
+                  ? 'Gratis'
+                  : <>{formatCOP(plan.price)}<span className="text-xs font-normal ml-0.5" style={{ color: '#4A6B7A' }}>/mes</span></>}
               </p>
 
               {/* Features */}
