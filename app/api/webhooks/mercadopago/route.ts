@@ -66,7 +66,7 @@ export async function POST(request: Request) {
 
     // Re-consultar a MP — nunca confiar en el body
     const mpRes = await fetch(`https://api.mercadopago.com/preapproval/${dataId}`, {
-      headers: { Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN_TEST}` },
+      headers: { Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}` },
     })
 
     if (!mpRes.ok) {
