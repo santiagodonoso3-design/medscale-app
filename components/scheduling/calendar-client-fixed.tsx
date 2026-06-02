@@ -173,7 +173,7 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
   const [schedules, setSchedules] = useState<ScheduleOption[]>([])
   const [appointments, setAppointments] = useState<AppointmentRecord[]>([])
   const [appointmentTypes, setAppointmentTypes] = useState<any[]>([])
-  const [formFieldsByType, setFormFieldsByType] = useState<Record<string, { field_name: string; field_label: string; sort_order: number }[]>>({})
+  const [formFieldsByType, setFormFieldsByType] = useState<Record<string, { field_name: string; field_label: string; field_type: string; sort_order: number }[]>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -251,7 +251,7 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
         return q
       })(),
       supabase.from('appointment_types').select('id, name, duration_minutes, modality, price_presencial, price_virtual').eq('active', true).order('name', { ascending: true }),
-      supabase.from('appointment_form_fields').select('appointment_type_id, field_name, field_label, sort_order').eq('active', true).order('sort_order', { ascending: true }),
+      supabase.from('appointment_form_fields').select('appointment_type_id, field_name, field_label, field_type, sort_order').eq('active', true).order('sort_order', { ascending: true }),
     ])
     if (doctorError || locationError || aptError) {
       setError(doctorError?.message || locationError?.message || aptError?.message || 'Error cargando datos')
@@ -263,10 +263,10 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
     setAppointments((aptData as unknown as AppointmentRecord[]) || [])
     setAppointmentTypes(aptTypeData || [])
     if (formFieldsData) {
-      const grouped: Record<string, { field_name: string; field_label: string; sort_order: number }[]> = {}
+      const grouped: Record<string, { field_name: string; field_label: string; field_type: string; sort_order: number }[]> = {}
       for (const f of formFieldsData as any[]) {
         if (!grouped[f.appointment_type_id]) grouped[f.appointment_type_id] = []
-        grouped[f.appointment_type_id].push({ field_name: f.field_name, field_label: f.field_label, sort_order: f.sort_order })
+        grouped[f.appointment_type_id].push({ field_name: f.field_name, field_label: f.field_label, field_type: f.field_type ?? 'text', sort_order: f.sort_order })
       }
       setFormFieldsByType(grouped)
     }
@@ -1281,17 +1281,22 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
                 }
 
                 const definedNames = new Set(fields.map(f => f.field_name))
-                const rows: { label: string; value: string }[] = []
+                const rows: { label: string; value: string; wide: boolean }[] = []
 
                 for (const f of fields) {
                   const v = meta?.[f.field_name]
-                  if (v !== null && v !== undefined && v !== '') rows.push({ label: f.field_label, value: fmtVal(v) })
+                  if (v !== null && v !== undefined && v !== '') {
+                    rows.push({ label: f.field_label, value: fmtVal(v), wide: f.field_type === 'textarea' })
+                  }
                 }
                 if (meta) {
                   for (const k of Object.keys(meta)) {
                     if (definedNames.has(k)) continue
                     const v = meta[k]
-                    if (v !== null && v !== undefined && v !== '') rows.push({ label: fmtKey(k), value: fmtVal(v) })
+                    if (v !== null && v !== undefined && v !== '') {
+                      const str = fmtVal(v)
+                      rows.push({ label: fmtKey(k), value: str, wide: str.includes('\n') || str.length > 80 })
+                    }
                   }
                 }
 
@@ -1301,9 +1306,9 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
                     {rows.length === 0 ? (
                       <p className="text-xs italic text-slate-300">Sin respuestas de formulario</p>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                         {rows.map(row => (
-                          <div key={row.label}>
+                          <div key={row.label} className={row.wide ? 'col-span-2' : ''}>
                             <p className="text-xs text-slate-400">{row.label}</p>
                             <p className="text-sm font-medium text-slate-700">{row.value}</p>
                           </div>
