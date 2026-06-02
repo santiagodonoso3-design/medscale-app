@@ -34,53 +34,27 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  const checkoutUrl = `https://www.mercadopago.com.co/subscriptions/checkout?preapproval_plan_id=${planId}&external_reference=${session.orgId}`
+
   const admin = createServiceClient()
 
   try {
-    const mpRes = await fetch('https://api.mercadopago.com/preapproval', {
-      method: 'POST',
-      headers: {
-        Authorization:  `Bearer ${process.env.MP_ACCESS_TOKEN_TEST}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        preapproval_plan_id: planId,
-        reason:              `MedScale ${(tier as string).charAt(0).toUpperCase() + (tier as string).slice(1)}`,
-        external_reference:  session.orgId,
-        payer_email:         session.user.email,
-        back_url:            'https://app.medscale.app/billing/success',
-        status:              'pending',
-      }),
-    })
-
-    if (!mpRes.ok) {
-      const errBody = await mpRes.text()
-      console.error(`[billing/subscribe] MP error ${mpRes.status}:`, errBody)
-      return NextResponse.json(
-        { error: 'Error al crear suscripción en Mercado Pago' },
-        { status: 502 },
-      )
-    }
-
-    const data = await mpRes.json()
-
     const { error: dbError } = await admin
       .from('organizations')
       .update({
-        mp_preapproval_id:   data.id,
-        mp_payer_email:      session.user.email,
         subscription_status: 'pending',
+        mp_payer_email:      session.user.email,
       })
       .eq('id', session.orgId)
 
     if (dbError) {
       console.error('[billing/subscribe] DB update error:', dbError)
-      return NextResponse.json({ error: 'Error guardando suscripción' }, { status: 500 })
+      return NextResponse.json({ error: 'Error guardando estado de suscripción' }, { status: 500 })
     }
-
-    return NextResponse.json({ init_point: data.init_point })
   } catch (err) {
     console.error('[billing/subscribe] Unexpected error:', err)
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
+
+  return NextResponse.json({ init_point: checkoutUrl })
 }
