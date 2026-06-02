@@ -90,7 +90,7 @@ export async function POST(request: Request) {
       .from('subscription_events')
       .insert({
         org_id:      external_reference,
-        mp_event_id: dataId,
+        mp_event_id: `${dataId}-${status}`,
         type,
         payload:     mp,
       })
@@ -116,11 +116,22 @@ export async function POST(request: Request) {
     let updates: Record<string, unknown>
 
     if (status === 'authorized') {
-      updates = {
-        plan:                tier ?? 'starter',
-        subscription_status: 'authorized',
-        mp_preapproval_id:   dataId,
-        mp_payer_email:      payer_email,
+      if (!tier) {
+        console.error(
+          `[mp-webhook] preapproval_plan_id "${preapproval_plan_id}" no matcheó ningún tier conocido — revisar MP_PLAN_* env vars`
+        )
+        updates = {
+          subscription_status: 'authorized',
+          mp_preapproval_id:   dataId,
+          mp_payer_email:      payer_email,
+        }
+      } else {
+        updates = {
+          plan:                tier,
+          subscription_status: 'authorized',
+          mp_preapproval_id:   dataId,
+          mp_payer_email:      payer_email,
+        }
       }
     } else if (status === 'paused') {
       updates = { subscription_status: 'paused' }
