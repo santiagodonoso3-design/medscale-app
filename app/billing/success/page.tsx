@@ -41,19 +41,15 @@ export default function BillingSuccessPage() {
         <div className="w-full flex flex-col gap-3 mt-1">
           <Link
             href="/settings/billing"
-            className="w-full rounded-xl py-2.5 text-sm font-semibold text-white text-center transition-colors"
+            className="w-full rounded-xl py-2.5 text-sm font-semibold text-white text-center transition hover:brightness-90"
             style={{ background: '#215F73' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#0D2B3E' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#215F73' }}
           >
             Ir a mi plan
           </Link>
           <Link
             href="/dashboard"
-            className="w-full rounded-xl py-2.5 text-sm font-semibold text-center transition-colors"
-            style={{ border: '1px solid #C8D8E4', color: '#4A6B7A', background: 'transparent' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#F3F7FA' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+            className="w-full rounded-xl py-2.5 text-sm font-semibold text-center transition hover:bg-slate-50"
+            style={{ border: '1px solid #C8D8E4', color: '#4A6B7A' }}
           >
             Ir al dashboard
           </Link>
