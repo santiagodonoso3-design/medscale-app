@@ -7,11 +7,12 @@ import { BookAppointmentModal } from '@/components/crm/book-appointment-modal'
 import {
   Plus, Loader2, Search, X, Save, List, LayoutGrid,
   ChevronDown, CalendarPlus, ChevronUp, ChevronsUpDown, Send,
-  FileDown, Upload, Trash2, ContactRound,
+  FileDown, Upload, Trash2, ContactRound, Download,
 } from 'lucide-react'
 import { ImportLeadsModal, downloadLeadTemplate } from '@/components/crm/import-leads-modal'
 import { deleteLeads } from '@/app/(app)/crm/actions/deleteLeads'
 import { bulkUpdateLeadStatus, bulkUpdateLeadSource } from '@/app/(app)/crm/actions/bulkLeadActions'
+import { exportLeads } from '@/app/(app)/crm/actions/exportLeads'
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -345,6 +346,8 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
   const [successToast,    setSuccessToast]    = useState<string | null>(null)
   const [bookingModalOpen, setBookingModalOpen] = useState(false)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+  const [orgPlan,           setOrgPlan]           = useState<string | null>(null)
+  const [exporting,         setExporting]         = useState(false)
 
   // delete / bulk
   const [selectedIds,   setSelectedIds]   = useState<Set<string>>(new Set())
@@ -382,6 +385,12 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
       const orgId = member?.organization_id ?? null
       setOrganizationId(orgId)
       if (orgId) {
+        const { data: orgData } = await supabase
+          .from('organizations')
+          .select('plan')
+          .eq('id', orgId)
+          .single()
+        setOrgPlan((orgData as { plan: string } | null)?.plan ?? null)
         await reloadOrgFields(orgId)
       }
       await loadLeads()
@@ -511,6 +520,30 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
     setTimeout(() => setSuccessToast(null), 3500)
   }
 
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const result = await exportLeads({ status: statusFilter, source: sourceFilter, search })
+      if ('error' in result) {
+        setError(result.error)
+        return
+      }
+      const binary = atob(result.data)
+      const bytes = new Uint8Array(binary.length)
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+      const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = result.filename
+      a.click()
+      URL.revokeObjectURL(url)
+      setSuccessToast(`${result.count} leads exportados`)
+      setTimeout(() => setSuccessToast(null), 3000)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   // ── Lead detail ──────────────────────────────────────────────────────────────
 
@@ -695,6 +728,8 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
     setter({ leadId, top: rect.bottom + 4, left: rect.left })
   }
 
+  const canExport = orgPlan === 'growth' || orgPlan === 'scale'
+
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-screen px-2">
@@ -715,6 +750,15 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
           </div>
           <button onClick={downloadLeadTemplate} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
             <FileDown className="h-3.5 w-3.5" /> Template
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={!canExport || exporting}
+            title={!canExport ? 'Disponible en planes Growth y Scale' : undefined}
+            className={`inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition${!canExport ? ' opacity-50 cursor-not-allowed' : ''}`}
+          >
+            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            Exportar
           </button>
           {!readOnly && (
             <button onClick={() => setIsImportModalOpen(true)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
