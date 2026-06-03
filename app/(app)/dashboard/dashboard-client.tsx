@@ -22,12 +22,22 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   nuevo_lead:               'Nuevo lead',
+  contactado:               'Contactado',
   cita_valoracion_agendada: 'Cita agendada',
+  asistio_cita:             'Asistió a cita',
   asistio_a_cita:           'Asistió a cita',
   en_tratamiento_medico:    'En tratamiento',
   cancelo_cita:             'Canceló cita',
   finalizado:               'Finalizado',
 }
+
+const STAGE_ORDER = [
+  'contactado', 'cita_valoracion_agendada',
+  'asistio_cita', 'asistio_a_cita',
+  'cancelo_cita', 'en_tratamiento_medico', 'finalizado',
+]
+const STAGE_INDEX: Record<string, number> = Object.fromEntries(STAGE_ORDER.map((s, i) => [s, i]))
+const HIDDEN_STATUSES = new Set(['contactado', 'cancelo_cita'])
 
 const _nowBogota    = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', timeZone: 'America/Bogota' }).format(new Date())
 const CURRENT_YEAR  = Number(_nowBogota.slice(0, 4))
@@ -235,7 +245,8 @@ function computeMetrics(
   })
   const leadsByStatus = Array.from(leadStatusMap.entries())
     .map(([status, count]) => ({ status, count }))
-    .sort((a, b) => b.count - a.count)
+    .filter(({ status }) => !HIDDEN_STATUSES.has(status))
+    .sort((a, b) => (STAGE_INDEX[a.status] ?? 99) - (STAGE_INDEX[b.status] ?? 99))
 
   // Doctor stats
   const leadDoctorMap = new Map<string, Set<string>>()
@@ -852,10 +863,11 @@ export function DashboardClient({
             </div>
           ) : (
             <div className="space-y-3.5">
-              {m.leadsByStatus.map(({ status, count }) => {
+              {(() => {
+                const maxCount = Math.max(...m.leadsByStatus.map(s => s.count), 1)
+                return m.leadsByStatus.map(({ status, count }) => {
                 const total = m.leadsCount || 1
                 const pct = Math.round((count / total) * 100)
-                const maxCount = m.leadsByStatus[0]?.count || 1
                 const barWidth = Math.round((count / maxCount) * 100)
                 const color = STATUS_COLORS[status] ?? '#94a3b8'
                 const label = STATUS_LABELS[status] ?? status
@@ -870,7 +882,7 @@ export function DashboardClient({
                     </div>
                   </div>
                 )
-              })}
+              })})()}
             </div>
           )}
         </div>
