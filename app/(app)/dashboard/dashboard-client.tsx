@@ -31,13 +31,6 @@ const STATUS_LABELS: Record<string, string> = {
   finalizado:               'Finalizado',
 }
 
-const STAGE_ORDER = [
-  'contactado', 'cita_valoracion_agendada',
-  'asistio_cita', 'asistio_a_cita',
-  'cancelo_cita', 'en_tratamiento_medico', 'finalizado',
-]
-const STAGE_INDEX: Record<string, number> = Object.fromEntries(STAGE_ORDER.map((s, i) => [s, i]))
-const HIDDEN_STATUSES = new Set(['contactado', 'cancelo_cita'])
 
 const _nowBogota    = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', timeZone: 'America/Bogota' }).format(new Date())
 const CURRENT_YEAR  = Number(_nowBogota.slice(0, 4))
@@ -96,7 +89,7 @@ interface Metrics {
   monthlyRevenue: { label: string; revenueCitas: number; revenueProcs: number; total: number }[]
   avgMonthlyRevenue: number
   cancellationReasons: { reason: string; count: number }[]
-  leadsByStatus: { status: string; count: number }[]
+  conversionFunnel: { key: string; label: string; count: number; pctStep: number | null; pctTotal: number }[]
   monthlyLines: { label: string; agendadas: number; asistencias: number; procedimiento: number; finalizados: number }[]
   doctorStats: {
     name: string
@@ -238,15 +231,35 @@ function computeMetrics(
     .sort((x, y) => y.count - x.count)
     .slice(0, 5)
 
-  // Leads by status for the period
-  const leadStatusMap = new Map<string, number>()
-  yearLeads.filter(l => inPeriod(l.ym)).forEach(l => {
-    leadStatusMap.set(l.status, (leadStatusMap.get(l.status) ?? 0) + 1)
-  })
-  const leadsByStatus = Array.from(leadStatusMap.entries())
-    .map(([status, count]) => ({ status, count }))
-    .filter(({ status }) => !HIDDEN_STATUSES.has(status))
-    .sort((a, b) => (STAGE_INDEX[a.status] ?? 99) - (STAGE_INDEX[b.status] ?? 99))
+  // Conversion funnel (leads únicos, monotónico, anclado a periodApts)
+  const agendoSet = new Set<string>()
+  periodApts.forEach(a => { if (a.lead_id) agendoSet.add(a.lead_id) })
+
+  const completedLeadSet = new Set<string>()
+  periodApts.forEach(a => { if (a.lead_id && a.status === 'completed') completedLeadSet.add(a.lead_id) })
+  const asistioSet = new Set([...agendoSet].filter(id => completedLeadSet.has(id)))
+
+  const leadStatusById = new Map<string, string>()
+  yearLeads.forEach(l => leadStatusById.set(l.id, l.status))
+
+  const tratamientoSet = new Set([...asistioSet].filter(id => {
+    const st = leadStatusById.get(id)
+    return st === 'en_tratamiento_medico' || st === 'finalizado'
+  }))
+  const finalizoSet = new Set([...tratamientoSet].filter(id => leadStatusById.get(id) === 'finalizado'))
+
+  const agendo      = agendoSet.size
+  const asistio     = asistioSet.size
+  const tratamiento = tratamientoSet.size
+  const finalizo    = finalizoSet.size
+  const funnelBase  = agendo || 1
+
+  const conversionFunnel = [
+    { key: 'agendo',      label: 'Agendó cita',         count: agendo,      pctStep: null,                                               pctTotal: 100 },
+    { key: 'asistio',     label: 'Asistió',             count: asistio,     pctStep: Math.round((asistio     / (agendo      || 1)) * 100), pctTotal: Math.round((asistio     / funnelBase) * 100) },
+    { key: 'tratamiento', label: 'Llegó a tratamiento', count: tratamiento, pctStep: Math.round((tratamiento / (asistio     || 1)) * 100), pctTotal: Math.round((tratamiento / funnelBase) * 100) },
+    { key: 'finalizo',    label: 'Finalizó',            count: finalizo,    pctStep: Math.round((finalizo    / (tratamiento || 1)) * 100), pctTotal: Math.round((finalizo    / funnelBase) * 100) },
+  ]
 
   // Doctor stats
   const leadDoctorMap = new Map<string, Set<string>>()
@@ -385,7 +398,7 @@ function computeMetrics(
     leadsCount, leadsWithoutAppointment,
     monthlyRevenue, avgMonthlyRevenue,
     cancellationReasons,
-    leadsByStatus,
+    conversionFunnel,
     monthlyLines,
     doctorStats,
     heatmapDays, dailyApts,
@@ -853,36 +866,50 @@ export function DashboardClient({
           )}
         </div>
 
-        {/* Leads por estado */}
+        {/* Embudo de conversión */}
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-900">Leads por estado</h2>
-          <p className="text-xs text-slate-400 mt-0.5 mb-5">Distribución del período</p>
-          {m.leadsByStatus.length === 0 ? (
+          <h2 className="text-base font-semibold text-slate-900">Embudo de conversión</h2>
+          <p className="text-xs text-slate-400 mt-0.5 mb-5">Recorrido del paciente · período seleccionado</p>
+          {m.conversionFunnel[0].count === 0 ? (
             <div className="flex items-center justify-center py-10">
-              <p className="text-sm text-slate-400">Sin leads en el período</p>
+              <p className="text-sm text-slate-400">Sin citas en el período</p>
             </div>
           ) : (
             <div className="space-y-3.5">
-              {(() => {
-                const maxCount = Math.max(...m.leadsByStatus.map(s => s.count), 1)
-                return m.leadsByStatus.map(({ status, count }) => {
-                const total = m.leadsCount || 1
-                const pct = Math.round((count / total) * 100)
-                const barWidth = Math.round((count / maxCount) * 100)
-                const color = STATUS_COLORS[status] ?? '#94a3b8'
-                const label = STATUS_LABELS[status] ?? status
+              {m.conversionFunnel.map(({ key, label, count, pctStep, pctTotal }) => {
+                const FUNNEL_COLORS: Record<string, string> = {
+                  agendo:      '#378ADD',
+                  asistio:     '#1D9E75',
+                  tratamiento: '#BA7517',
+                  finalizo:    '#534AB7',
+                }
+                const color    = FUNNEL_COLORS[key] ?? '#94a3b8'
+                const barWidth = count > 0 && pctTotal === 0 ? 2 : pctTotal
                 return (
-                  <div key={status}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-slate-600 truncate mr-3">{label}</span>
-                      <span className="text-xs font-bold text-slate-800 shrink-0">{count} · {pct}%</span>
+                  <div key={key}>
+                    <div className="flex items-baseline justify-between mb-1.5">
+                      <span className="text-sm text-slate-700">{label}</span>
+                      <span className="shrink-0 ml-3 text-sm font-semibold text-slate-800">
+                        {count}
+                        {pctStep !== null ? (
+                          <>
+                            <span className="ml-1.5 text-xs font-normal text-blue-600">· {pctStep}% del paso</span>
+                            <span className="ml-1 text-xs font-normal text-slate-400">· {pctTotal}% del total</span>
+                          </>
+                        ) : (
+                          <span className="ml-1.5 text-xs font-normal text-slate-400">· 100%</span>
+                        )}
+                      </span>
                     </div>
-                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, backgroundColor: color }} />
+                    <div className="h-7 w-full bg-slate-100 rounded-md overflow-hidden">
+                      <div
+                        className="h-full rounded-md transition-all"
+                        style={{ width: `${barWidth}%`, backgroundColor: color }}
+                      />
                     </div>
                   </div>
                 )
-              })})()}
+              })}
             </div>
           )}
         </div>
