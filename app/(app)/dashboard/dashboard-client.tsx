@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine, Legend, LabelList,
 } from 'recharts'
-import { Loader2 } from 'lucide-react'
+import { Loader2, MoreHorizontal } from 'lucide-react'
 import type { RawDashboardData } from './actions'
 import { getDashboardRawData } from './actions'
 
@@ -544,9 +544,12 @@ export function DashboardClient({
   const [selectedYear, setSelectedYear]     = useState(CURRENT_YEAR)
   const [selectedMonths, setSelectedMonths] = useState<number[]>(() => allMonths(CURRENT_YEAR))
   const [isPending, startTransition]        = useTransition()
+  const [activePreset, setActivePreset]     = useState('this_year')
+  const [customOpen, setCustomOpen]         = useState(false)
 
   function handleYearChange(year: number) {
     if (year === selectedYear) return
+    setActivePreset('custom')
     setSelectedYear(year)
     setSelectedMonths(year === CURRENT_YEAR ? [CURRENT_MONTH] : allMonths(year))
     startTransition(async () => {
@@ -556,6 +559,7 @@ export function DashboardClient({
   }
 
   function toggleMonth(mo: number) {
+    setActivePreset('custom')
     setSelectedMonths(prev =>
       prev.includes(mo)
         ? prev.length > 1 ? prev.filter(x => x !== mo) : prev
@@ -563,8 +567,42 @@ export function DashboardClient({
     )
   }
 
-  const available   = allMonths(selectedYear)
-  const allSelected = selectedMonths.length === available.length
+  function getPresetValues(preset: string): { year: number; months: number[] } {
+    switch (preset) {
+      case 'this_month':
+        return { year: CURRENT_YEAR, months: [CURRENT_MONTH] }
+      case 'last_month':
+        return CURRENT_MONTH > 1
+          ? { year: CURRENT_YEAR, months: [CURRENT_MONTH - 1] }
+          : { year: CURRENT_YEAR - 1, months: [12] }
+      case 'this_quarter': {
+        const Q = Math.floor((CURRENT_MONTH - 1) / 3)
+        const start = Q * 3 + 1
+        const months: number[] = []
+        for (let mo = start; mo <= start + 2 && mo <= CURRENT_MONTH; mo++) months.push(mo)
+        return { year: CURRENT_YEAR, months }
+      }
+      case 'this_year':
+        return { year: CURRENT_YEAR, months: allMonths(CURRENT_YEAR) }
+      default:
+        return { year: selectedYear, months: selectedMonths }
+    }
+  }
+
+  function applyPreset(preset: string) {
+    const { year, months } = getPresetValues(preset)
+    setActivePreset(preset)
+    if (year !== selectedYear) {
+      setSelectedYear(year)
+      setSelectedMonths(months)
+      startTransition(async () => {
+        const d = await getDashboardRawData(year, orgId)
+        if (d) setRawData(d)
+      })
+    } else {
+      setSelectedMonths(months)
+    }
+  }
 
   const m = useMemo(
     () => computeMetrics(rawData, selectedMonths, selectedYear, CURRENT_YEAR, CURRENT_MONTH),
@@ -591,29 +629,98 @@ export function DashboardClient({
             <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Panel principal</p>
             <h1 className="text-xl font-bold text-slate-900">Dashboard</h1>
           </div>
-          <div className="flex flex-col gap-2 items-end">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Año</span>
-              {availableYears.map(y => (
-                <button key={y} onClick={() => handleYearChange(y)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                    selectedYear === y ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}>{y}</button>
+          <div className="relative flex items-center gap-2">
+            <div className="flex items-center bg-slate-100 rounded-lg p-0.5 gap-0.5">
+              {[
+                { value: 'this_month',   label: 'Este mes' },
+                { value: 'last_month',   label: 'Mes pasado' },
+                { value: 'this_quarter', label: 'Trimestre' },
+                { value: 'this_year',    label: 'Año' },
+              ].map(preset => (
+                <button
+                  key={preset.value}
+                  onClick={() => applyPreset(preset.value)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                    activePreset === preset.value
+                      ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  {preset.label}
+                </button>
               ))}
-              {isPending && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
+              <button
+                onClick={() => setCustomOpen(v => !v)}
+                className={`rounded-md px-2 py-1.5 transition ${
+                  activePreset === 'custom'
+                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title="Personalizado"
+              >
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </button>
             </div>
-            <div className="flex items-center gap-1.5 flex-wrap justify-end">
-              <button onClick={() => setSelectedMonths(allMonths(selectedYear))}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                  allSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}>Todos</button>
-              {available.map(mo => (
-                <button key={mo} onClick={() => toggleMonth(mo)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                    selectedMonths.includes(mo) ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}>{MONTH_LABELS[mo - 1]}</button>
-              ))}
-            </div>
+            {isPending && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
+
+            {customOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setCustomOpen(false)} />
+                <div className="absolute right-0 top-full mt-2 z-50 w-72 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
+                  <div className="mb-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-2">Año</p>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {availableYears.map(y => (
+                        <button
+                          key={y}
+                          onClick={() => handleYearChange(y)}
+                          className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                            selectedYear === y
+                              ? 'bg-slate-900 text-white'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          {y}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-2">
+                      Meses (puedes elegir varios)
+                    </p>
+                    <div className="grid grid-cols-4 gap-1">
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map(mo => {
+                        const isAvail = mo <= (selectedYear === CURRENT_YEAR ? CURRENT_MONTH : 12)
+                        const isSel   = selectedMonths.includes(mo)
+                        return (
+                          <button
+                            key={mo}
+                            disabled={!isAvail}
+                            onClick={isAvail ? () => toggleMonth(mo) : undefined}
+                            className={`rounded-lg px-2 py-1.5 text-xs font-medium transition ${
+                              !isAvail
+                                ? 'opacity-40 cursor-not-allowed text-slate-400 bg-slate-50'
+                                : isSel
+                                  ? 'bg-blue-100 text-blue-700 font-semibold'
+                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            {MONTH_LABELS[mo - 1]}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setCustomOpen(false)}
+                    className="mt-4 w-full rounded-xl bg-slate-900 py-2 text-xs font-semibold text-white hover:bg-slate-800 transition"
+                  >
+                    Listo
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
