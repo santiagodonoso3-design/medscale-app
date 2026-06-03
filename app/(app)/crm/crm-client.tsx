@@ -849,7 +849,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                     />
                   </th>
                   <SortTh field="contact_name" label="Nombre"  sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-left min-w-[140px]" />
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 min-w-[100px]">Cédula</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 min-w-[100px]">Núm. Identificación</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 min-w-[120px]">Teléfono</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 min-w-[180px]">Email</th>
                   <SortTh field="status"     label="Estado"      sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-left min-w-[120px]" />
@@ -1060,7 +1060,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                     placeholder="—" className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Cédula</label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Número de Identificación</label>
                   <input value={editForm.contact_cedula} onChange={e => setEditForm(p => ({ ...p, contact_cedula: e.target.value }))}
                     placeholder="—" className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>

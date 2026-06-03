@@ -1296,8 +1296,16 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
                     if (v !== null && v !== undefined && v !== '') {
                       const str = fmtVal(v)
                       rows.push({ label: fmtKey(k), value: str, wide: str.includes('\n') || str.length > 80 })
+                      // Insert cedula immediately after tipo-identificacion so they read together
+                      if (k === 'tipo-identificacion' && selected.lead?.contact_cedula) {
+                        rows.push({ label: 'Número de Identificación', value: selected.lead.contact_cedula, wide: false })
+                      }
                     }
                   }
+                }
+                // If tipo-identificacion absent but cedula exists, add at end
+                if (selected.lead?.contact_cedula && !meta?.['tipo-identificacion']) {
+                  rows.push({ label: 'Número de Identificación', value: selected.lead.contact_cedula, wide: false })
                 }
 
                 return (
