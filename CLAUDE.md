@@ -520,6 +520,57 @@ app/
 - Pendiente: simular webhook en modo productivo para confirmar firma prod responde 200
 - Pendiente menor: middleware.ts deprecado en Next.js 16 → migrar a proxy (futuro)
 
+### Sesión 2 Junio 2026 — Parte 2: Migración Ferttes + fixes formulario/dashboard
+
+#### Migración completa de Ferttes (data real reemplaza histórica de Airtable)
+- Borrada toda la data transaccional vieja de Ferttes (leads + citas + dependientes), estructura conservada
+- **330 leads** cargados (326 del CRM + 4 creados desde citas sin match)
+- **317 citas** ancladas por teléfono normalizado (últimos 10 dígitos, sin prefijo 57)
+- **16 procedimientos** asignados a leads (FIV, Criopreservación, Inseminación, Otro $0)
+- source = canal de marketing donde existía (instagram_facebook/referido/google_web/voz_a_voz), 'import' donde no
+- created_at de citas anclado al created_at del lead (vía UPDATE con JOIN)
+- doctor_assignment_type derivado del nombre del servicio: si incluye nombre de médico → patient_choice, si genérico → auto_assigned (93 patient_choice / 224 auto)
+
+#### Formulario de agendamiento Ferttes (2 tipos de cita activos)
+- Tipos reales ahora: **Consulta Médica** (presencial) y **Asesoría Virtual** (virtual), cada uno con formulario de 9 campos custom
+- Tipos viejos "Consulta Inicial" e "Internacional" quedaron activos pero EN DESUSO — pendiente desactivar
+- Campos custom del form (appointment_form_fields): fecha-de-nacimiento, lugar-de-nacimiento, ciudad, estado-civil, profesion, direccion, eps, tipo-vinculacion, tipo-sangre
+- Procedimientos catálogo: FIV 1 ciclo $26.200.000, Criopreservación $9.000.000, Inseminación $2.900.000, Otro procedimiento $0
+
+#### Tipo + Número de Identificación (campos nativos del wizard)
+- Wizard booking: agregado "Tipo de Identificación" (select nativo: CC, CE, Pasaporte, TI, RC) ENCIMA de "Número de Identificación" (renombrado de "Cédula"). Tipo se guarda en custom_fields['tipo-identificacion'] → metadata. Número sigue en contact_cedula.
+- BASE_FIELDS de settings/appointment-types: sincronizado a Nombre/Teléfono/Email/Tipo de Identificación/Número de Identificación
+- CRM: columna "Cédula" → "Núm. Identificación" (header) y "Número de Identificación" (modal label)
+- Modal detalle de cita (calendar-client-fixed): muestra Número de Identificación leyendo contact_cedula, pareado con Tipo de Identificación
+
+#### Sincronización campos formulario en CRM
+- CRM lee columnas dinámicas de org_custom_fields (source IN 'form'|'crm'|'both'), NO de appointment_form_fields
+- Para que el CRM muestre los campos del booking, hay que ESPEJAR los campos en org_custom_fields con source='form'
+- Los 10 campos de Ferttes insertados en org_custom_fields (incluye tipo-identificacion)
+
+#### Modal detalle de cita — Respuestas del formulario en 2 columnas
+- Sección "Respuestas del formulario" muestra metadata mapeado contra appointment_form_fields por appointment_type_id (respeta form por clínica)
+- Layout 2 columnas (textarea ocupa col-span-2)
+- Fallback "Sin respuestas de formulario" para data migrada sin metadata
+
+#### Dashboard — columna Procedimientos arreglada
+- ANTES: columna "Procedimientos" contaba leads con status 'en_tratamiento_medico' (incorrecto)
+- AHORA: cuenta procedureLeads reales (leads con procedure_id) atribuidos por última cita del lead (cualquier status, vía lastAnyDoctorByLead)
+- Atribución de ingreso de procedimiento alineada a la misma lógica (lastAnyDoctorByLead) para consistencia ingreso↔conteo
+- Caso de borde: procedimientos en leads SIN ninguna cita no se atribuyen a médico (cuentan en ingreso global pero no por médico)
+
+#### Bug crítico de migración — fechas día/mes invertidas
+- 24 citas quedaron con scheduled_at invertido (ej. "2 jun" guardado como "6 feb")
+- CAUSA: el datetime de Excel (col1) tenía día↔mes invertido por localización; debí usar col3 (texto "11 May 2026") como fuente de verdad
+- Corregido con UPDATE match por teléfono + fecha incorrecta actual
+- Junio pasó de 9 a 27 citas (correcto)
+
+#### Ferttes — datos actualizados
+- org_id: 4270c9b0-cbaa-4a94-bea7-508387a2529c | admin@ferttes.com | plan Growth
+- 5 médicos: Dra. Juliana Tamayo, Dra. Laura Mendoza, Dr. Germán Raigosa, Dr. Felipe Velez, Dra. Andrea Vasquez
+- 330 leads, 317 citas, 16 procedimientos (data real, NO migrada de Airtable)
+- 2 tipos de cita activos: Consulta Médica (presencial), Asesoría Virtual (virtual)
+
 ---
 
 ## 🔴 PRIORIDAD 1 — MVP Autoservicio
@@ -629,6 +680,14 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 **Custom fields se guardan en leads.metadata** — NO en leads.notes
 
 **appointment_types usa price_presencial y price_virtual** — NO price
+
+**Migración de fechas desde Excel — riesgo de inversión día/mes:** El formato datetime de Excel arrastra inversión día↔mes según localización. SIEMPRE usar la columna de texto explícito ("11 May 2026") como fuente de verdad cuando exista, no el datetime crudo. Verificar distribución por mes (`SELECT to_char(scheduled_at,'YYYY-MM'), COUNT(*)`) ANTES de dar por buena la carga.
+
+**Match lead↔cita en migraciones:** normalizar teléfono a últimos 10 dígitos (quitar prefijo 57) da el match más confiable cuando no hay cédula/email.
+
+**Campos custom viven en DOS sistemas que NO se hablan:** `appointment_form_fields` (booking → metadata) y `org_custom_fields` (columnas del CRM). Para que el CRM muestre campos del booking, espejarlos en `org_custom_fields` con `source='form'`. DEUDA TÉCNICA: centralizar en fuente única (hoy hardcodeado en 4 lugares: wizard, settings admin, CRM header, modal cita).
+
+**`org_custom_fields.source` CHECK constraint:** solo acepta `'form' | 'crm' | 'both'`.
 
 ### Roles — Protección
 - Protección por rol en `layout.tsx` y páginas vía `getSession()`
