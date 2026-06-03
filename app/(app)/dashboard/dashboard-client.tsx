@@ -260,15 +260,25 @@ function computeMetrics(
     if (a.doctor_assignment_type === 'patient_choice') e.patientChosen++
     else e.autoAssigned++
   })
+  // last apt of ANY status per lead → used for procedure count + revenue attribution
+  const lastAnyDoctorByLead = new Map<string, string>()
+  appointments
+    .slice()
+    .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
+    .forEach(a => {
+      if (a.lead_id && !lastAnyDoctorByLead.has(a.lead_id)) {
+        lastAnyDoctorByLead.set(a.lead_id, a.doctor_id)
+      }
+    })
+
+  // Procedure count: real assigned procedures in period, attributed by last apt (any status)
   docMap.forEach((entry, doctorId) => {
-    entry.inProcedure = yearLeads.filter(l =>
-      l.status === 'en_tratamiento_medico' &&
-      leadDoctorMap.get(l.id)?.has(doctorId) &&
-      inPeriod(lastCompletedYMByLead.get(l.id) ?? '')
+    entry.inProcedure = periodProcLeads.filter(pl =>
+      lastAnyDoctorByLead.get(pl.lead_id) === doctorId
     ).length
   })
 
-  // Attribute procedure revenue to the doctor of the last completed apt in this year
+  // Attribute procedure revenue to same doctor as count (consistency)
   const lastCompletedDoctorByLead = new Map<string, string>()
   appointments
     .filter(a => a.status === 'completed')
@@ -279,7 +289,7 @@ function computeMetrics(
       }
     })
   periodProcLeads.forEach(pl => {
-    const doctorId = lastCompletedDoctorByLead.get(pl.lead_id)
+    const doctorId = lastAnyDoctorByLead.get(pl.lead_id)
     if (!doctorId) return
     const e = docMap.get(doctorId)
     if (e) e.revenue += pl.procedure_price
