@@ -6,7 +6,7 @@ import { CreateLeadModal } from '@/components/crm/create-lead-modal'
 import { BookAppointmentModal } from '@/components/crm/book-appointment-modal'
 import {
   Plus, Loader2, Search, X, Save, List, LayoutGrid,
-  ChevronDown, CalendarPlus, ChevronUp, ChevronsUpDown, Send,
+  ChevronDown, CalendarPlus, ChevronUp, Send,
   FileDown, Upload, Trash2, ContactRound, Download,
 } from 'lucide-react'
 import { ImportLeadsModal, downloadLeadTemplate } from '@/components/crm/import-leads-modal'
@@ -96,7 +96,6 @@ const STATUS_DOT: Record<string, { dot: string; keyword: string }> = {
   finalizado:               { dot: 'bg-gray-500',    keyword: 'Finalizado' },
 }
 
-// Normalize legacy DB values (English pre-migration + Spanish pre-008 migration)
 const STATUS_NORMALIZE: Record<string, string> = {
   new:              'contactado',
   contacted:        'contactado',
@@ -164,8 +163,6 @@ const SOURCE_OPTIONS = [
   { value: 'manual',    label: 'Manual' },
 ]
 
-const SOURCES = [{ value: 'all', label: 'Todas las fuentes' }, ...SOURCE_OPTIONS]
-
 const APT_STATUS_COLORS: Record<string, string> = {
   scheduled: 'bg-amber-100 text-amber-800',
   confirmed:  'bg-sky-100 text-sky-800',
@@ -208,34 +205,267 @@ const fmtTimeAgo = (iso: string) => {
 const statusLabel = (val: string) =>
   STATUS_PIPELINE.find(s => s.value === val)?.label ?? val
 
-type SortField = 'contact_name' | 'created_at' | 'updated_at' | 'status'
-type SortDir   = 'asc' | 'desc'
-type Popover   = { leadId: string; top: number; left: number }
+type SortDir = 'asc' | 'desc'
+type Popover = { leadId: string; top: number; left: number }
 
-// ── Sort header component ─────────────────────────────────────────────────────
+// ── Column filter system ───────────────────────────────────────────────────────
 
-function SortTh({
-  field, label, sortField, sortDir, onSort, className = '',
+type ColumnType = 'text' | 'enum' | 'number' | 'date'
+
+type TextFilter   = { type: 'text';   op: 'contains' | 'equals' | 'empty'; value: string }
+type EnumFilter   = { type: 'enum';   values: string[] }
+type NumberFilter = { type: 'number'; op: 'eq' | 'gt' | 'lt'; value: number }
+type DateFilter   = { type: 'date';   op: 'before' | 'after'; value: string }
+type ColumnFilter = TextFilter | EnumFilter | NumberFilter | DateFilter
+
+interface ColumnDef { key: string; label: string; type: ColumnType }
+
+const COLUMN_DEFS: ColumnDef[] = [
+  { key: 'contact_name',   label: 'Nombre',              type: 'text'   },
+  { key: 'contact_cedula', label: 'Núm. Identificación', type: 'text'   },
+  { key: 'contact_phone',  label: 'Teléfono',            type: 'text'   },
+  { key: 'contact_email',  label: 'Email',               type: 'text'   },
+  { key: 'status',         label: 'Estado',              type: 'enum'   },
+  { key: 'source',         label: 'Fuente',              type: 'enum'   },
+  { key: 'aptCount',       label: 'Citas',               type: 'number' },
+  { key: 'created_at',     label: 'Creado',              type: 'date'   },
+  { key: 'updated_at',     label: 'Actualizado',         type: 'date'   },
+  { key: 'notes',          label: 'Notas',               type: 'text'   },
+]
+
+function getColEnumOptions(key: string, leads: Lead[], orgFields: OrgField[]): { value: string; label: string }[] {
+  if (key === 'status') return STATUS_PIPELINE.map(s => ({ value: s.value, label: s.label }))
+  if (key === 'source') {
+    const unique = [...new Set(leads.map(l => l.source).filter((v): v is string => v !== null))]
+    return unique.map(v => ({ value: v, label: SOURCE_LABELS[v] ?? v }))
+  }
+  if (key.startsWith('meta:')) {
+    const fieldName = key.slice(5)
+    const field = orgFields.find(f => f.field_name === fieldName)
+    if (field?.options?.length) return field.options.map(v => ({ value: v, label: v }))
+    const unique = [...new Set(leads.map(l => l.metadata?.[fieldName]).filter((v): v is string => v !== null && v !== undefined))]
+    return unique.map(v => ({ value: v, label: v }))
+  }
+  return []
+}
+
+function applyColumnFilter(key: string, filter: ColumnFilter, lead: Lead, aptCounts: Record<string, number>): boolean {
+  const raw = (): string => {
+    if (key === 'contact_name') return [lead.contact_name, lead.contact_last_name].filter(Boolean).join(' ')
+    if (key === 'aptCount') return String(aptCounts[lead.id] ?? 0)
+    if (key.startsWith('meta:')) return String(lead.metadata?.[key.slice(5)] ?? '')
+    return String((lead as unknown as Record<string, unknown>)[key] ?? '')
+  }
+  if (filter.type === 'text') {
+    const val = raw()
+    const lo = val.toLowerCase()
+    const flo = filter.value.toLowerCase()
+    if (filter.op === 'contains') return lo.includes(flo)
+    if (filter.op === 'equals')   return lo === flo
+    if (filter.op === 'empty')    return !val.trim()
+    return true
+  }
+  if (filter.type === 'enum') {
+    if (!filter.values.length) return true
+    return filter.values.includes(raw())
+  }
+  if (filter.type === 'number') {
+    const num = key === 'aptCount' ? (aptCounts[lead.id] ?? 0) : parseFloat(raw())
+    if (filter.op === 'eq') return num === filter.value
+    if (filter.op === 'gt') return num > filter.value
+    if (filter.op === 'lt') return num < filter.value
+    return true
+  }
+  if (filter.type === 'date') {
+    const str = raw()
+    if (!str) return false
+    const ld = new Date(str).getTime()
+    const fd = new Date(filter.value).getTime()
+    if (filter.op === 'after')  return ld >= fd
+    if (filter.op === 'before') return ld <= fd
+    return true
+  }
+  return true
+}
+
+function compareLeads(a: Lead, b: Lead, sf: string, aptCounts: Record<string, number>): number {
+  if (sf === 'contact_name') {
+    const na = [a.contact_name, a.contact_last_name].filter(Boolean).join(' ')
+    const nb = [b.contact_name, b.contact_last_name].filter(Boolean).join(' ')
+    return na.localeCompare(nb, 'es')
+  }
+  if (sf === 'status')   return (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99)
+  if (sf === 'aptCount') return (aptCounts[a.id] ?? 0) - (aptCounts[b.id] ?? 0)
+  if (sf === 'created_at' || sf === 'updated_at') {
+    return new Date(a[sf]).getTime() - new Date(b[sf]).getTime()
+  }
+  if (sf.startsWith('meta:')) {
+    const fn = sf.slice(5)
+    return String(a.metadata?.[fn] ?? '').localeCompare(String(b.metadata?.[fn] ?? ''), 'es')
+  }
+  const va = String((a as unknown as Record<string, unknown>)[sf] ?? '')
+  const vb = String((b as unknown as Record<string, unknown>)[sf] ?? '')
+  return va.localeCompare(vb, 'es')
+}
+
+// ── Column header component ────────────────────────────────────────────────────
+
+function ColumnHeader({
+  colKey, label, sortField, sortDir, hasFilter, onOpen, className = '',
 }: {
-  field: SortField; label: string
-  sortField: SortField | null; sortDir: SortDir
-  onSort: (f: SortField) => void; className?: string
+  colKey: string; label: string
+  sortField: string | null; sortDir: SortDir
+  hasFilter: boolean
+  onOpen: (e: React.MouseEvent) => void
+  className?: string
 }) {
-  const active = sortField === field
+  const isActive = sortField === colKey
   return (
     <th
-      onClick={() => onSort(field)}
-      className={`cursor-pointer select-none px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-600 transition ${className}`}
+      onClick={onOpen}
+      className={`cursor-pointer select-none px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition ${className}`}
     >
       <span className="inline-flex items-center gap-1">
         {label}
-        {active
-          ? (sortDir === 'asc'
-              ? <ChevronUp   className="h-3 w-3 text-blue-500" />
-              : <ChevronDown className="h-3 w-3 text-blue-500" />)
-          : <ChevronsUpDown className="h-3 w-3 opacity-30" />}
+        {isActive && (sortDir === 'asc'
+          ? <ChevronUp   className="h-3 w-3 text-[#215F73]" />
+          : <ChevronDown className="h-3 w-3 text-[#215F73]" />)}
+        {hasFilter && <span className="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-[#215F73]" />}
       </span>
     </th>
+  )
+}
+
+// ── Column menu popover ────────────────────────────────────────────────────────
+
+function ColumnMenuPopover({
+  colKey, colType, sortField, sortDir, currentFilter, enumOptions,
+  onSortAsc, onSortDesc, onApplyFilter, onClearFilter, onClose, style,
+}: {
+  colKey: string; colType: ColumnType
+  sortField: string | null; sortDir: SortDir
+  currentFilter?: ColumnFilter
+  enumOptions?: { value: string; label: string }[]
+  onSortAsc: () => void; onSortDesc: () => void
+  onApplyFilter: (f: ColumnFilter) => void; onClearFilter: () => void
+  onClose: () => void
+  style: React.CSSProperties
+}) {
+  const [textOp,  setTextOp]  = useState<'contains' | 'equals' | 'empty'>(
+    currentFilter?.type === 'text' ? currentFilter.op : 'contains'
+  )
+  const [textVal, setTextVal] = useState(currentFilter?.type === 'text' ? currentFilter.value : '')
+  const [enumVals, setEnumVals] = useState<string[]>(currentFilter?.type === 'enum' ? currentFilter.values : [])
+  const [numOp,  setNumOp]  = useState<'eq' | 'gt' | 'lt'>(currentFilter?.type === 'number' ? currentFilter.op : 'eq')
+  const [numVal, setNumVal] = useState(currentFilter?.type === 'number' ? String(currentFilter.value) : '')
+  const [dateOp, setDateOp] = useState<'before' | 'after'>(currentFilter?.type === 'date' ? currentFilter.op : 'after')
+  const [dateVal, setDateVal] = useState(currentFilter?.type === 'date' ? currentFilter.value : '')
+
+  const sortAscLabel  = colType === 'date' ? 'Más antiguo' : colType === 'number' ? 'Menor primero' : 'A → Z'
+  const sortDescLabel = colType === 'date' ? 'Más reciente' : colType === 'number' ? 'Mayor primero' : 'Z → A'
+
+  const applyFilter = () => {
+    if (colType === 'text') {
+      onApplyFilter({ type: 'text', op: textOp, value: textVal })
+    } else if (colType === 'enum') {
+      if (enumVals.length > 0) onApplyFilter({ type: 'enum', values: enumVals })
+      else onClearFilter()
+    } else if (colType === 'number') {
+      onApplyFilter({ type: 'number', op: numOp, value: parseFloat(numVal) || 0 })
+    } else if (colType === 'date') {
+      onApplyFilter({ type: 'date', op: dateOp, value: dateVal })
+    }
+    onClose()
+  }
+
+  return (
+    <div className="fixed z-50 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg" style={style}>
+      {/* Sort */}
+      <div className="border-b border-slate-100 py-1">
+        <button
+          onClick={() => { onSortAsc(); onClose() }}
+          className={`flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 transition${sortField === colKey && sortDir === 'asc' ? ' font-semibold text-[#215F73]' : ''}`}
+        >
+          <ChevronUp className="h-3.5 w-3.5 shrink-0" />{sortAscLabel}
+        </button>
+        <button
+          onClick={() => { onSortDesc(); onClose() }}
+          className={`flex w-full items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 transition${sortField === colKey && sortDir === 'desc' ? ' font-semibold text-[#215F73]' : ''}`}
+        >
+          <ChevronDown className="h-3.5 w-3.5 shrink-0" />{sortDescLabel}
+        </button>
+      </div>
+
+      {/* Filter */}
+      <div className="p-3 space-y-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Filtrar</p>
+
+        {colType === 'text' && (
+          <>
+            <select value={textOp} onChange={e => setTextOp(e.target.value as 'contains' | 'equals' | 'empty')}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+              <option value="contains">Contiene</option>
+              <option value="equals">Es igual a</option>
+              <option value="empty">Está vacío</option>
+            </select>
+            {textOp !== 'empty' && (
+              <input value={textVal} onChange={e => setTextVal(e.target.value)} placeholder="Valor..."
+                autoFocus
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            )}
+          </>
+        )}
+
+        {colType === 'enum' && enumOptions && (
+          <div className="max-h-36 overflow-y-auto space-y-0.5">
+            {enumOptions.map(opt => (
+              <label key={opt.value} className="flex items-center gap-2 cursor-pointer rounded-md px-1.5 py-1 hover:bg-slate-50 transition">
+                <input type="checkbox" className="rounded border-slate-300 accent-blue-600"
+                  checked={enumVals.includes(opt.value)}
+                  onChange={e => setEnumVals(p => e.target.checked ? [...p, opt.value] : p.filter(v => v !== opt.value))} />
+                <span className="text-xs text-slate-700 truncate">{opt.label}</span>
+              </label>
+            ))}
+          </div>
+        )}
+
+        {colType === 'number' && (
+          <>
+            <select value={numOp} onChange={e => setNumOp(e.target.value as 'eq' | 'gt' | 'lt')}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+              <option value="eq">Igual a</option>
+              <option value="gt">Mayor que</option>
+              <option value="lt">Menor que</option>
+            </select>
+            <input type="number" value={numVal} onChange={e => setNumVal(e.target.value)} placeholder="0"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+          </>
+        )}
+
+        {colType === 'date' && (
+          <>
+            <select value={dateOp} onChange={e => setDateOp(e.target.value as 'before' | 'after')}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
+              <option value="after">Después de</option>
+              <option value="before">Antes de</option>
+            </select>
+            <input type="date" value={dateVal} onChange={e => setDateVal(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+          </>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={applyFilter}
+            className="flex-1 rounded-lg bg-[#215F73] px-2 py-1.5 text-xs font-semibold text-white hover:bg-[#0D2B3E] transition">
+            Aplicar
+          </button>
+          <button onClick={() => { onClearFilter(); onClose() }}
+            className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition">
+            Limpiar
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -321,11 +551,13 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
   const [view,           setView]           = useState<'list' | 'kanban'>('list')
   const [aptCounts,      setAptCounts]      = useState<Record<string, number>>({})
 
-  // sorting
-  const [sortField, setSortField] = useState<SortField | null>(null)
+  // column filter + sort
+  const [columnFilters, setColumnFilters] = useState<Record<string, ColumnFilter>>({})
+  const [colMenu, setColMenu] = useState<{ key: string; top: number; left: number } | null>(null)
+  const [sortField, setSortField] = useState<string | null>(null)
   const [sortDir,   setSortDir]   = useState<SortDir>('asc')
 
-  // popovers
+  // popovers (inline row edit)
   const [statusPopover, setStatusPopover] = useState<Popover | null>(null)
   const [sourcePopover, setSourcePopover] = useState<Popover | null>(null)
 
@@ -474,13 +706,6 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
     await supabase.from('leads').update({ source: newSource, updated_at: now }).eq('id', leadId)
   }
 
-  // ── Sort ─────────────────────────────────────────────────────────────────────
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortField(field); setSortDir('asc') }
-  }
-
   // ── Delete ────────────────────────────────────────────────────────────────────
 
   const handleDelete = async (ids: string[]) => {
@@ -578,7 +803,6 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
     if (!selectedLead) return
     setSavingLead(true); setSaveLeadError(null)
     const now = new Date().toISOString()
-    // Build merged metadata: keep existing non-orgField keys, overwrite orgField keys
     const mergedMetadata: Record<string, string> = { ...(selectedLead.metadata ?? {}) }
     for (const f of orgFields) {
       const val = editForm.metadata[f.field_name]
@@ -626,7 +850,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
     setSavingField(true)
     const slug = newFieldForm.field_label.trim()
       .toLowerCase()
-      .normalize('NFD').replace(/[̀-ͯ]/g, '') // remove accents
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
@@ -654,33 +878,30 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
 
   const filteredLeads = useMemo(() => {
     const filtered = leads.filter(lead => {
-      const matchStatus = statusFilter === 'all' || lead.status === statusFilter
-      const matchSource = sourceFilter === 'all' || lead.source === sourceFilter
       const q = search.toLowerCase()
-      const matchSearch = !search ||
+      if (search && !(
         lead.contact_name?.toLowerCase().includes(q) ||
         lead.contact_last_name?.toLowerCase().includes(q) ||
         lead.contact_phone?.includes(search) ||
         lead.contact_email?.toLowerCase().includes(q) ||
         lead.contact_cedula?.includes(search) ||
         Object.values(lead.metadata ?? {}).some(v => String(v).toLowerCase().includes(q))
-      return matchStatus && matchSource && matchSearch
+      )) return false
+      if (statusFilter !== 'all' && lead.status !== statusFilter) return false
+      if (sourceFilter !== 'all' && lead.source !== sourceFilter) return false
+      for (const [key, filter] of Object.entries(columnFilters)) {
+        if (!applyColumnFilter(key, filter, lead, aptCounts)) return false
+      }
+      return true
     })
 
     if (!sortField) return filtered
 
     return [...filtered].sort((a, b) => {
-      let cmp = 0
-      if (sortField === 'contact_name') {
-        cmp = (a.contact_name ?? '').localeCompare(b.contact_name ?? '', 'es')
-      } else if (sortField === 'status') {
-        cmp = (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99)
-      } else {
-        cmp = new Date(a[sortField]).getTime() - new Date(b[sortField]).getTime()
-      }
+      const cmp = compareLeads(a, b, sortField, aptCounts)
       return sortDir === 'asc' ? cmp : -cmp
     })
-  }, [leads, statusFilter, sourceFilter, search, sortField, sortDir])
+  }, [leads, statusFilter, sourceFilter, search, sortField, sortDir, columnFilters, aptCounts])
 
   // Keep select-all checkbox indeterminate when only some rows are selected
   useEffect(() => {
@@ -728,7 +949,24 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
     setter({ leadId, top: rect.bottom + 4, left: rect.left })
   }
 
+  const openColMenu = (e: React.MouseEvent, key: string) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const left = rect.left + 224 > window.innerWidth ? window.innerWidth - 228 : rect.left
+    setColMenu({ key, top: rect.bottom + 4, left })
+  }
+
   const canExport = orgPlan === 'growth' || orgPlan === 'scale'
+  const hasActiveFilters = Object.keys(columnFilters).length > 0 || sortField !== null || statusFilter !== 'all'
+
+  const colMenuDef = colMenu ? (() => {
+    const coreDef = COLUMN_DEFS.find(c => c.key === colMenu.key)
+    const orgField = colMenu.key.startsWith('meta:')
+      ? orgFields.find(f => `meta:${f.field_name}` === colMenu.key)
+      : null
+    const colType: ColumnType = coreDef?.type ?? (orgField?.field_type === 'select' ? 'enum' : 'text')
+    const enumOptions = colType === 'enum' ? getColEnumOptions(colMenu.key, leads, orgFields) : undefined
+    return { colType, enumOptions }
+  })() : null
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
@@ -812,13 +1050,14 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
           <>
         {/* Filters */}
         <div className="shrink-0 flex items-center gap-2 border-b border-slate-100 px-2 py-1.5">
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="all">Todos los estados</option>
-            {STATUS_PIPELINE.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-          <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
-            {SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
+          {hasActiveFilters && (
+            <button
+              onClick={() => { setColumnFilters({}); setSortField(null); setStatusFilter('all') }}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition"
+            >
+              <X className="h-3 w-3" /> Limpiar filtros
+            </button>
+          )}
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Nombre, teléfono, cédula o email..."
@@ -833,7 +1072,6 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
               {selectedIds.size} lead{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
             </span>
 
-            {/* Cambiar estado */}
             <select
               disabled={bulkWorking}
               value=""
@@ -844,7 +1082,6 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
               {STATUS_PIPELINE.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
 
-            {/* Cambiar fuente */}
             <select
               disabled={bulkWorking}
               value=""
@@ -855,7 +1092,6 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
               {SOURCE_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
 
-            {/* Eliminar */}
             <button
               disabled={bulkWorking}
               onClick={() => setDeleteConfirm([...selectedIds])}
@@ -892,18 +1128,26 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                       }}
                     />
                   </th>
-                  <SortTh field="contact_name" label="Nombre"  sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-left min-w-[140px]" />
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 min-w-[100px]">Núm. Identificación</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 min-w-[120px]">Teléfono</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 min-w-[180px]">Email</th>
-                  <SortTh field="status"     label="Estado"      sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-left min-w-[120px]" />
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 min-w-[100px]">Fuente</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 w-16">Citas</th>
-                  <SortTh field="created_at" label="Creado"      sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
-                  <SortTh field="updated_at" label="Actualizado" sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right" />
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Notas</th>
+                  <ColumnHeader colKey="contact_name"   label="Nombre"              sortField={sortField} sortDir={sortDir} hasFilter={!!columnFilters['contact_name']}   onOpen={e => openColMenu(e, 'contact_name')}   className="min-w-[140px]" />
+                  <ColumnHeader colKey="contact_cedula" label="Núm. Identificación" sortField={sortField} sortDir={sortDir} hasFilter={!!columnFilters['contact_cedula']} onOpen={e => openColMenu(e, 'contact_cedula')} className="min-w-[100px]" />
+                  <ColumnHeader colKey="contact_phone"  label="Teléfono"            sortField={sortField} sortDir={sortDir} hasFilter={!!columnFilters['contact_phone']}  onOpen={e => openColMenu(e, 'contact_phone')}  className="min-w-[120px]" />
+                  <ColumnHeader colKey="contact_email"  label="Email"               sortField={sortField} sortDir={sortDir} hasFilter={!!columnFilters['contact_email']}  onOpen={e => openColMenu(e, 'contact_email')}  className="min-w-[180px]" />
+                  <ColumnHeader colKey="status"         label="Estado"              sortField={sortField} sortDir={sortDir} hasFilter={!!columnFilters['status']}         onOpen={e => openColMenu(e, 'status')}         className="min-w-[120px]" />
+                  <ColumnHeader colKey="source"         label="Fuente"              sortField={sortField} sortDir={sortDir} hasFilter={!!columnFilters['source']}         onOpen={e => openColMenu(e, 'source')}         className="min-w-[100px]" />
+                  <ColumnHeader colKey="aptCount"       label="Citas"               sortField={sortField} sortDir={sortDir} hasFilter={!!columnFilters['aptCount']}       onOpen={e => openColMenu(e, 'aptCount')}       className="w-16" />
+                  <ColumnHeader colKey="created_at"     label="Creado"              sortField={sortField} sortDir={sortDir} hasFilter={!!columnFilters['created_at']}     onOpen={e => openColMenu(e, 'created_at')}     className="text-right" />
+                  <ColumnHeader colKey="updated_at"     label="Actualizado"         sortField={sortField} sortDir={sortDir} hasFilter={!!columnFilters['updated_at']}     onOpen={e => openColMenu(e, 'updated_at')}     className="text-right" />
+                  <ColumnHeader colKey="notes"          label="Notas"               sortField={sortField} sortDir={sortDir} hasFilter={!!columnFilters['notes']}          onOpen={e => openColMenu(e, 'notes')} />
                   {orgFields.map(f => (
-                    <th key={f.field_name} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 whitespace-nowrap">{f.field_label}</th>
+                    <ColumnHeader
+                      key={f.field_name}
+                      colKey={`meta:${f.field_name}`}
+                      label={f.field_label}
+                      sortField={sortField} sortDir={sortDir}
+                      hasFilter={!!columnFilters[`meta:${f.field_name}`]}
+                      onOpen={e => openColMenu(e, `meta:${f.field_name}`)}
+                      className="whitespace-nowrap"
+                    />
                   ))}
                   {!readOnly && (
                     <th className="px-2 py-2 w-10">
@@ -1034,6 +1278,28 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
         )}
       </div>
 
+      {/* ── Column menu popover ───────────────────────────────────────────────────── */}
+      {colMenu && colMenuDef && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setColMenu(null)} />
+          <ColumnMenuPopover
+            key={colMenu.key}
+            colKey={colMenu.key}
+            colType={colMenuDef.colType}
+            sortField={sortField}
+            sortDir={sortDir}
+            currentFilter={columnFilters[colMenu.key]}
+            enumOptions={colMenuDef.enumOptions}
+            onSortAsc={() => { setSortField(colMenu.key); setSortDir('asc') }}
+            onSortDesc={() => { setSortField(colMenu.key); setSortDir('desc') }}
+            onApplyFilter={f => setColumnFilters(prev => ({ ...prev, [colMenu.key]: f }))}
+            onClearFilter={() => setColumnFilters(prev => { const n = { ...prev }; delete n[colMenu.key]; return n })}
+            onClose={() => setColMenu(null)}
+            style={{ top: colMenu.top, left: colMenu.left }}
+          />
+        </>
+      )}
+
       {/* ── Source popover ─────────────────────────────────────────────────────── */}
       {sourcePopover && (
         <>
@@ -1072,7 +1338,6 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeDetail} />
           <div className="relative z-10 flex max-h-[92vh] w-full max-w-lg flex-col rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
 
-            {/* Modal header */}
             <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
               <div>
                 <h2 className="text-base font-semibold text-slate-900">{[selectedLead.contact_name, selectedLead.contact_last_name].filter(Boolean).join(' ') || 'Sin nombre'}</h2>
@@ -1088,10 +1353,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
               </button>
             </div>
 
-            {/* Modal body */}
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-
-              {/* Contact fields */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Nombre</label>
@@ -1190,7 +1452,6 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                 </div>
               </div>
 
-              {/* Dates */}
               <div className="flex gap-4 rounded-xl bg-slate-50 px-4 py-3 text-xs">
                 <div>
                   <span className="font-semibold uppercase tracking-wide text-slate-400">Creado</span>
@@ -1205,7 +1466,6 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
 
               {saveLeadError && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{saveLeadError}</p>}
 
-              {/* Actions */}
               {!readOnly && (
                 <div className="flex items-center justify-between gap-3">
                   <button onClick={() => setBookingModalOpen(true)}
@@ -1221,7 +1481,6 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                 </div>
               )}
 
-              {/* Danger zone */}
               {!readOnly && (
                 <div className="border-t border-slate-100 pt-4">
                   <button
@@ -1234,7 +1493,6 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                 </div>
               )}
 
-              {/* Appointments */}
               <div>
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
                   Citas vinculadas ({leadAppointments.length})
@@ -1273,13 +1531,8 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                 )}
               </div>
 
-              {/* ── Comments ───────────────────────────────────────────────────── */}
               <div>
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Comentarios
-                </p>
-
-                {/* Comment list */}
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Comentarios</p>
                 {loadingComments ? (
                   <div className="flex items-center gap-2 py-3 text-sm text-slate-400">
                     <Loader2 className="h-4 w-4 animate-spin" /> Cargando...
@@ -1305,8 +1558,6 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                     })}
                   </div>
                 )}
-
-                {/* New comment input */}
                 {!readOnly && (
                   <div className="flex gap-2 items-end">
                     <textarea
@@ -1327,7 +1578,6 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                   </div>
                 )}
               </div>
-
             </div>
           </div>
         </div>
