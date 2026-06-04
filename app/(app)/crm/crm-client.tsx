@@ -615,9 +615,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
   const [leadProcedures,   setLeadProcedures]   = useState<LeadProcedure[]>([])
   const [loadingLeadProcs, setLoadingLeadProcs] = useState(false)
   const [addProcId,        setAddProcId]        = useState<string>('')
-  const [addProcDate,      setAddProcDate]      = useState<string>('')
   const [showAddProc,      setShowAddProc]      = useState(false)
-  const [showProcDate,     setShowProcDate]     = useState(false)
 
   const supabase = createClient()
 
@@ -792,7 +790,6 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
     setLeadProcedures([])
     setShowAddProc(false)
     setAddProcId('')
-    setAddProcDate('')
     setLoadingLeadProcs(true)
     fetch(`/api/lead-procedures?leadId=${lead.id}`)
       .then(r => r.ok ? r.json() : [])
@@ -864,16 +861,14 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
         lead_id: selectedLead.id,
         procedure_id: proc.id,
         procedure_price: proc.price,
-        performed_at: addProcDate || null,
+        performed_at: null,
       }),
     })
     if (res.ok) {
       const created = await res.json()
       setLeadProcedures(prev => [...prev, created])
       setAddProcId('')
-      setAddProcDate('')
       setShowAddProc(false)
-      setShowProcDate(false)
     }
   }
 
@@ -1475,36 +1470,21 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                   ) : null}
 
                   {!readOnly && (leadProcedures.length === 0 || showAddProc) && (
-                    <div className="mt-3 space-y-2">
-                      <div className="flex items-end gap-2">
-                        <div className="flex-1">
-                          <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Procedimiento</label>
-                          <select value={addProcId} onChange={e => setAddProcId(e.target.value)}
-                            className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="">— Seleccionar —</option>
-                            {procedures.filter(p => p.is_active).map(p => (
-                              <option key={p.id} value={p.id}>{p.name} — {formatCOP(p.price)}</option>
-                            ))}
-                          </select>
-                        </div>
-                        {showProcDate && (
-                          <div>
-                            <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Fecha</label>
-                            <input type="date" value={addProcDate} onChange={e => setAddProcDate(e.target.value)}
-                              className="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                          </div>
-                        )}
-                        <button onClick={handleAddProcedure} disabled={!addProcId}
-                          className="rounded-xl bg-[#215F73] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0D2B3E] transition disabled:opacity-40">
-                          Agregar
-                        </button>
+                    <div className="mt-3 flex items-end gap-2">
+                      <div className="flex-1">
+                        <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Procedimiento</label>
+                        <select value={addProcId} onChange={e => setAddProcId(e.target.value)}
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="">— Seleccionar —</option>
+                          {procedures.filter(p => p.is_active).map(p => (
+                            <option key={p.id} value={p.id}>{p.name} — {formatCOP(p.price)}</option>
+                          ))}
+                        </select>
                       </div>
-                      {!showProcDate && (
-                        <button onClick={() => setShowProcDate(true)}
-                          className="text-xs font-medium text-blue-600 underline hover:text-blue-800 transition">
-                          + Agregar fecha
-                        </button>
-                      )}
+                      <button onClick={handleAddProcedure} disabled={!addProcId}
+                        className="rounded-xl bg-[#215F73] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0D2B3E] transition disabled:opacity-40">
+                        Agregar
+                      </button>
                     </div>
                   )}
 
