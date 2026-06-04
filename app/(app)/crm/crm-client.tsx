@@ -13,6 +13,7 @@ import { ImportLeadsModal, downloadLeadTemplate } from '@/components/crm/import-
 import { deleteLeads } from '@/app/(app)/crm/actions/deleteLeads'
 import { bulkUpdateLeadStatus, bulkUpdateLeadSource } from '@/app/(app)/crm/actions/bulkLeadActions'
 import { exportLeads } from '@/app/(app)/crm/actions/exportLeads'
+import { DatePicker } from '@/components/ui/date-picker'
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -457,8 +458,7 @@ function ColumnMenuPopover({
               <option value="after">Después de</option>
               <option value="before">Antes de</option>
             </select>
-            <input type="date" value={dateVal} onChange={e => setDateVal(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            <DatePicker value={dateVal} onChange={setDateVal} placeholder="Seleccionar fecha" />
           </>
         )}
 

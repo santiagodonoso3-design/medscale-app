@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { Plus, Loader2, Pencil, X, Save, Zap, Calendar, Trash2, Users } from 'lucide-react'
+import { DatePicker } from '@/components/ui/date-picker'
 
 interface AutomationRule {
   id: string
@@ -510,12 +511,13 @@ export default function AutomationsPage() {
               {showTriggerDate && (
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Fecha *</label>
-                  <input
-                    type="date"
-                    value={form.trigger_date}
-                    onChange={e => setForm(p => ({ ...p, trigger_date: e.target.value }))}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  <div className="mt-1">
+                    <DatePicker
+                      value={form.trigger_date}
+                      onChange={(d) => setForm(p => ({ ...p, trigger_date: d }))}
+                      placeholder="Seleccionar fecha"
+                    />
+                  </div>
                 </div>
               )}
 

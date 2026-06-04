@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Plus, Loader2, X, Save, Gift, Pencil } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { DatePicker } from '@/components/ui/date-picker'
 
 interface ReferralCode {
   id: string
@@ -464,11 +465,10 @@ export default function ReferralsPage() {
                 </div>
                 <div>
                   <label className={labelCls}>Fecha expiración</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={form.expires_at}
-                    onChange={e => setForm(f => ({ ...f, expires_at: e.target.value }))}
-                    className={inputCls}
+                    onChange={(d) => setForm(f => ({ ...f, expires_at: d }))}
+                    placeholder="Sin expiración"
                   />
                 </div>
               </div>
