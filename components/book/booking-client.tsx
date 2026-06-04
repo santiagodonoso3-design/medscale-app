@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { CalendarDays, Clock3, UserPlus } from 'lucide-react'
+import { DatePicker } from '@/components/ui/date-picker'
 
 interface DoctorMetadata {
   name?: string | null
@@ -155,12 +156,13 @@ export default function BookingClient({ orgName, orgSlug, doctors, locations, sc
 
           <div>
             <label className="text-sm font-medium text-slate-700">Fecha</label>
-            <input
-              type="date"
-              value={form.date}
-              onChange={(event) => setForm((prev) => ({ ...prev, date: event.target.value }))}
-              className="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900"
-            />
+            <div className="mt-2">
+              <DatePicker
+                value={form.date}
+                onChange={(d) => setForm((prev) => ({ ...prev, date: d }))}
+                placeholder="Seleccionar fecha"
+              />
+            </div>
           </div>
 
           <div>
