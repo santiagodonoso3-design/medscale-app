@@ -40,6 +40,14 @@ interface ProcedureOption {
   is_active: boolean
 }
 
+interface LeadProcedure {
+  id: string
+  procedure_id: string
+  procedure_price: number
+  performed_at: string | null
+  procedure?: { name: string }[]
+}
+
 interface OrgField {
   field_name: string
   field_label: string
@@ -604,6 +612,10 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
   // procedures
   const [procedures,       setProcedures]       = useState<ProcedureOption[]>([])
   const [editProcedureId,  setEditProcedureId]  = useState<string | null>(null)
+  const [leadProcedures,   setLeadProcedures]   = useState<LeadProcedure[]>([])
+  const [loadingLeadProcs, setLoadingLeadProcs] = useState(false)
+  const [addProcId,        setAddProcId]        = useState<string>('')
+  const [addProcDate,      setAddProcDate]      = useState<string>('')
 
   const supabase = createClient()
 
@@ -775,6 +787,13 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
   const openLeadDetail = async (lead: Lead) => {
     setSelectedLead(lead)
     setEditProcedureId(lead.procedure_id ?? null)
+    setLeadProcedures([])
+    setLoadingLeadProcs(true)
+    fetch(`/api/lead-procedures?leadId=${lead.id}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(setLeadProcedures)
+      .catch(() => {})
+      .finally(() => setLoadingLeadProcs(false))
     setEditForm({
       contact_name:      lead.contact_name      ?? '',
       contact_last_name: lead.contact_last_name ?? '',
@@ -819,10 +838,6 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
       status:            editForm.status,
       source:            editForm.source                   || null,
       metadata:          Object.keys(mergedMetadata).length > 0 ? mergedMetadata : null,
-      procedure_id:      editProcedureId || null,
-      procedure_price:   editProcedureId
-        ? (procedures.find(p => p.id === editProcedureId)?.price ?? null)
-        : null,
       updated_at:        now,
     }).eq('id', selectedLead.id)
     if (error) { setSaveLeadError(error.message); setSavingLead(false); return }
@@ -831,6 +846,37 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
     closeDetail()
     setSuccessToast('Lead actualizado')
     setTimeout(() => setSuccessToast(null), 3000)
+  }
+
+  const handleAddProcedure = async () => {
+    if (!selectedLead || !addProcId) return
+    const proc = procedures.find(p => p.id === addProcId)
+    if (!proc) return
+    const res = await fetch('/api/lead-procedures', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lead_id: selectedLead.id,
+        procedure_id: proc.id,
+        procedure_price: proc.price,
+        performed_at: addProcDate || null,
+      }),
+    })
+    if (res.ok) {
+      const created = await res.json()
+      setLeadProcedures(prev => [...prev, created])
+      setAddProcId('')
+      setAddProcDate('')
+    }
+  }
+
+  const handleRemoveProcedure = async (id: string) => {
+    const res = await fetch('/api/lead-procedures', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    if (res.ok) setLeadProcedures(prev => prev.filter(p => p.id !== id))
   }
 
   const handleSaveComment = async () => {
@@ -1394,26 +1440,59 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                     {STATUS_PIPELINE.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                   </select>
                 </div>
-                {(editForm.status === 'en_tratamiento_medico' || selectedLead.procedure_id) && (
-                  <div className="col-span-2">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Procedimiento realizado</label>
-                    <select
-                      value={editProcedureId ?? ''}
-                      onChange={e => setEditProcedureId(e.target.value || null)}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">— Sin procedimiento —</option>
-                      {procedures.filter(p => p.is_active || p.id === editProcedureId).map(p => (
-                        <option key={p.id} value={p.id}>{p.name} — {formatCOP(p.price)}</option>
+                <div className="col-span-2">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Procedimientos realizados</label>
+
+                  {loadingLeadProcs ? (
+                    <p className="mt-2 text-sm text-slate-400">Cargando...</p>
+                  ) : leadProcedures.length === 0 ? (
+                    <p className="mt-2 text-sm text-slate-400">Sin procedimientos registrados.</p>
+                  ) : (
+                    <div className="mt-2 space-y-2">
+                      {leadProcedures.map(lp => (
+                        <div key={lp.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                          <div>
+                            <p className="text-sm font-medium text-slate-700">{lp.procedure?.[0]?.name ?? 'Procedimiento'}</p>
+                            <p className="text-xs text-slate-500">
+                              {formatCOP(lp.procedure_price)}
+                              {lp.performed_at ? ` · ${fmtDate(lp.performed_at)}` : ''}
+                            </p>
+                          </div>
+                          {!readOnly && (
+                            <button onClick={() => handleRemoveProcedure(lp.id)}
+                              className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 transition">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       ))}
-                    </select>
-                    {editProcedureId && selectedLead.procedure_price != null && (
-                      <p className="mt-1 text-xs text-slate-400">
-                        Precio registrado: <span className="font-semibold text-slate-600">{formatCOP(selectedLead.procedure_price)}</span>
-                      </p>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )}
+
+                  {!readOnly && (
+                    <div className="mt-3 flex items-end gap-2">
+                      <div className="flex-1">
+                        <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Procedimiento</label>
+                        <select value={addProcId} onChange={e => setAddProcId(e.target.value)}
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="">— Seleccionar —</option>
+                          {procedures.filter(p => p.is_active).map(p => (
+                            <option key={p.id} value={p.id}>{p.name} — {formatCOP(p.price)}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Fecha (opcional)</label>
+                        <input type="date" value={addProcDate} onChange={e => setAddProcDate(e.target.value)}
+                          className="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <button onClick={handleAddProcedure} disabled={!addProcId}
+                        className="rounded-xl bg-[#215F73] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0D2B3E] transition disabled:opacity-40">
+                        Agregar
+                      </button>
+                    </div>
+                  )}
+                </div>
                 {orgFields.length > 0 && orgFields.map(f => (
                   <div key={f.field_name} className={f.field_type === 'textarea' ? 'col-span-2' : ''}>
                     <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">{f.field_label}</label>
