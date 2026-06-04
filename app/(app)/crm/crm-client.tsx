@@ -45,7 +45,7 @@ interface LeadProcedure {
   procedure_id: string
   procedure_price: number
   performed_at: string | null
-  procedure?: { name: string }[]
+  procedure?: { name: string } | null
 }
 
 interface OrgField {
@@ -616,6 +616,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
   const [loadingLeadProcs, setLoadingLeadProcs] = useState(false)
   const [addProcId,        setAddProcId]        = useState<string>('')
   const [addProcDate,      setAddProcDate]      = useState<string>('')
+  const [showAddProc,      setShowAddProc]      = useState(false)
 
   const supabase = createClient()
 
@@ -867,6 +868,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
       setLeadProcedures(prev => [...prev, created])
       setAddProcId('')
       setAddProcDate('')
+      setShowAddProc(false)
     }
   }
 
@@ -1445,14 +1447,12 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
 
                   {loadingLeadProcs ? (
                     <p className="mt-2 text-sm text-slate-400">Cargando...</p>
-                  ) : leadProcedures.length === 0 ? (
-                    <p className="mt-2 text-sm text-slate-400">Sin procedimientos registrados.</p>
-                  ) : (
+                  ) : leadProcedures.length > 0 ? (
                     <div className="mt-2 space-y-2">
                       {leadProcedures.map(lp => (
                         <div key={lp.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                           <div>
-                            <p className="text-sm font-medium text-slate-700">{lp.procedure?.[0]?.name ?? 'Procedimiento'}</p>
+                            <p className="text-sm font-medium text-slate-700">{lp.procedure?.name ?? 'Procedimiento'}</p>
                             <p className="text-xs text-slate-500">
                               {formatCOP(lp.procedure_price)}
                               {lp.performed_at ? ` · ${fmtDate(lp.performed_at)}` : ''}
@@ -1467,9 +1467,9 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                         </div>
                       ))}
                     </div>
-                  )}
+                  ) : null}
 
-                  {!readOnly && (
+                  {!readOnly && (leadProcedures.length === 0 || showAddProc) && (
                     <div className="mt-3 flex items-end gap-2">
                       <div className="flex-1">
                         <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Procedimiento</label>
@@ -1491,6 +1491,13 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                         Agregar
                       </button>
                     </div>
+                  )}
+
+                  {!readOnly && leadProcedures.length > 0 && !showAddProc && (
+                    <button onClick={() => setShowAddProc(true)}
+                      className="mt-2 text-xs font-medium text-blue-600 underline hover:text-blue-800 transition">
+                      + Agregar otro procedimiento
+                    </button>
                   )}
                 </div>
                 {orgFields.length > 0 && orgFields.map(f => (
