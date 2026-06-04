@@ -16,6 +16,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { getBookedSlots } from '@/app/actions/booking'
+import { DatePicker } from '@/components/ui/date-picker'
 
 // ── Brand tokens ──────────────────────────────────────────────────────────────
 const B = {
@@ -831,6 +832,12 @@ export default function BookingWizard({
                     <option key={opt} value={opt}>{opt}</option>
                   ))}
                 </select>
+              ) : field.field_type === 'date' ? (
+                <DatePicker
+                  value={formData.customFields[field.field_name] || ''}
+                  onChange={(d) => setFormData(p => ({ ...p, customFields: { ...p.customFields, [field.field_name]: d } }))}
+                  placeholder={field.placeholder || 'Seleccionar fecha'}
+                />
               ) : (
                 <input type={field.field_type} value={formData.customFields[field.field_name] || ''}
                   onChange={e => setFormData(p => ({ ...p, customFields: { ...p.customFields, [field.field_name]: e.target.value } }))}
