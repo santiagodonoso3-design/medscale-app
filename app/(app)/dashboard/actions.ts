@@ -98,36 +98,52 @@ export async function getDashboardRawData(year: number, orgId: string): Promise<
       admin.from('appointment_types')
         .select('id, assignment_mode')
         .eq('organization_id', orgId),
-      admin.from('leads')
-        .select('id, procedure_price')
-        .eq('organization_id', orgId)
-        .not('procedure_id', 'is', null)
-        .not('procedure_price', 'is', null),
+      admin.from('lead_procedures')
+        .select('id, lead_id, procedure_price, performed_at, created_at')
+        .eq('organization_id', orgId),
     ])
 
-    // Procedure revenue: resolve each lead's date from its last completed appointment
+    // Procedure revenue desde lead_procedures (N por lead). Ningún procedimiento se descarta.
+    // Fecha en cascada: performed_at → última cita completed → created_at del procedimiento.
     let procedureLeads: RawProcedureLead[] = []
     if (procLeadsRaw && (procLeadsRaw as any[]).length > 0) {
-      const leadIds = (procLeadsRaw as any[]).map((l: any) => l.id)
-      const { data: procApts } = await admin
-        .from('appointments')
-        .select('lead_id, scheduled_at')
-        .in('lead_id', leadIds)
-        .eq('status', 'completed')
-        .order('scheduled_at', { ascending: false })
+      const rows = procLeadsRaw as any[]
+
+      // Última cita completed por lead (solo para filas sin performed_at)
+      const leadIdsSinFecha = [...new Set(
+        rows.filter(r => !r.performed_at).map(r => r.lead_id)
+      )]
+
       const latestByLead = new Map<string, string>()
-      for (const a of (procApts ?? [])) {
-        if (a.lead_id && !latestByLead.has(a.lead_id)) {
-          latestByLead.set(a.lead_id, a.scheduled_at)
+      if (leadIdsSinFecha.length > 0) {
+        const { data: procApts } = await admin
+          .from('appointments')
+          .select('lead_id, scheduled_at')
+          .in('lead_id', leadIdsSinFecha)
+          .eq('status', 'completed')
+          .order('scheduled_at', { ascending: false })
+        for (const a of (procApts ?? [])) {
+          if (a.lead_id && !latestByLead.has(a.lead_id)) {
+            latestByLead.set(a.lead_id, a.scheduled_at)
+          }
         }
       }
-      procedureLeads = (procLeadsRaw as any[])
-        .filter((l: any) => latestByLead.has(l.id))
-        .map((l: any) => ({
-          lead_id: l.id,
-          procedure_price: Number(l.procedure_price),
-          procedure_month: toBogotaYM(latestByLead.get(l.id)!),
-        }))
+
+      procedureLeads = rows.map((r: any) => {
+        let procedure_month: string
+        if (r.performed_at) {
+          procedure_month = r.performed_at.slice(0, 7)                 // YYYY-MM directo, sin tz
+        } else if (latestByLead.has(r.lead_id)) {
+          procedure_month = toBogotaYM(latestByLead.get(r.lead_id)!)   // cita completed
+        } else {
+          procedure_month = toBogotaYM(r.created_at)                   // fallback: creación del procedimiento
+        }
+        return {
+          lead_id: r.lead_id,
+          procedure_price: Number(r.procedure_price),
+          procedure_month,
+        }
+      })
     }
 
     const appointments: RawAppointment[] = (apts ?? []).map((a: any) => ({
