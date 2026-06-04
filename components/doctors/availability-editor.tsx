@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2, Check, Plus, Trash2, Lock, X } from 'lucide-react'
+import { DateRangePicker } from '@/components/ui/date-range-picker'
 
 // DB: day_of_week 0-6  (0=Dom, 1=Lun … 6=Sáb)
 const DAYS = [
@@ -484,23 +485,14 @@ export function AvailabilityEditor() {
           <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-5 space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Desde</label>
-                <input
-                  type="date"
-                  value={addForm.date_from}
-                  onChange={e => setAddForm(p => ({ ...p, date_from: e.target.value }))}
-                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Hasta (opcional)</label>
-                <input
-                  type="date"
-                  value={addForm.date_to}
-                  min={addForm.date_from || undefined}
-                  onChange={e => setAddForm(p => ({ ...p, date_to: e.target.value }))}
-                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rango de fechas</label>
+                <div className="mt-1.5">
+                  <DateRangePicker
+                    value={{ from: addForm.date_from, to: addForm.date_to }}
+                    onChange={(range) => setAddForm(p => ({ ...p, date_from: range.from, date_to: range.to }))}
+                    placeholder="Seleccionar fecha o rango"
+                  />
+                </div>
               </div>
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Horario</label>
@@ -587,24 +579,13 @@ export function AvailabilityEditor() {
 
         {showBlkForm && (
           <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-5 space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Desde</label>
-                <input
-                  type="date"
-                  value={blkForm.date_from}
-                  onChange={e => setBlkForm(p => ({ ...p, date_from: e.target.value }))}
-                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Hasta (opcional)</label>
-                <input
-                  type="date"
-                  value={blkForm.date_to}
-                  min={blkForm.date_from || undefined}
-                  onChange={e => setBlkForm(p => ({ ...p, date_to: e.target.value }))}
-                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <div className="max-w-md">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rango de fechas</label>
+              <div className="mt-1.5">
+                <DateRangePicker
+                  value={{ from: blkForm.date_from, to: blkForm.date_to }}
+                  onChange={(range) => setBlkForm(p => ({ ...p, date_from: range.from, date_to: range.to }))}
+                  placeholder="Seleccionar fecha o rango"
                 />
               </div>
             </div>
