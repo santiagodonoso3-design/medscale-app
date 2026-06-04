@@ -190,6 +190,11 @@ const APT_STATUS_LABELS: Record<string, string> = {
 const formatCOP = (n: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
 
+const MONTHS_ES = [
+  'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre',
+]
+
 const fmtDate = (iso: string) =>
   new Intl.DateTimeFormat('es-CO', {
     day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Bogota',
@@ -616,6 +621,8 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
   const [loadingLeadProcs, setLoadingLeadProcs] = useState(false)
   const [addProcId,        setAddProcId]        = useState<string>('')
   const [showAddProc,      setShowAddProc]      = useState(false)
+  const [addProcMonth,     setAddProcMonth]     = useState<string>('')
+  const [addProcYear,      setAddProcYear]      = useState<number>(new Date().getFullYear())
 
   const supabase = createClient()
 
@@ -790,6 +797,8 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
     setLeadProcedures([])
     setShowAddProc(false)
     setAddProcId('')
+    setAddProcMonth('')
+    setAddProcYear(new Date().getFullYear())
     setLoadingLeadProcs(true)
     fetch(`/api/lead-procedures?leadId=${lead.id}`)
       .then(r => r.ok ? r.json() : [])
@@ -854,6 +863,12 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
     if (!selectedLead || !addProcId) return
     const proc = procedures.find(p => p.id === addProcId)
     if (!proc) return
+
+    // Mes/Año → performed_at = 'YYYY-MM-01'. Si no eligen mes, queda null.
+    const performed_at = addProcMonth
+      ? `${addProcYear}-${String(addProcMonth).padStart(2, '0')}-01`
+      : null
+
     const res = await fetch('/api/lead-procedures', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -861,13 +876,15 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
         lead_id: selectedLead.id,
         procedure_id: proc.id,
         procedure_price: proc.price,
-        performed_at: null,
+        performed_at,
       }),
     })
     if (res.ok) {
       const created = await res.json()
       setLeadProcedures(prev => [...prev, created])
       setAddProcId('')
+      setAddProcMonth('')
+      setAddProcYear(new Date().getFullYear())
       setShowAddProc(false)
     }
   }
@@ -1470,8 +1487,8 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                   ) : null}
 
                   {!readOnly && (leadProcedures.length === 0 || showAddProc) && (
-                    <div className="mt-3 flex items-end gap-2">
-                      <div className="flex-1">
+                    <div className="mt-3 space-y-2">
+                      <div>
                         <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Procedimiento</label>
                         <select value={addProcId} onChange={e => setAddProcId(e.target.value)}
                           className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -1481,10 +1498,31 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                           ))}
                         </select>
                       </div>
-                      <button onClick={handleAddProcedure} disabled={!addProcId}
-                        className="rounded-xl bg-[#215F73] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0D2B3E] transition disabled:opacity-40">
-                        Agregar
-                      </button>
+                      <div className="flex items-end gap-2">
+                        <div className="flex-1">
+                          <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Mes del procedimiento (para reportes)</label>
+                          <select value={addProcMonth} onChange={e => setAddProcMonth(e.target.value)}
+                            className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">— Sin mes —</option>
+                            {MONTHS_ES.map((m, i) => (
+                              <option key={i} value={i + 1}>{m}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="w-24">
+                          <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Año</label>
+                          <select value={addProcYear} onChange={e => setAddProcYear(Number(e.target.value))}
+                            className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            {Array.from({ length: 4 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                              <option key={y} value={y}>{y}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <button onClick={handleAddProcedure} disabled={!addProcId}
+                          className="rounded-xl bg-[#215F73] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0D2B3E] transition disabled:opacity-40">
+                          Agregar
+                        </button>
+                      </div>
                     </div>
                   )}
 
