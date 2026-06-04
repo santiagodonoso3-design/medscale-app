@@ -33,6 +33,18 @@ function emptyWeek(): Week {
   )
 }
 
+function expandDateRange(from: string, to: string | null): string[] {
+  if (!to || to <= from) return [from]
+  const dates: string[] = []
+  const cur = new Date(from + 'T12:00:00Z')
+  const end = new Date(to + 'T12:00:00Z')
+  while (cur <= end) {
+    dates.push(cur.toISOString().slice(0, 10))
+    cur.setUTCDate(cur.getUTCDate() + 1)
+  }
+  return dates
+}
+
 function fmtDate(iso: string): string {
   return new Intl.DateTimeFormat('es-CO', {
     weekday: 'long', day: 'numeric', month: 'long',
@@ -62,13 +74,13 @@ export function AvailabilityEditor() {
 
   // "Días adicionales" form (active = true)
   const [showAddForm,  setShowAddForm]  = useState(false)
-  const [addForm,      setAddForm]      = useState({ date: '', start_time: '08:00', end_time: '17:00' })
+  const [addForm,      setAddForm]      = useState({ date_from: '', date_to: '', start_time: '08:00', end_time: '17:00' })
   const [savingAdd,    setSavingAdd]    = useState(false)
   const [addError,     setAddError]     = useState<string | null>(null)
 
   // "Días bloqueados" form (active = false)
   const [showBlkForm,  setShowBlkForm]  = useState(false)
-  const [blkForm,      setBlkForm]      = useState({ date: '' })
+  const [blkForm,      setBlkForm]      = useState({ date_from: '', date_to: '' })
   const [savingBlk,    setSavingBlk]    = useState(false)
   const [blkError,     setBlkError]     = useState<string | null>(null)
 
@@ -231,48 +243,54 @@ export function AvailabilityEditor() {
 
   // ── Add extra day (active = true) ─────────────────────────────────────────
   const handleAddExtraDay = async () => {
-    if (!addForm.date) { setAddError('Selecciona una fecha.'); return }
+    if (!addForm.date_from) { setAddError('Selecciona una fecha.'); return }
     setSavingAdd(true)
     setAddError(null)
 
-    const { error } = await supabase.from('schedules').insert({
+    const dates = expandDateRange(addForm.date_from, addForm.date_to || null)
+    const rows = dates.map(d => ({
       doctor_id:     doctorId,
       location_id:   locationId || null,
-      specific_date: addForm.date,
+      specific_date: d,
       day_of_week:   null,
       start_time:    addForm.start_time,
       end_time:      addForm.end_time,
       active:        true,
       is_recurring:  false,
-    } as any)
+    }))
+
+    const { error } = await supabase.from('schedules').insert(rows as any)
 
     if (error) { setAddError(error.message); setSavingAdd(false); return }
     await refreshExceptions()
-    setAddForm({ date: '', start_time: '08:00', end_time: '17:00' })
+    setAddForm({ date_from: '', date_to: '', start_time: '08:00', end_time: '17:00' })
     setShowAddForm(false)
     setSavingAdd(false)
   }
 
   // ── Block day (active = false) ────────────────────────────────────────────
   const handleBlockDay = async () => {
-    if (!blkForm.date) { setBlkError('Selecciona una fecha.'); return }
+    if (!blkForm.date_from) { setBlkError('Selecciona una fecha.'); return }
     setSavingBlk(true)
     setBlkError(null)
 
-    const { error } = await supabase.from('schedules').insert({
+    const dates = expandDateRange(blkForm.date_from, blkForm.date_to || null)
+    const rows = dates.map(d => ({
       doctor_id:     doctorId,
       location_id:   locationId || null,
-      specific_date: blkForm.date,
+      specific_date: d,
       day_of_week:   null,
       start_time:    null,
       end_time:      null,
       active:        false,
       is_recurring:  false,
-    } as any)
+    }))
+
+    const { error } = await supabase.from('schedules').insert(rows as any)
 
     if (error) { setBlkError(error.message); setSavingBlk(false); return }
     await refreshExceptions()
-    setBlkForm({ date: '' })
+    setBlkForm({ date_from: '', date_to: '' })
     setShowBlkForm(false)
     setSavingBlk(false)
   }
@@ -466,11 +484,21 @@ export function AvailabilityEditor() {
           <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-5 space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Fecha</label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Desde</label>
                 <input
                   type="date"
-                  value={addForm.date}
-                  onChange={e => setAddForm(p => ({ ...p, date: e.target.value }))}
+                  value={addForm.date_from}
+                  onChange={e => setAddForm(p => ({ ...p, date_from: e.target.value }))}
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Hasta (opcional)</label>
+                <input
+                  type="date"
+                  value={addForm.date_to}
+                  min={addForm.date_from || undefined}
+                  onChange={e => setAddForm(p => ({ ...p, date_to: e.target.value }))}
                   className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -504,7 +532,7 @@ export function AvailabilityEditor() {
                 Guardar
               </button>
               <button
-                onClick={() => { setShowAddForm(false); setAddForm({ date: '', start_time: '08:00', end_time: '17:00' }); setAddError(null) }}
+                onClick={() => { setShowAddForm(false); setAddForm({ date_from: '', date_to: '', start_time: '08:00', end_time: '17:00' }); setAddError(null) }}
                 className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
               >
                 Cancelar
@@ -559,14 +587,26 @@ export function AvailabilityEditor() {
 
         {showBlkForm && (
           <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-5 space-y-4">
-            <div className="max-w-xs">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Fecha</label>
-              <input
-                type="date"
-                value={blkForm.date}
-                onChange={e => setBlkForm({ date: e.target.value })}
-                className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Desde</label>
+                <input
+                  type="date"
+                  value={blkForm.date_from}
+                  onChange={e => setBlkForm(p => ({ ...p, date_from: e.target.value }))}
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Hasta (opcional)</label>
+                <input
+                  type="date"
+                  value={blkForm.date_to}
+                  min={blkForm.date_from || undefined}
+                  onChange={e => setBlkForm(p => ({ ...p, date_to: e.target.value }))}
+                  className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
             {blkError && <p className="text-sm text-red-600">{blkError}</p>}
             <div className="flex gap-2">
@@ -579,7 +619,7 @@ export function AvailabilityEditor() {
                 Bloquear
               </button>
               <button
-                onClick={() => { setShowBlkForm(false); setBlkForm({ date: '' }); setBlkError(null) }}
+                onClick={() => { setShowBlkForm(false); setBlkForm({ date_from: '', date_to: '' }); setBlkError(null) }}
                 className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
               >
                 Cancelar
