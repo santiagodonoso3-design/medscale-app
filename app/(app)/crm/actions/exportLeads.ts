@@ -78,9 +78,9 @@ export async function exportLeads(filters: ExportFilters): Promise<
     .select('plan')
     .eq('id', orgId)
     .single()
-  const plan = (org as { plan: string } | null)?.plan ?? 'free'
-  if (plan !== 'growth' && plan !== 'scale') {
-    return { error: 'El export a Excel está disponible en los planes Growth y Scale.' }
+  const plan = (org as { plan: string } | null)?.plan ?? 'consultorio'
+  if (plan !== 'clinica' && plan !== 'red') {
+    return { error: 'El export a Excel está disponible en los planes Clínica y Red.' }
   }
 
   const { data: leadsData, error: leadsErr } = await admin

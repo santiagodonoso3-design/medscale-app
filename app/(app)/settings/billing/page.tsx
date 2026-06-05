@@ -17,7 +17,7 @@ export default async function BillingPage() {
 
   return (
     <BillingContent
-      currentPlan={org?.plan ?? 'free'}
+      currentPlan={org?.plan ?? 'consultorio'}
       subscriptionStatus={org?.subscription_status ?? null}
     />
   )

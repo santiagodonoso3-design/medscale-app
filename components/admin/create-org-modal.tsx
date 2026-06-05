@@ -5,13 +5,12 @@ import { X, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
-type Plan = 'free' | 'starter' | 'growth' | 'scale'
+type Plan = 'consultorio' | 'clinica' | 'red'
 
 const PLAN_OPTIONS: { value: Plan; label: string }[] = [
-  { value: 'free',    label: 'Free — US$0/mes (1 médico, 50 leads, 20 citas/mes)' },
-  { value: 'starter', label: 'Starter — US$29/mes (3 médicos, 100 citas/mes)' },
-  { value: 'growth',  label: 'Growth — US$79/mes (8 médicos, ilimitado)' },
-  { value: 'scale',   label: 'Scale — US$149/mes (ilimitado + API)' },
+  { value: 'consultorio', label: 'Consultorio — US$89/mes (1 médico, 1 sede)' },
+  { value: 'clinica',     label: 'Clínica — US$249/mes (hasta 6 médicos, 1 sede)' },
+  { value: 'red',         label: 'Red — A medida desde US$549/mes (ilimitado + API)' },
 ]
 
 interface OrganizationFormModalProps {
@@ -61,7 +60,7 @@ export function OrganizationFormModal({
 }: OrganizationFormModalProps) {
   const [name, setName] = useState(initialValues?.name ?? '')
   const [slug, setSlug] = useState(initialValues?.slug ?? '')
-  const [plan, setPlan] = useState<Plan>(initialValues?.plan ?? 'free')
+  const [plan, setPlan] = useState<Plan>(initialValues?.plan ?? 'consultorio')
   const [isActive, setIsActive] = useState(initialValues?.is_active ?? true)
   const [aiAgentEnabled, setAiAgentEnabled] = useState(initialValues?.ai_agent_enabled ?? false)
   const [monthlyRevenue, setMonthlyRevenue] = useState(initialValues?.monthly_revenue ?? 0)
@@ -71,7 +70,7 @@ export function OrganizationFormModal({
   useEffect(() => {
     setName(initialValues?.name ?? '')
     setSlug(initialValues?.slug ?? '')
-    setPlan(initialValues?.plan ?? 'free')
+    setPlan(initialValues?.plan ?? 'consultorio')
     setIsActive(initialValues?.is_active ?? true)
     setAiAgentEnabled(initialValues?.ai_agent_enabled ?? false)
     setMonthlyRevenue(initialValues?.monthly_revenue ?? 0)
@@ -115,7 +114,7 @@ export function OrganizationFormModal({
 
     setName('')
     setSlug('')
-    setPlan('free')
+    setPlan('consultorio')
     setIsActive(true)
     setAiAgentEnabled(false)
     setMonthlyRevenue(0)

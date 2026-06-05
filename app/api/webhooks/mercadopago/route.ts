@@ -107,9 +107,9 @@ export async function POST(request: Request) {
     // ── PASO 5: Mapear plan y actualizar org ──────────────────────────────────
 
     const planToTier: Record<string, string> = {
-      [process.env.MP_PLAN_STARTER ?? '']: 'starter',
-      [process.env.MP_PLAN_GROWTH  ?? '']: 'growth',
-      [process.env.MP_PLAN_SCALE   ?? '']: 'scale',
+      [process.env.MP_PLAN_STARTER ?? '']: 'consultorio',
+      [process.env.MP_PLAN_GROWTH  ?? '']: 'clinica',
+      [process.env.MP_PLAN_SCALE   ?? '']: 'red',
     }
     const tier = planToTier[preapproval_plan_id]
 
@@ -136,7 +136,7 @@ export async function POST(request: Request) {
     } else if (status === 'paused') {
       updates = { subscription_status: 'paused' }
     } else if (status === 'cancelled') {
-      updates = { plan: 'free', subscription_status: 'cancelled' }
+      updates = { plan: 'consultorio', subscription_status: 'cancelled' }
     } else {
       updates = { subscription_status: status }
     }

@@ -1020,7 +1020,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
     setColMenu({ key, top: rect.bottom + 4, left })
   }
 
-  const canExport = orgPlan === 'growth' || orgPlan === 'scale'
+  const canExport = orgPlan === 'clinica' || orgPlan === 'red'
   const hasActiveFilters = Object.keys(columnFilters).length > 0 || sortField !== null || statusFilter !== 'all'
 
   const colMenuDef = colMenu ? (() => {

@@ -11,31 +11,24 @@ import { TermsModal } from '@/components/legal/terms-modal'
 
 const PLANS = [
   {
-    id: 'free',
-    name: 'Free',
-    price: 'US$0',
-    features: ['1 médico', '50 leads', '20 citas/mes'],
+    id: 'consultorio',
+    name: 'Consultorio',
+    price: 'US$89',
+    features: ['1 médico', '1 sede', 'Agenda online 24/7', 'CRM básico'],
     badge: null,
   },
   {
-    id: 'starter',
-    name: 'Starter',
-    price: 'US$29',
-    features: ['3 médicos', '100 citas/mes', 'Recordatorios automáticos'],
-    badge: null,
-  },
-  {
-    id: 'growth',
-    name: 'Growth',
-    price: 'US$79',
-    features: ['8 médicos', 'Citas ilimitadas', 'CRM completo', 'Conversaciones'],
+    id: 'clinica',
+    name: 'Clínica',
+    price: 'US$249',
+    features: ['Hasta 6 médicos', '1 sede', 'CRM completo', 'Conversaciones', 'Export Excel'],
     badge: 'Recomendado',
   },
   {
-    id: 'scale',
-    name: 'Scale',
-    price: 'US$149',
-    features: ['Médicos ilimitados', 'API access', 'Soporte prioritario'],
+    id: 'red',
+    name: 'Red',
+    price: 'Desde US$549',
+    features: ['Médicos ilimitados', 'Sedes ilimitadas', 'API access', 'Soporte prioritario'],
     badge: null,
   },
 ] as const
@@ -176,7 +169,7 @@ export default function RegisterPage() {
           </div>
 
           {/* Plan cards */}
-          <div className="w-full max-w-5xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="w-full max-w-4xl grid grid-cols-1 sm:grid-cols-3 gap-5">
             {PLANS.map(plan => (
               <div
                 key={plan.id}

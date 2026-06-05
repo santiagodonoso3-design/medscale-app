@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { Check, Loader2 } from 'lucide-react'
+import { Check } from 'lucide-react'
 
 interface Props {
   currentPlan: string
@@ -10,64 +9,30 @@ interface Props {
 
 const PLANS = [
   {
-    tier: 'free',
-    name: 'Free',
-    price: 0,
-    features: ['1 médico', '50 leads', '20 citas/mes'],
+    tier: 'consultorio',
+    name: 'Consultorio',
+    price: 'US$89',
+    features: ['1 médico', '1 sede', 'Agenda online', 'CRM básico'],
+    badge: null,
   },
   {
-    tier: 'starter',
-    name: 'Starter',
-    price: 119000,
-    features: ['3 médicos', '100 citas/mes', 'Recordatorios automáticos'],
+    tier: 'clinica',
+    name: 'Clínica',
+    price: 'US$249',
+    features: ['Hasta 6 médicos', '1 sede', 'CRM completo', 'Conversaciones', 'Export Excel'],
+    badge: 'Recomendado',
   },
   {
-    tier: 'growth',
-    name: 'Growth',
-    price: 319000,
-    features: ['8 médicos', 'Citas ilimitadas', 'CRM completo', 'Conversaciones'],
-  },
-  {
-    tier: 'scale',
-    name: 'Scale',
-    price: 599000,
-    features: ['Médicos ilimitados', 'API access', 'Soporte prioritario'],
+    tier: 'red',
+    name: 'Red',
+    price: 'A medida',
+    features: ['Médicos ilimitados', 'Sedes ilimitadas', 'API access', 'Soporte prioritario'],
+    badge: null,
   },
 ]
 
-function formatCOP(n: number): string {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency', currency: 'COP', maximumFractionDigits: 0,
-  }).format(n)
-}
-
 export function BillingContent({ currentPlan, subscriptionStatus }: Props) {
-  const [loading, setLoading] = useState<string | null>(null)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-
   const currentPlanDef = PLANS.find(p => p.tier === currentPlan)
-
-  async function handleSubscribe(tier: string) {
-    setLoading(tier)
-    setErrorMsg(null)
-    try {
-      const res = await fetch('/api/billing/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tier }),
-      })
-      const data = await res.json()
-      if (res.ok && data.init_point) {
-        window.location.href = data.init_point
-      } else {
-        setErrorMsg(data.error ?? 'Error al iniciar la suscripción. Intenta nuevamente.')
-      }
-    } catch {
-      setErrorMsg('Error de conexión. Intenta nuevamente.')
-    } finally {
-      setLoading(null)
-    }
-  }
 
   return (
     <div className="space-y-6">
@@ -96,21 +61,15 @@ export function BillingContent({ currentPlan, subscriptionStatus }: Props) {
         )}
       </div>
 
-      {/* Error */}
-      {errorMsg && (
-        <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMsg}</p>
-      )}
-
       {/* Plan cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {PLANS.map(plan => {
           const isCurrent = plan.tier === currentPlan
-          const isPaid    = plan.tier !== 'free'
 
           return (
             <div
               key={plan.tier}
-              className="rounded-2xl bg-white p-5 flex flex-col"
+              className="relative rounded-2xl bg-white p-5 flex flex-col"
               style={{
                 border: isCurrent
                   ? '2px solid #215F73'
@@ -118,6 +77,14 @@ export function BillingContent({ currentPlan, subscriptionStatus }: Props) {
               }}
             >
               {/* Badge */}
+              {plan.badge && (
+                <span
+                  className="absolute -top-3 left-1/2 -translate-x-1/2 inline-flex rounded-full px-3 py-0.5 text-xs font-semibold text-white whitespace-nowrap"
+                  style={{ background: '#215F73' }}
+                >
+                  {plan.badge}
+                </span>
+              )}
               {isCurrent && (
                 <span
                   className="self-start mb-3 inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold text-white"
@@ -129,10 +96,11 @@ export function BillingContent({ currentPlan, subscriptionStatus }: Props) {
 
               {/* Name & price */}
               <p className="font-bold text-slate-900 text-base">{plan.name}</p>
-              <p className="mt-1 whitespace-nowrap text-base font-bold" style={{ color: '#215F73' }}>
-                {plan.price === 0
-                  ? 'Gratis'
-                  : <>{formatCOP(plan.price)}<span className="text-xs font-normal ml-0.5" style={{ color: '#4A6B7A' }}>/mes</span></>}
+              <p className="mt-1 text-base font-bold" style={{ color: '#215F73' }}>
+                {plan.price}
+                {plan.tier !== 'red' && (
+                  <span className="text-xs font-normal ml-0.5" style={{ color: '#4A6B7A' }}>/mes</span>
+                )}
               </p>
 
               {/* Features */}
@@ -146,28 +114,25 @@ export function BillingContent({ currentPlan, subscriptionStatus }: Props) {
               </ul>
 
               {/* CTA */}
-              {!isCurrent && isPaid && (
-                <button
-                  onClick={() => handleSubscribe(plan.tier)}
-                  disabled={loading === plan.tier}
-                  className="mt-5 w-full inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white transition disabled:opacity-50"
+              {!isCurrent && (
+                <a
+                  href="mailto:soporte@medscale.app?subject=Quiero cambiar mi plan"
+                  className="mt-5 w-full inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white transition"
                   style={{ background: '#215F73' }}
-                  onMouseEnter={e => {
-                    if (loading !== plan.tier) (e.currentTarget as HTMLElement).style.background = '#0D2B3E'
-                  }}
-                  onMouseLeave={e => {
-                    if (loading !== plan.tier) (e.currentTarget as HTMLElement).style.background = '#215F73'
-                  }}
                 >
-                  {loading === plan.tier
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : `Cambiar a ${plan.name}`}
-                </button>
+                  Contactar al equipo
+                </a>
               )}
             </div>
           )
         })}
       </div>
+
+      <p className="text-xs text-slate-400 text-center">
+        Los cambios de plan son gestionados por el equipo de MedScale.
+        Escríbenos a{' '}
+        <a href="mailto:soporte@medscale.app" className="underline">soporte@medscale.app</a>
+      </p>
     </div>
   )
 }

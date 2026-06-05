@@ -8,7 +8,7 @@ export interface Organization {
   id: string
   name: string
   slug: string
-  plan: 'free' | 'starter' | 'growth' | 'scale'
+  plan: 'consultorio' | 'clinica' | 'red'
   is_active: boolean
   ai_agent_enabled: boolean
   monthly_revenue: number
@@ -39,7 +39,7 @@ export async function getAllOrganizations(): Promise<Organization[] | null> {
           id: org.id,
           name: org.name,
           slug: org.slug,
-          plan: (org.plan || 'free') as 'free' | 'starter' | 'growth' | 'scale',
+          plan: (org.plan || 'consultorio') as 'consultorio' | 'clinica' | 'red',
           is_active: org.is_active !== false,
           ai_agent_enabled: org.ai_agent_enabled === true,
           monthly_revenue: org.monthly_revenue || 0,
@@ -59,7 +59,7 @@ export async function getAllOrganizations(): Promise<Organization[] | null> {
 export async function createOrganization(
   name: string,
   slug: string,
-  plan: 'free' | 'starter' | 'growth' | 'scale'
+  plan: 'consultorio' | 'clinica' | 'red'
 ): Promise<{ success: boolean; error?: string; organization?: Organization }> {
   const admin = createServiceClient()
 
@@ -86,7 +86,7 @@ export async function createOrganization(
       id: newOrg.id,
       name: newOrg.name,
       slug: newOrg.slug,
-      plan: (newOrg.plan || 'free') as 'free' | 'starter' | 'growth' | 'scale',
+      plan: (newOrg.plan || 'consultorio') as 'consultorio' | 'clinica' | 'red',
       is_active: newOrg.is_active !== false,
       ai_agent_enabled: newOrg.ai_agent_enabled === true,
       monthly_revenue: newOrg.monthly_revenue || 0,
@@ -108,7 +108,7 @@ export async function updateOrganization(
   id: string,
   name: string,
   slug: string,
-  plan: 'free' | 'starter' | 'growth' | 'scale',
+  plan: 'consultorio' | 'clinica' | 'red',
   is_active: boolean,
   ai_agent_enabled: boolean,
   monthly_revenue: number

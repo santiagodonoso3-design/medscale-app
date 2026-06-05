@@ -321,7 +321,7 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 - `organization_members`: tabla de roles por organización
 - `messages`: organization_id, lead_id, channel, direction, content, is_read
 - `organizations.ai_agent_enabled` BOOLEAN (default false)
-- `organizations.plan` TEXT (free/starter/growth/scale)
+- `organizations.plan` TEXT (consultorio/clinica/red)
 - `organizations.onboarding_completed` BOOLEAN (default false)
 - `organizations.contact_phone` TEXT
 - `organizations.contact_email` TEXT
@@ -354,14 +354,15 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 | Rotación — solo automáticas | round_robin_proportional | false |
 
 ### Pricing
-| Plan | Precio/mes | Límites |
-|---|---|---|
-| Free | $0 | 1 médico, 50 leads, 20 citas/mes |
-| Starter | $29 | 3 médicos, 100 citas/mes |
-| Growth | $79 | 8 médicos, ilimitado |
-| Scale | $149 | Ilimitado + API |
+| Plan        | Precio/mes            | Límites                          |
+|-------------|-----------------------|----------------------------------|
+| Consultorio | $89                   | 1 médico, 1 sede                 |
+| Clínica     | $249 (recomendado)    | Hasta 6 médicos, 1 sede          |
+| Red         | A medida (desde $549) | Médicos y sedes ilimitados + API |
 
-Ferttes: plan Growth (beta, sin restricciones)
+Sin plan gratuito. Segmentación por médicos/sedes, no por citas/mes.
+
+Ferttes: plan Clínica (beta, sin restricciones)
 
 ---
 
@@ -388,10 +389,10 @@ Ferttes: plan Growth (beta, sin restricciones)
 - Verificar plan limits antes de inserts de recursos limitados
 
 ### Cliente beta
-- Ferttes (org_id: 4270c9b0-cbaa-4a94-bea7-508387a2529c) | admin@ferttes.com | app.medscale.app | plan Growth
+- Ferttes (org_id: 4270c9b0-cbaa-4a94-bea7-508387a2529c) | admin@ferttes.com | app.medscale.app | plan Clínica (beta, sin restricciones)
 
 ### Cliente Bariatric Latam
-- org_id: f9ca61f7-49bb-4d1e-9d02-d5c77fc9bb87 | slug: dr-carlos-lopera | carlosloperadigital@gmail.com | plan Growth
+- org_id: f9ca61f7-49bb-4d1e-9d02-d5c77fc9bb87 | slug: dr-carlos-lopera | carlosloperadigital@gmail.com | plan Clínica
 
 ### Cuenta de prueba
-- Clinica Lab 2 (org_id: 669ed7cb-3e4d-43a7-8065-cfd7ee8de47c) | labdepamdigital@gmail.com | plan starter — NOTA: org eliminada, reemplazar con nueva org de prueba
+- Clinica Lab 2 (org_id: 669ed7cb-3e4d-43a7-8065-cfd7ee8de47c) | labdepamdigital@gmail.com | plan Consultorio — NOTA: org eliminada, reemplazar con nueva org de prueba

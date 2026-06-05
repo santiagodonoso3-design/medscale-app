@@ -124,10 +124,9 @@ export default async function AdminDashboard() {
                     </td>
                     <td className="px-4 py-3.5">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium capitalize ${
-                        org.plan === 'free'    ? 'bg-slate-100 text-slate-600' :
-                        org.plan === 'starter' ? 'bg-blue-50 text-blue-700' :
-                        org.plan === 'growth'  ? 'bg-emerald-50 text-emerald-700' :
-                        org.plan === 'scale'   ? 'bg-violet-50 text-violet-700' :
+                        org.plan === 'consultorio' ? 'bg-slate-100 text-slate-600' :
+                        org.plan === 'clinica'     ? 'bg-emerald-50 text-emerald-700' :
+                        org.plan === 'red'         ? 'bg-violet-50 text-violet-700' :
                         'bg-slate-100 text-slate-600'
                       }`}>
                         {org.plan}

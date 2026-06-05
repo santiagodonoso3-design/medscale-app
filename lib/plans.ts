@@ -1,15 +1,14 @@
 import { createServiceClient } from '@/lib/supabase/server'
 
 export const PLAN_LIMITS = {
-  free:    { doctors: 1,        leads: 50,       appointmentsPerMonth: 20 },
-  starter: { doctors: 3,        leads: Infinity, appointmentsPerMonth: 100 },
-  growth:  { doctors: 8,        leads: Infinity, appointmentsPerMonth: Infinity },
-  scale:   { doctors: Infinity, leads: Infinity, appointmentsPerMonth: Infinity },
+  consultorio: { doctors: 1,        locations: 1,        api: false },
+  clinica:     { doctors: 6,        locations: 1,        api: false },
+  red:         { doctors: Infinity, locations: Infinity, api: true  },
 } as const
 
 export type PlanId = keyof typeof PLAN_LIMITS
 
-type Resource = 'doctors' | 'leads' | 'appointments'
+type Resource = 'doctors' | 'locations'
 
 export interface PlanCheckResult {
   allowed: boolean
@@ -32,8 +31,8 @@ export async function checkPlanLimit(orgId: string, resource: Resource): Promise
     .eq('id', orgId)
     .single()
 
-  const plan = ((org?.plan as string) ?? 'free') as PlanId
-  const limits = PLAN_LIMITS[plan] ?? PLAN_LIMITS.free
+  const plan = ((org?.plan as string) ?? 'consultorio') as PlanId
+  const limits = PLAN_LIMITS[plan] ?? PLAN_LIMITS.consultorio
 
   let current = 0
   let limit: number
@@ -46,22 +45,12 @@ export async function checkPlanLimit(orgId: string, resource: Resource): Promise
       .eq('organization_id', orgId)
       .eq('is_active', true)
     current = count ?? 0
-  } else if (resource === 'leads') {
-    limit = limits.leads === Infinity ? -1 : limits.leads
-    const { count } = await admin
-      .from('leads')
-      .select('id', { count: 'exact', head: true })
-      .eq('organization_id', orgId)
-    current = count ?? 0
   } else {
-    limit = limits.appointmentsPerMonth === Infinity ? -1 : limits.appointmentsPerMonth
-    const now = new Date()
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    limit = limits.locations === Infinity ? -1 : limits.locations
     const { count } = await admin
-      .from('appointments')
+      .from('locations')
       .select('id', { count: 'exact', head: true })
       .eq('organization_id', orgId)
-      .gte('scheduled_at', monthStart)
     current = count ?? 0
   }
 

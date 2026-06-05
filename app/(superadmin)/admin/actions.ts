@@ -81,7 +81,7 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics | null> {
           id: org.id,
           name: org.name,
           slug: org.slug,
-          plan: org.plan || 'free',
+          plan: org.plan || 'consultorio',
           is_active: org.is_active !== false,
           monthly_revenue: org.monthly_revenue || 0,
           user_count: userCount || 0,

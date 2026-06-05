@@ -69,7 +69,7 @@ export default function OrganizationsPage() {
     id?: string
     name: string
     slug: string
-    plan: 'free' | 'starter' | 'growth' | 'scale'
+    plan: 'consultorio' | 'clinica' | 'red'
     is_active: boolean
     ai_agent_enabled: boolean
     monthly_revenue: number
@@ -189,10 +189,9 @@ export default function OrganizationsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
-                        org.plan === 'free'    ? 'bg-gray-100 text-gray-700' :
-                        org.plan === 'starter' ? 'bg-blue-100 text-blue-700' :
-                        org.plan === 'growth'  ? 'bg-green-100 text-green-700' :
-                        org.plan === 'scale'   ? 'bg-purple-100 text-purple-700' :
+                        org.plan === 'consultorio' ? 'bg-slate-100 text-slate-700' :
+                        org.plan === 'clinica'     ? 'bg-green-100 text-green-700' :
+                        org.plan === 'red'         ? 'bg-violet-100 text-violet-700' :
                         'bg-slate-100 text-slate-700'
                       }`}>
                         {org.plan ?? '—'}
