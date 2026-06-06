@@ -3,6 +3,42 @@
 
 ---
 
+### Sesión 6 Junio 2026 — Refactor anclaje de procedimientos en dashboard
+
+#### Contexto
+Bariatric: los procedimientos no caían en el mes correcto en "Tendencia mensual" ni aparecían en el embudo. Causa raíz: tres lugares anclaban procedimientos a fuentes distintas (status del lead, fecha de cita, performed_at). Auditoría completa y unificación a una sola fuente: lead_procedures.performed_at.
+
+#### Cita manual Bariatric (Cal viejo)
+- Insertada cita de Johana Escobar (Dr. Lopera, 10-jun 8:30am virtual) que el Cal viejo no sincronizó a MedScale. Lead + appointment vía CTE, match por cédula. Timezone -05 verificado.
+- Confirmado: doctor_assignment_type CHECK solo acepta 'patient_choice' | 'auto_assigned' (no 'manual').
+
+#### Bulk update de status — leads Bariatric (Opción B: recalcular por asistencia)
+- ~77 leads actualizados por cédula desde PDF exportado del CRM. Regla: fecha pasada → asistio_cita; fecha futura → cita_valoracion_agendada; sin fecha → cancelo_cita; con procedimiento → en_tratamiento_medico.
+- "Asistió a cita" sin fecha se respetó (no se mandó a cancelo). 2 leads con cédula duplicada (1036931081) excluidos para manejo manual.
+- 5 procedimientos de mayo registrados en lead_procedures con performed_at=2026-05-01.
+
+#### Fix 1 — Display de fecha de procedimiento (crm-client.tsx)
+- Bug: performed_at (tipo date) se formateaba con fmtDate (timezone Bogotá) → "2026-05-01" mostraba "30 abr" (retroceso de 1 día por conversión UTC→UTC-5).
+- Fix: nueva fmtDateOnly parsea YYYY-MM-DD como fecha local literal (new Date(y, mo-1, d)), sin timezone. fmtDate intacta para timestamptz reales.
+
+#### Fix 2 — Tendencia mensual cuenta procedimientos por performed_at (dashboard-client.tsx)
+- Bug: serie "procedimiento" contaba yearLeads por status, ignorando performed_at → procedimientos en mes equivocado, mayo en 0.
+- Fix: cuenta desde procedureLeads por procedure_month, alineado con "Ingresos por mes".
+
+#### Refactor — eliminar serie "Finalizados" (Opción B)
+- "Finalizados" y "Procedimiento" medían lo mismo con fechas distintas (status finalizado vs performed_at), generando incoherencia. Eliminada la serie Finalizados del gráfico y su tipo en interface Metrics. Desenlace del lead sigue en el embudo.
+
+#### Refactor — Embudo alineado con Tendencia mensual
+- "Llegó a tratamiento" ahora cuenta leads únicos con procedimiento en procedure_month (antes: por leads.status, daba 0 en filtro mensual).
+- Paso "Finalizó" eliminado (3 pasos). Porcentajes calculados sobre "Agendó" (no sobre paso anterior), por mezcla de cohortes. Verificado: mayo muestra Agendó 27 · Asistió 9 · Tratamiento 5, cuadra con la barra.
+
+#### Hallazgos de auditoría (deuda abierta)
+- 7 procedimientos viejos sin performed_at: caen por cascada en mes de la cita, no del procedimiento. Backfillear si se requiere precisión.
+- 18 citas de mayo en status 'scheduled' sin cerrar (ya pasadas): la clínica no marca completed/no_show post-cita. Subcuenta asistencia e ingresos. Problema de proceso o falta flujo de cierre de citas.
+- Fuga de Cal viejo SIGUE ABIERTA: agendamientos por Cal no entran a MedScale (sin lead, sin cita, sin email/automatización). Solución pendiente: endpoint POST /api/webhooks/cal que n8n invoque, dedup por external_calendar_id=bookingId.
+
+---
+
 ### Sesión 3 Junio 2026
 
 #### CRM — Export a Excel (gated Growth+)
