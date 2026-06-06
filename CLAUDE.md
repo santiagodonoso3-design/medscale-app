@@ -209,7 +209,7 @@ const slug = resolvedParams['org-slug']
 
 **procedures: catálogo por organización, price se guarda como snapshot en leads.procedure_price al asignar**
 
-**Procedimientos y finalizados en dashboard se anclan a scheduled_at de última cita completed del lead, no a created_at**
+**Procedimientos en dashboard se anclan a `lead_procedures.performed_at` (fecha real del procedimiento), NO a la cita del lead. Si performed_at es null, cascada: última cita completed → created_at del procedimiento. Ver sección "Dashboard — anclaje de series".**
 
 **`createServiceClient()` es SÍNCRONO — no usar await**
 
@@ -337,6 +337,7 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 - `leads.procedure_id` UUID FK → procedures (null si no tiene procedimiento asignado)
 - `leads.procedure_price` INTEGER (snapshot del precio al momento de asignar el procedimiento)
 - `procedures`: id, organization_id, name TEXT, price INTEGER, is_active BOOLEAN
+- `lead_procedures`: id, organization_id, lead_id, procedure_id, procedure_price (snapshot), performed_at DATE (fecha real del procedimiento, nullable), created_at. FUENTE DE VERDAD de procedimientos en el dashboard (1 lead → N procedimientos). performed_at es tipo `date` puro: NUNCA formatear con timezone (retrocede un día). Usar fmtDateOnly, no fmtDate.
 - `org_custom_fields`: organization_id, field_name, field_label, field_type, options[], source, sort_order, active
 - `referral_codes`: code (unique, uppercase), referrer_name, referrer_email, referrer_phone, discount_type (percentage|fixed_amount), discount_value, discount_duration_months, commission_type, commission_value, commission_duration_months, max_uses, times_used, is_active, expires_at
 - `referral_uses`: referral_code_id, organization_id, discount_applied, status (active|expired|cancelled), applied_at
