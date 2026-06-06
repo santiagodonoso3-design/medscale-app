@@ -90,7 +90,7 @@ interface Metrics {
   avgMonthlyRevenue: number
   cancellationReasons: { reason: string; count: number }[]
   conversionFunnel: { key: string; label: string; count: number; pctStep: number | null; pctTotal: number }[]
-  monthlyLines: { label: string; agendadas: number; asistencias: number; procedimiento: number; finalizados: number }[]
+  monthlyLines: { label: string; agendadas: number; asistencias: number; procedimiento: number }[]
   doctorStats: {
     name: string
     total: number
@@ -209,10 +209,6 @@ function computeMetrics(
       agendadas:     appointments.filter(a => a.ym === ym).length,
       asistencias:   appointments.filter(a => a.ym === ym && a.status === 'completed').length,
       procedimiento: procedureLeads.filter(pl => pl.procedure_month === ym).length,
-      finalizados:   yearLeads.filter(l =>
-        l.status === 'finalizado' &&
-        lastCompletedYMByLead.get(l.id) === ym
-      ).length,
     }
   })
 
@@ -820,9 +816,7 @@ export function DashboardClient({
             <Bar dataKey="asistencias" name="Asistencias" fill="#10b981" radius={[3,3,0,0]}>
               <LabelList dataKey="asistencias" position="top" style={{ fontSize: 9, fill: '#10b981', fontWeight: 600 }} formatter={(v: any) => v || ''} />
             </Bar>
-            <Bar dataKey="finalizados" name="Finalizados" fill="#8b5cf6" radius={[3,3,0,0]}>
-              <LabelList dataKey="finalizados" position="top" style={{ fontSize: 9, fill: '#8b5cf6', fontWeight: 600 }} formatter={(v: any) => v || ''} />
-            </Bar>
+
             <Bar dataKey="procedimiento" name="Procedimiento" fill="#f59e0b" radius={[3,3,0,0]}>
               <LabelList dataKey="procedimiento" position="top" style={{ fontSize: 9, fill: '#f59e0b', fontWeight: 600 }} formatter={(v: any) => v || ''} />
             </Bar>
