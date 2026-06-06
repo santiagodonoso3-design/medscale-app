@@ -346,6 +346,37 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 - `automation_logs`: id, organization_id, automation_rule_id, lead_id, email_sent_to, status, sent_at
 - `automation_rules.rule_type`: followup_post_cita | noshow_recovery | procedure_followup | procedure_completed | birthday | special_date
 
+### Dashboard — anclaje de series (CRÍTICO, leer antes de tocar)
+
+Archivos: `app/(app)/dashboard/actions.ts` (fetch + cascada de fechas) y `dashboard-client.tsx` (computeMetrics + render).
+
+**Regla maestra: cada métrica se ancla a SU propia fecha del evento, no a la fecha del lead.** Las dos gráficas que muestran procedimientos (Tendencia mensual y Embudo) DEBEN leer de la misma fuente o se desincronizan.
+
+**Tendencia mensual (3 series, NO 4 — "Finalizados" se eliminó):**
+| Serie | Cuenta | Mes en que cae | Fuente |
+|---|---|---|---|
+| Agendadas | citas | scheduled_at | appointments |
+| Asistencias | citas status=completed | scheduled_at | appointments |
+| Procedimiento | procedimientos | procedure_month (= performed_at) | procedureLeads (lead_procedures) |
+
+"Finalizados" se quitó: bajo Opción B un procedimiento hecho ES el desenlace del lead, así que duplicaba la serie Procedimiento con otra fecha. El desenlace sigue visible en el Embudo.
+
+**Embudo de conversión (3 pasos, alineado con Tendencia mensual):**
+- Agendó cita = leads únicos con cita en el período (base 100%)
+- Asistió = leads únicos con cita completed en el período
+- Llegó a tratamiento = leads únicos con procedimiento cuyo procedure_month cae en el período (mismo origen que la barra Procedimiento, NO por leads.status)
+- Porcentajes: todos sobre "Agendó" (no sobre el paso anterior), porque al mezclar cohortes el % de paso pierde sentido. El embudo NO es estrictamente monotónico (tratamiento puede venir de cohortes que asistieron otro mes) — es intencional, mide actividad del mes, no cohorte.
+
+**Cascada de fecha del procedimiento (procedure_month en actions.ts):**
+1. `performed_at` si existe (YYYY-MM directo, sin timezone)
+2. última cita completed del lead (toBogotaYM)
+3. created_at del procedimiento (fallback)
+DEUDA: procedimientos viejos sin performed_at caen por la cascada (paso 2/3), lo que puede ubicarlos en el mes de la cita, no del procedimiento. Backfillear performed_at para precisión.
+
+**Ingresos (KPI + "Ingresos por mes"):** citas completed × price + suma de lead_procedures.procedure_price del mes. Procedimientos por procedure_month, igual que la barra.
+
+**Status del lead (en_tratamiento_medico, finalizado) YA NO alimenta ninguna serie del dashboard.** Sirve para el CRM/pipeline, no para métricas. No revertir a contar por status.
+
 ### Modos de asignación
 | UI label | assignment_mode | rr_count_all |
 |---|---|---|
