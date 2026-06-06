@@ -5,8 +5,6 @@ import { usePathname } from 'next/navigation'
 
 const TABS = [
   { href: '/scheduling/calendar', label: 'Calendario' },
-  { href: '/scheduling/doctors', label: 'Médicos' },
-  { href: '/scheduling/availability', label: 'Disponibilidad' },
 ]
 
 export function SchedulingTabs() {
