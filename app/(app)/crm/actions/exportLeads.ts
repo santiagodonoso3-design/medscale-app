@@ -99,7 +99,7 @@ export async function exportLeads(filters: ExportFilters): Promise<
   }
 
   const { data: fieldsData } = await admin
-    .from('org_custom_fields')
+    .from('crm_fields')
     .select('field_name, field_label, sort_order')
     .eq('organization_id', orgId)
     .eq('active', true)

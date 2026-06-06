@@ -674,7 +674,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
 
   const reloadOrgFields = async (orgId: string) => {
     const { data: fields } = await supabase
-      .from('org_custom_fields')
+      .from('crm_fields')
       .select('field_name, field_label, field_type, options')
       .eq('organization_id', orgId)
       .eq('active', true)
