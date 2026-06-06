@@ -208,10 +208,7 @@ function computeMetrics(
       label:         MONTH_LABELS[m - 1],
       agendadas:     appointments.filter(a => a.ym === ym).length,
       asistencias:   appointments.filter(a => a.ym === ym && a.status === 'completed').length,
-      procedimiento: yearLeads.filter(l =>
-        l.status === 'en_tratamiento_medico' &&
-        lastCompletedYMByLead.get(l.id) === ym
-      ).length,
+      procedimiento: procedureLeads.filter(pl => pl.procedure_month === ym).length,
       finalizados:   yearLeads.filter(l =>
         l.status === 'finalizado' &&
         lastCompletedYMByLead.get(l.id) === ym
