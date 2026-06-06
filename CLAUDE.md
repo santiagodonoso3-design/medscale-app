@@ -101,6 +101,26 @@ const resolvedParams = await params
 const slug = resolvedParams['org-slug']
 ```
 
+### Reglas de auditoría (lecciones aprendidas — 6 jun 2026)
+
+**ANTES de borrar (DROP) cualquier tabla, barrer las CINCO vías de dependencia — el grep de código NO basta:**
+1. Código TypeScript (grep de la tabla)
+2. Foreign keys entrantes (`information_schema.table_constraints`)
+3. Funciones SQL (`information_schema.routines` — buscar el nombre de la tabla en `routine_definition`)
+4. Policies RLS (`pg_policies` — buscar en `qual` y `with_check`)
+5. Triggers (`information_schema.triggers`)
+Causa: se dropeó `superadmins` sin revisar funciones; la función `is_superadmin()` la usaba y tumbó `/doctors` en producción.
+
+**Migrar el consumidor ANTES de dropear, NUNCA después.** Orden correcto: (1) arreglar/repuntar todo lo que apunta a la tabla, (2) verificar cero referencias, (3) dropear. Hacerlo al revés causa caída en producción.
+
+**Las funciones de seguridad (is_superadmin, has_role, etc.) SOLO apuntan a tablas vivas:** `platform_admins`, `auth.users`, `organization_members`. NUNCA a tablas legacy. La fuente de verdad de identidad es `auth.users` + `organization_members`.
+
+**Los campos custom del CRM se derivan del booking automáticamente vía la vista `crm_fields`.** El CRM lee de `crm_fields` (NO de `org_custom_fields` directo). La vista une: campos del booking (`appointment_form_fields`, marcados `source='form'`) + campos manuales del CRM (`org_custom_fields` con `source='crm'`). NO espejar campos a mano. Solo escribir a `org_custom_fields` para campos manuales con `source='crm'`.
+
+**Al eliminar rutas en Next.js, limpiar `.next` antes del rebuild** (`Remove-Item -Recurse -Force .next`). Saltarlo da errores falsos de tipos por caché stale.
+
+**El esquema legacy fue desmantelado (6 jun 2026):** eliminadas las tablas `users`, `lead_fields`, `lead_values`, `conversations`, `conversation_messages`, `user_permissions`, `permissions`, `locations_rooms`, `superadmins` y las funciones `has_permission`, `has_role`. NO recrearlas ni referenciarlas. Identidad = `auth.users` + `organization_members`. Custom fields = `leads.metadata` + `org_custom_fields`. Mensajes = `messages`.
+
 ### RLS (Row Level Security)
 
 - Todas las policies usan la función `get_user_org_id()`
