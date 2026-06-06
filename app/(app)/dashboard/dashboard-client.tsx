@@ -232,26 +232,19 @@ function computeMetrics(
   periodApts.forEach(a => { if (a.lead_id && a.status === 'completed') completedLeadSet.add(a.lead_id) })
   const asistioSet = new Set([...agendoSet].filter(id => completedLeadSet.has(id)))
 
-  const leadStatusById = new Map<string, string>()
-  yearLeads.forEach(l => leadStatusById.set(l.id, l.status))
-
-  const tratamientoSet = new Set([...asistioSet].filter(id => {
-    const st = leadStatusById.get(id)
-    return st === 'en_tratamiento_medico' || st === 'finalizado'
-  }))
-  const finalizoSet = new Set([...tratamientoSet].filter(id => leadStatusById.get(id) === 'finalizado'))
+  // Tratamiento: leads únicos con procedimiento en el período (misma fuente que la barra Procedimiento)
+  const tratamientoSet = new Set<string>()
+  periodProcLeads.forEach(pl => { if (pl.lead_id) tratamientoSet.add(pl.lead_id) })
 
   const agendo      = agendoSet.size
   const asistio     = asistioSet.size
   const tratamiento = tratamientoSet.size
-  const finalizo    = finalizoSet.size
   const funnelBase  = agendo || 1
 
   const conversionFunnel = [
-    { key: 'agendo',      label: 'Agendó cita',         count: agendo,      pctStep: null,                                               pctTotal: 100 },
-    { key: 'asistio',     label: 'Asistió',             count: asistio,     pctStep: Math.round((asistio     / (agendo      || 1)) * 100), pctTotal: Math.round((asistio     / funnelBase) * 100) },
-    { key: 'tratamiento', label: 'Llegó a tratamiento', count: tratamiento, pctStep: Math.round((tratamiento / (asistio     || 1)) * 100), pctTotal: Math.round((tratamiento / funnelBase) * 100) },
-    { key: 'finalizo',    label: 'Finalizó',            count: finalizo,    pctStep: Math.round((finalizo    / (tratamiento || 1)) * 100), pctTotal: Math.round((finalizo    / funnelBase) * 100) },
+    { key: 'agendo',      label: 'Agendó cita',         count: agendo,      pctStep: null, pctTotal: 100 },
+    { key: 'asistio',     label: 'Asistió',             count: asistio,     pctStep: Math.round((asistio     / funnelBase) * 100), pctTotal: Math.round((asistio     / funnelBase) * 100) },
+    { key: 'tratamiento', label: 'Llegó a tratamiento', count: tratamiento, pctStep: Math.round((tratamiento / funnelBase) * 100), pctTotal: Math.round((tratamiento / funnelBase) * 100) },
   ]
 
   // Doctor stats
