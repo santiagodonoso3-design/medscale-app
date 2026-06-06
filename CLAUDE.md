@@ -205,6 +205,22 @@ _(cobro manual desde superadmin por ahora — sin tareas activas)_
 
 ---
 
+## 🕒 Deuda técnica diferida (con trigger)
+
+Pendientes que NO se atacan ahora a propósito — cada uno tiene un trigger que indica cuándo dejar de ignorarlo. Anotados en la auditoría del 6 jun 2026.
+
+- [ ] **Escala de automatizaciones birthday/special_date.** Hoy cargan TODOS los leads de la org en memoria y filtran cumpleaños en JS. Trivial a cientos de leads. **Trigger: cuando una org supere ~5k leads.** Fix: normalizar formato de cumpleaños en metadata + índice funcional + filtrar por mes/día en SQL. ~1-2h. No antes.
+
+- [ ] **Barrido de código huérfano con knip.** Detecta archivos/exports/dependencias que nadie usa (lo que hoy cazamos a mano). **Trigger: sesión de auditoría periódica.** Requiere crear knip.json con config de Next.js ANTES de correrlo (Next carga page/layout/route/middleware por convención, no por import — sin la config los marca como falsos positivos). Knip solo reporta, no borra: verificar cada candidato con grep antes de eliminar.
+
+- [ ] **ESLint duro (bloqueo automático).** Hoy la verificación de reglas es el script manual check-rules.ps1 (avisa, no bloquea). **Trigger: si el script manual deja de bastar** — más devs en el proyecto, o se quiere que el build FALLE ante un patrón prohibido en vez de solo avisar. Riesgo: crear config ESLint en Next.js 15 sin config previa puede romper el build; hacerlo con cabeza fresca, no al final de una sesión.
+
+- [ ] **Cinturón redundante de organization_id en cron de reminders.** app/api/cron/reminders/route.ts aísla por tenant de forma IMPLÍCITA (vía appointment_type_id, que es único por org). Funciona, pero es frágil si algún día un tipo de cita se comparte entre orgs. **Trigger: antes de permitir tipos de cita compartidos, o en próxima refactor del cron.** Fix: agregar .eq('organization_id', notif.organization_id) explícito como cinturón redundante.
+
+- [ ] **Backfill de performed_at en procedimientos viejos.** Procedimientos sin performed_at caen por cascada al mes de la cita, no del procedimiento — puede descuadrar el mes en dashboard. **Trigger: si se requiere precisión histórica exacta en métricas de procedimientos.** Fix: backfillear performed_at desde la última cita completed del lead.
+
+---
+
 ## 🏗️ Decisiones Técnicas
 
 ### Arquitectura
