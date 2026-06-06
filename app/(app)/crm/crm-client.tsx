@@ -200,6 +200,13 @@ const fmtDate = (iso: string) =>
     day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Bogota',
   }).format(new Date(iso))
 
+const fmtDateOnly = (dateStr: string) => {
+  const [y, mo, d] = dateStr.slice(0, 10).split('-').map(Number)
+  return new Intl.DateTimeFormat('es-CO', {
+    day: 'numeric', month: 'short', year: 'numeric',
+  }).format(new Date(y, mo - 1, d))
+}
+
 const fmtDateTime = (iso: string) =>
   new Intl.DateTimeFormat('es-CO', {
     weekday: 'short', day: 'numeric', month: 'short',
@@ -1472,7 +1479,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
                             <p className="text-sm font-medium text-slate-700">{lp.procedure?.name ?? 'Procedimiento'}</p>
                             <p className="text-xs text-slate-500">
                               {formatCOP(lp.procedure_price)}
-                              {lp.performed_at ? ` · ${fmtDate(lp.performed_at)}` : ''}
+                              {lp.performed_at ? ` · ${fmtDateOnly(lp.performed_at)}` : ''}
                             </p>
                           </div>
                           {!readOnly && (
