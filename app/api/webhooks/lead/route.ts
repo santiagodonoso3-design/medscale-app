@@ -65,6 +65,15 @@ export async function POST(request: Request) {
       return jsonResponse({ success: false, error: 'Organización no encontrada' }, 404)
     }
 
+    const cleanCustomFields =
+      custom_fields && typeof custom_fields === 'object'
+        ? Object.fromEntries(
+            Object.entries(custom_fields).filter(
+              ([, value]) => value !== null && value !== undefined && value !== ''
+            )
+          )
+        : {}
+
     const { data: lead, error: leadError } = await supabase
       .from('leads')
       .insert({
@@ -75,6 +84,7 @@ export async function POST(request: Request) {
         source: normalizedSource,
         notes: notes || null,
         status: 'contactado',
+        metadata: cleanCustomFields,
       })
       .select('id')
       .single()
@@ -82,71 +92,6 @@ export async function POST(request: Request) {
     if (leadError || !lead) {
       console.error('Lead create error', leadError)
       return jsonResponse({ success: false, error: leadError?.message || 'Error creando lead' }, 500)
-    }
-
-    if (custom_fields && typeof custom_fields === 'object') {
-      const customEntries = Object.entries(custom_fields).filter(
-        ([, value]) => value !== null && value !== undefined && value !== ''
-      )
-
-      if (customEntries.length > 0) {
-        const fieldNames = customEntries.map(([key]) => key)
-        const { data: existingFields } = await supabase
-          .from('lead_fields')
-          .select('id, name')
-          .eq('organization_id', org_id)
-          .in('name', fieldNames)
-
-        const existingMap = new Map<string, string>()
-        ;(existingFields || []).forEach((field: any) => {
-          existingMap.set(field.name, field.id)
-        })
-
-        const inserts: Array<{ lead_id: string; lead_field_id: string; value: string }> = []
-
-        for (const [key, value] of customEntries) {
-          let leadFieldId = existingMap.get(key)
-
-          if (!leadFieldId) {
-            const { data: createdField, error: createFieldError } = await supabase
-              .from('lead_fields')
-              .insert({
-                organization_id: org_id,
-                name: key,
-                field_type: 'text',
-                required: false,
-                options: [],
-                order_index: 0,
-                metadata: { created_by: 'webhook' },
-              })
-              .select('id')
-              .single()
-
-            if (createFieldError || !createdField) {
-              console.error('Lead field create error', createFieldError)
-              continue
-            }
-            leadFieldId = createdField.id
-          }
-
-          if (!leadFieldId) {
-            continue
-          }
-
-          inserts.push({
-            lead_id: lead.id,
-            lead_field_id: leadFieldId,
-            value: String(value),
-          })
-        }
-
-        if (inserts.length > 0) {
-          const { error: leadValuesError } = await supabase.from('lead_values').insert(inserts)
-          if (leadValuesError) {
-            console.error('Lead values insert error', leadValuesError)
-          }
-        }
-      }
     }
 
     return jsonResponse({ success: true, lead_id: lead.id }, 201)
