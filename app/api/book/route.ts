@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resend } from '@/lib/email/resend'
 import { bookingConfirmationPatient, bookingNotificationDoctor, bookingNotificationClinic } from '@/lib/email/templates'
 import { createGoogleCalendarEvent } from '@/lib/google/calendar'
+import { logAppointmentEvent } from '@/lib/appointments/log-event'
 
 const supabasePublic = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -286,6 +287,13 @@ export async function POST(request: Request) {
       return jsonResponse({ success: false, error: appointmentError?.message || 'Error creando cita' }, 500)
     }
 
+    await logAppointmentEvent({
+      appointmentId: appointment.id,
+      eventType: 'created',
+      actorType: 'patient',
+      note: 'Cita agendada por el paciente',
+      metadata: { modality: modality ?? 'presencial', source: 'book' },
+    })
 
     // ── Create Google Calendar event (non-blocking) ───────────────────────────
     if (selectedDoctorId) {
@@ -350,6 +358,14 @@ export async function POST(request: Request) {
           }),
         ])
         results.forEach(r => { if (r.status === 'rejected') console.error('[email] failed:', r.reason) })
+        const patientEmailOk = results.every(r => r.status === 'fulfilled')
+        await logAppointmentEvent({
+          appointmentId: appointment.id,
+          eventType: patientEmailOk ? 'email_patient_sent' : 'email_failed',
+          actorType: 'system',
+          note: patientEmailOk ? `Correo de confirmación enviado a ${email}` : `Falló el envío del correo al paciente (${email})`,
+          metadata: { channel: 'email', email_to: email, recipient: 'patient' },
+        })
       }
 
       // Build field_name → field_label map for readable custom field keys
@@ -393,6 +409,14 @@ export async function POST(request: Request) {
           }),
         ])
         clinicResults.forEach(r => { if (r.status === 'rejected') console.error('[email:clinic] failed:', r.reason) })
+        const clinicEmailOk = clinicResults.every(r => r.status === 'fulfilled')
+        await logAppointmentEvent({
+          appointmentId: appointment.id,
+          eventType: clinicEmailOk ? 'email_clinic_sent' : 'email_failed',
+          actorType: 'system',
+          note: clinicEmailOk ? `Notificación enviada a la clínica (${clinicEmailList.join(', ')})` : 'Falló el envío de la notificación a la clínica',
+          metadata: { channel: 'email', email_to: clinicEmailList, recipient: 'clinic' },
+        })
       }
     }
 
