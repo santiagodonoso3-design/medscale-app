@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { resend } from '@/lib/email/resend'
 import { cancellationEmail, rescheduleEmail } from '@/lib/email/templates'
+import { logAppointmentEvent } from '@/lib/appointments/log-event'
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -71,11 +72,11 @@ export async function PATCH(request: Request) {
         .eq('id', apt.id)
       if (updErr) return json({ success: false, error: updErr.message }, 500)
 
-      await admin.from('appointment_logs').insert({
-        appointment_id: apt.id,
-        event_type: 'rescheduled',
+      await logAppointmentEvent({
+        appointmentId: apt.id,
+        eventType: 'rescheduled',
+        actorType: 'patient',
         note: 'Reagendado por el paciente',
-        performed_by: null,
       })
 
       if (patientEmail && process.env.RESEND_API_KEY) {
@@ -122,11 +123,11 @@ export async function PATCH(request: Request) {
         await admin.from('leads').update({ status: 'cancelo_cita' }).eq('id', cancelLeadId)
       }
 
-      await admin.from('appointment_logs').insert({
-        appointment_id: apt.id,
-        event_type: 'cancelled',
+      await logAppointmentEvent({
+        appointmentId: apt.id,
+        eventType: 'cancelled',
+        actorType: 'patient',
         note: cancel_reason.trim(),
-        performed_by: 'patient',
       })
 
       const feedbackUrl = apt.manage_token ? `https://app.medscale.app/appointment/${apt.manage_token}/feedback` : undefined

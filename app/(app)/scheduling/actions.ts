@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { resend } from '@/lib/email/resend'
 import { cancellationEmail, rescheduleEmail, noShowFollowUpEmail } from '@/lib/email/templates'
 import { deleteGoogleCalendarEvent } from '@/lib/google/calendar'
+import { logAppointmentEvent } from '@/lib/appointments/log-event'
 
 // ── Email helper (fire-and-forget, never throws) ──────────────────────────────
 
@@ -112,14 +113,13 @@ export async function logCancellation(
   reason: string,
   userId: string | null
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { error } = await supabase.from('appointment_logs').insert({
-    appointment_id: appointmentId,
-    event_type: 'cancelled',
+  await logAppointmentEvent({
+    appointmentId,
+    eventType: 'cancelled',
+    actorType: userId ? 'staff' : 'system',
+    performedBy: userId,
     note: reason,
-    performed_by: userId ?? null,
   })
-  if (error) return { error: error.message }
   return {}
 }
 

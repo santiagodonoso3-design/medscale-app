@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase/server'
+import { logAppointmentEvent } from '@/lib/appointments/log-event'
 
 function json(payload: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -30,11 +31,11 @@ export async function POST(request: Request) {
     }).eq('id', apt.id)
 
     // Log the feedback
-    await admin.from('appointment_logs').insert({
-      appointment_id: apt.id,
-      event_type:     'feedback',
-      note:           reason.trim(),
-      performed_by:   'patient',
+    await logAppointmentEvent({
+      appointmentId: apt.id,
+      eventType: 'feedback',
+      actorType: 'patient',
+      note: reason.trim(),
     })
 
     return json({ success: true })
