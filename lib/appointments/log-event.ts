@@ -11,6 +11,8 @@ export type AppointmentEventType =
   | 'email_clinic_sent'
   | 'email_doctor_sent'
   | 'email_failed'
+  | 'calendar_event_created'
+  | 'calendar_failed'
 
 export type ActorType = 'patient' | 'staff' | 'system'
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, CalendarPlus, CalendarClock, XCircle, CheckCircle, Mail, MailX, MessageSquare, Clock } from 'lucide-react'
+import { ChevronDown, CalendarPlus, CalendarClock, CalendarX2, XCircle, CheckCircle, Mail, MailX, MessageSquare, Clock } from 'lucide-react'
 import { getAppointmentLogs, type AppointmentLogEntry } from '@/app/(app)/scheduling/actions'
 
 // Mapeo event_type -> texto legible en español. Vive en el front: cambiar textos NO requiere migración.
@@ -15,7 +15,9 @@ const EVENT_CONFIG: Record<string, { label: string; Icon: typeof Mail; tone: 'no
   email_patient_sent: { label: 'Correo de confirmación al paciente',  Icon: Mail,          tone: 'normal' },
   email_clinic_sent:  { label: 'Notificación enviada a la clínica',   Icon: Mail,          tone: 'normal' },
   email_doctor_sent:  { label: 'Notificación enviada al médico',      Icon: Mail,          tone: 'normal' },
-  email_failed:       { label: 'Falló el envío de un correo',         Icon: MailX,         tone: 'error' },
+  email_failed:           { label: 'Falló el envío de un correo',         Icon: MailX,         tone: 'error' },
+  calendar_event_created: { label: 'Evento agregado al calendario',        Icon: CalendarPlus,  tone: 'normal' },
+  calendar_failed:        { label: 'Falló la creación del evento',         Icon: CalendarX2,    tone: 'error' },
 }
 
 function actorLabel(actorType: string | null, actorName: string | null): string {

@@ -305,12 +305,25 @@ export async function POST(request: Request) {
           startIso:      scheduledAt.toISOString(),
           endsIso:       endDate.toISOString(),
           attendeeEmail: email ?? null,
-        }).then(eventId => {
+        }).then(async eventId => {
           if (eventId) {
-            supabase.from('appointments')
+            await supabase.from('appointments')
               .update({ external_calendar_id: eventId })
               .eq('id', appointment.id)
-              .then(() => {})
+            await logAppointmentEvent({
+              appointmentId: appointment.id,
+              eventType: 'calendar_event_created',
+              actorType: 'system',
+              note: 'Evento agregado al Google Calendar del médico',
+              metadata: { calendar_event_id: eventId },
+            })
+          } else {
+            await logAppointmentEvent({
+              appointmentId: appointment.id,
+              eventType: 'calendar_failed',
+              actorType: 'system',
+              note: 'No se pudo crear el evento en Google Calendar',
+            })
           }
         }),
       ]).catch(() => {})
