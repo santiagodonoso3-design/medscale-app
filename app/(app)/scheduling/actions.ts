@@ -165,6 +165,17 @@ export async function updateAppointmentStatus(
       await admin.from('leads').update({ status: leadStatus }).eq('id', apt.lead_id)
     }
 
+    // Loguear el cambio de status en el timeline de auditoría
+    if (status === 'completed' || status === 'no_show') {
+      await logAppointmentEvent({
+        appointmentId: id,
+        eventType: status,
+        actorType: 'staff',
+        performedBy: user.id,
+        note: status === 'completed' ? 'Cita marcada como completada' : 'Cita marcada como no asistió',
+      })
+    }
+
     // Send no-show follow-up email
     if (status === 'no_show' && process.env.RESEND_API_KEY && apt) {
       Promise.allSettled([

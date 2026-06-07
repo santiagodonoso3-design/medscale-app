@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, Search, X, Loader2, CalendarDays, List, ChevronLeft, ChevronRight, ChevronDown, CheckCircle, XCircle, Calendar } from 'lucide-react'
 import { CalendarPicker, type ScheduleOption } from '@/components/shared/CalendarPicker'
+import { AppointmentActivity } from '@/components/scheduling/appointment-activity'
 import {
   cancelAppointment,
   updateAppointmentNotes,
@@ -1430,6 +1431,8 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
                   )}
                 </div>
               )}
+
+              <AppointmentActivity appointmentId={selected.id} />
             </div>
           </div>
         </div>
