@@ -236,3 +236,60 @@ export async function rescheduleAppointment(
 
   return {}
 }
+
+export type AppointmentLogEntry = {
+  id: string
+  eventType: string
+  actorType: string | null
+  actorName: string | null
+  note: string | null
+  metadata: Record<string, unknown> | null
+  createdAt: string
+}
+
+export async function getAppointmentLogs(
+  appointmentId: string
+): Promise<{ logs?: AppointmentLogEntry[]; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  // RLS valida que la cita pertenezca a la org del usuario via join a appointments
+  const { data, error } = await supabase
+    .from('appointment_logs')
+    .select('id, event_type, actor_type, note, metadata, performed_by, created_at')
+    .eq('appointment_id', appointmentId)
+    .order('created_at', { ascending: true })
+
+  if (error) return { error: error.message }
+
+  // Resolver nombres de staff (performed_by → doctors.metadata.name o email)
+  const admin = createServiceClient()
+  const staffIds = [...new Set((data ?? [])
+    .filter(r => r.actor_type === 'staff' && r.performed_by)
+    .map(r => r.performed_by as string))]
+
+  const nameById: Record<string, string> = {}
+  if (staffIds.length > 0) {
+    const { data: docs } = await admin
+      .from('doctors')
+      .select('user_id, metadata')
+      .in('user_id', staffIds)
+    for (const d of docs ?? []) {
+      const nm = (d.metadata as Record<string, unknown> | null)?.name
+      if (d.user_id && nm) nameById[d.user_id as string] = String(nm)
+    }
+  }
+
+  const logs: AppointmentLogEntry[] = (data ?? []).map(r => ({
+    id: r.id as string,
+    eventType: r.event_type as string,
+    actorType: (r.actor_type as string | null) ?? null,
+    actorName: r.performed_by ? (nameById[r.performed_by as string] ?? null) : null,
+    note: (r.note as string | null) ?? null,
+    metadata: (r.metadata as Record<string, unknown> | null) ?? null,
+    createdAt: r.created_at as string,
+  }))
+
+  return { logs }
+}
