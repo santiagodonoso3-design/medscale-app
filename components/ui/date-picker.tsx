@@ -63,6 +63,10 @@ export function DatePicker({
               onChange(date ? toISO(date) : '')
               setOpen(false)
             }}
+            captionLayout="dropdown"
+            startMonth={new Date(1920, 0)}
+            endMonth={new Date(new Date().getFullYear() + 1, 11)}
+            defaultMonth={selected ?? new Date(1990, 0)}
             className="rdp-medscale"
           />
         </div>
