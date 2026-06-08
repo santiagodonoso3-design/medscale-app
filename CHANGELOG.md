@@ -3,6 +3,58 @@
 
 ---
 
+### Sesión 6-8 Junio 2026 — Auditoría de limpieza + desmantelamiento de esquema legacy + demo
+
+#### Contexto
+Auditoría exhaustiva enfocada en código limpio y coherencia de datos. Eje: separar capa invariante (reglas iguales para todo tenant) de capa configurable (variables por cliente). Resultado: cero clientes hardcodeados, multi-tenancy verificado consistente, esquema legacy completo eliminado.
+
+#### Campos custom unificados (booking → CRM)
+- CRM ahora lee de la vista `crm_fields` (NO de `org_custom_fields` directo). La vista une campos del booking (`appointment_form_fields`, source='form') + campos manuales del CRM (`org_custom_fields` source='crm'). Defines en el tipo de cita → aparece en CRM solo, para todo cliente. Eliminado el espejo manual por SQL.
+- `crm-client.tsx` y `exportLeads.ts` migrados a leer de `crm_fields`.
+- Limpiados los `source='form'` muertos en `org_custom_fields` (espejos viejos). `tipo-identificacion` de Ferttes salvado a source='crm' antes del DELETE (era huérfano, solo existía en org_custom_fields).
+- `crm_fields` migrada a WITH (security_invoker = true) — fix del linter de Supabase (CRITICAL). Antes la vista corría como SECURITY DEFINER y podía saltarse el RLS de aislamiento por tenant. Ahora respeta el RLS del usuario (get_user_org_id).
+
+#### Esquema legacy desmantelado
+- Dropeadas 9 tablas legacy (vacías, sin escritores vivos, verificadas por las 5 vías): `users`, `superadmins`, `lead_fields`, `lead_values`, `conversations`, `conversation_messages`, `permissions`, `user_permissions`, `locations_rooms`.
+- Dropeadas funciones huérfanas `has_permission`, `has_role` (leían tablas legacy, no usadas en policies).
+- Identidad = `auth.users` + `organization_members`. Custom fields = `leads.metadata` + `org_custom_fields`. Mensajes = `messages`. NO recrear tablas legacy.
+
+#### Incidente y fix — is_superadmin
+- Dropear `superadmins` tumbó /doctors en ambos clientes: la función `is_superadmin()` la consultaba y el grep de código TypeScript no la detectó (vivía en la DB).
+- Fix: `is_superadmin()` repuntada de `superadmins` a `platform_admins`. Las ~30 RLS policies que la usan volvieron a evaluar bien.
+- LECCIÓN: antes de dropear cualquier tabla, barrer las 5 vías — código, FKs, funciones (information_schema.routines), policies (pg_policies), triggers. Migrar el consumidor ANTES de dropear, nunca después.
+
+#### appointment_logs — logging de cancelaciones arreglado de raíz
+- Bug: 174 cancelaciones históricas, 0 registros en appointment_logs. Doble causa: FK performed_by apuntaba a tabla legacy `users` (13 de 16 user IDs de auth.users no existían ahí, FK rechazaba el insert) Y el código metía el string 'patient' en una columna uuid (feedback/route.ts:37, manage/route.ts:129).
+- Fix: FK performed_by repuntada a auth.users con ON DELETE SET NULL. Verificado: cancelación de prueba ahora registra. Histórico perdido no recuperable.
+
+#### Webhook de leads reescrito
+- `/api/webhooks/lead` escribía custom_fields a tablas legacy (lead_fields/lead_values, vacías, nunca usadas). Reescrito para guardar en `leads.metadata` (modelo v2). Confirmado: ningún flujo n8n lo usaba (solo /api/conversations/webhook está activo).
+
+#### Limpieza de rutas y código muerto
+- `/scheduling/availability` y `/scheduling/doctors` → redirects a /doctors/availability y /doctors (eran duplicados de la migración). /scheduling/doctors además no validaba permisos (agujero de seguridad cerrado).
+- /setup eliminada (código muerto: createFirstSuperadmin autodeshabilitado, escribía a users legacy).
+- app/actions/settings.ts: getOrgSettings consolidado al helper createClient() (eliminadas ~15 líneas duplicadas).
+- scheduling-tabs.tsx: reducido a solo el tab Calendario.
+
+#### Guardrails (anti-acumulación de basura)
+- Nueva sección "Reglas de auditoría" en CLAUDE.md con las lecciones aprendidas.
+- Script check-rules.ps1 en la raíz: verifica patrones prohibidos (await createServiceClient, clientes hardcodeados) antes de pushear. Correr con .\check-rules.ps1
+- Pendientes anotados con trigger en sección "Deuda técnica diferida": escala birthday/special_date (>5k leads), knip para huérfanos, ESLint duro.
+
+#### Demo — Clínica Aurora Estética
+- Org demo creada (org_id: fd9ef9af-342f-458f-94ec-4dc99898a874, slug: clinica-aurora, plan clinica, metadata is_demo=true).
+- Owner demo: demo@medscale.app. 2 médicos, 2 tipos de cita con 3 campos custom, 5 procedimientos.
+- Data del año generada por SQL: ~213 leads, ~179 citas, ~100 procedimientos. Curva de ingresos en sierra ascendente (~30M/mes promedio, ene 18M → jun 42M).
+- Script de rejuvenecer (empuja todas las fechas de Aurora +N días) para mantener el demo fresco todo el año. Correr las 3 sentencias por separado cuando el calendario se vea viejo.
+
+#### LECCIONES técnicas clave
+- Editor de Supabase: NUNCA correr BEGIN/COMMIT con múltiples sentencias — no persiste confiable (un SELECT dentro de la transacción mostró data que el COMMIT no guardó). Correr sentencias solas.
+- Dashboard de Next.js cachea: tras insertar data, recargar duro (Ctrl+Shift+R) o no se ven los cambios.
+- procedure_price es snapshot: subir precios en el catálogo NO actualiza procedimientos ya registrados.
+
+---
+
 ### Sesión 6 Junio 2026 — Refactor anclaje de procedimientos en dashboard
 
 #### Contexto
