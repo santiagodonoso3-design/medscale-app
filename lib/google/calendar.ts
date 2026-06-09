@@ -1,3 +1,5 @@
+import { logAppointmentEvent } from '@/lib/appointments/log-event'
+
 interface CalendarEventParams {
   doctorId: string
   summary: string
@@ -5,9 +7,15 @@ interface CalendarEventParams {
   startIso: string
   endsIso: string
   attendeeEmail?: string | null
+  appointmentId?: string
 }
 
-async function refreshAccessToken(token: any): Promise<string> {
+interface RefreshResult {
+  accessToken: string
+  expiresInSec: number
+}
+
+async function refreshAccessToken(token: any): Promise<RefreshResult> {
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -19,12 +27,38 @@ async function refreshAccessToken(token: any): Promise<string> {
     }),
   })
   const data = await res.json()
-  return data.access_token
+  if (!res.ok || !data.access_token) {
+    throw new Error(`refresh_failed: ${res.status} ${data.error ?? 'unknown'}`)
+  }
+  return {
+    accessToken:  data.access_token,
+    expiresInSec: data.expires_in ?? 3600,
+  }
+}
+
+async function getValidAccessToken(
+  token: any,
+  doctorId: string,
+  admin: any,
+): Promise<string> {
+  if (Date.now() > token.expiry_date - 60000) {
+    const { accessToken, expiresInSec } = await refreshAccessToken(token)
+    await admin.from('doctors').update({
+      google_calendar_token: {
+        ...token,
+        access_token: accessToken,
+        expiry_date:  Date.now() + expiresInSec * 1000,
+      },
+    }).eq('id', doctorId)
+    return accessToken
+  }
+  return token.access_token as string
 }
 
 export async function createGoogleCalendarEvent(
   params: CalendarEventParams
 ): Promise<string | null> {
+  let calendarId = 'primary'
   try {
     const { createServiceClient } = await import('@/lib/supabase/server')
     const admin = createServiceClient()
@@ -39,24 +73,22 @@ export async function createGoogleCalendarEvent(
 
     if (!doctor?.google_calendar_token) {
       console.log('[google/calendar] no token found for doctor:', params.doctorId)
+      if (params.appointmentId) {
+        await logAppointmentEvent({
+          appointmentId: params.appointmentId,
+          eventType:     'calendar_failed',
+          actorType:     'system',
+          note:          'Doctor no tiene Google Calendar conectado',
+          metadata:      { reason: 'no_token', calendar_id: null },
+        })
+      }
       return null
     }
 
     const token = doctor.google_calendar_token as any
-    let accessToken = token.access_token
+    calendarId = doctor.google_calendar_id ?? 'primary'
+    const accessToken = await getValidAccessToken(token, params.doctorId, admin)
 
-    if (Date.now() > token.expiry_date - 60000) {
-      accessToken = await refreshAccessToken(token)
-      await admin.from('doctors').update({
-        google_calendar_token: {
-          ...token,
-          access_token: accessToken,
-          expiry_date:  Date.now() + 3600000,
-        }
-      }).eq('id', params.doctorId)
-    }
-
-    const calendarId = doctor.google_calendar_id ?? 'primary'
     console.log('[google/calendar] got token, calendarId:', calendarId)
 
     const event: any = {
@@ -73,7 +105,7 @@ export async function createGoogleCalendarEvent(
     const res = await fetch(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?sendUpdates=all`,
       {
-        method: 'POST',
+        method:  'POST',
         headers: {
           Authorization:  `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
@@ -85,14 +117,42 @@ export async function createGoogleCalendarEvent(
     console.log('[google/calendar] event response status:', res.status)
     const data = await res.json()
     console.log('[google/calendar] event response data:', JSON.stringify(data))
+
     if (data.id) {
       console.log('[google/calendar] event created:', data.id)
       return data.id
     }
+
     console.error('[google/calendar] create failed:', data)
+    if (params.appointmentId) {
+      await logAppointmentEvent({
+        appointmentId: params.appointmentId,
+        eventType:     'calendar_failed',
+        actorType:     'system',
+        note:          'Google Calendar API rechazó la creación del evento',
+        metadata:      {
+          reason:       'api_rejected',
+          http_status:  res.status,
+          google_error: data.error?.message ?? data.error ?? null,
+          calendar_id:  calendarId,
+        },
+      })
+    }
     return null
-  } catch (e) {
+  } catch (e: any) {
     console.error('[google/calendar] fatal error:', e)
+    if (params.appointmentId) {
+      await logAppointmentEvent({
+        appointmentId: params.appointmentId,
+        eventType:     'calendar_failed',
+        actorType:     'system',
+        note:          'Excepción al crear evento en Google Calendar',
+        metadata:      {
+          reason:      e?.message ?? 'unknown_exception',
+          calendar_id: calendarId,
+        },
+      }).catch(() => {})
+    }
     return null
   }
 }
@@ -115,23 +175,11 @@ export async function getGoogleCalendarBusy(
     if (!doctor?.google_calendar_token) return []
 
     const token = doctor.google_calendar_token as any
-    let accessToken = token.access_token
-
-    if (Date.now() > token.expiry_date - 60000) {
-      accessToken = await refreshAccessToken(token)
-      await admin.from('doctors').update({
-        google_calendar_token: {
-          ...token,
-          access_token: accessToken,
-          expiry_date:  Date.now() + 3600000,
-        }
-      }).eq('id', doctorId)
-    }
-
+    const accessToken = await getValidAccessToken(token, doctorId, admin)
     const calendarId = doctor.google_calendar_id ?? 'primary'
 
     const res = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
-      method: 'POST',
+      method:  'POST',
       headers: {
         Authorization:  `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
@@ -140,7 +188,7 @@ export async function getGoogleCalendarBusy(
         timeMin,
         timeMax,
         timeZone: 'America/Bogota',
-        items: [{ id: calendarId }],
+        items:    [{ id: calendarId }],
       }),
     })
 
@@ -170,18 +218,13 @@ export async function deleteGoogleCalendarEvent(
     if (!doctor?.google_calendar_token) return
 
     const token = doctor.google_calendar_token as any
-    let accessToken = token.access_token
-
-    if (Date.now() > token.expiry_date - 60000) {
-      accessToken = await refreshAccessToken(token)
-    }
-
+    const accessToken = await getValidAccessToken(token, doctorId, admin)
     const calendarId = doctor.google_calendar_id ?? 'primary'
 
     await fetch(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`,
       {
-        method: 'DELETE',
+        method:  'DELETE',
         headers: { Authorization: `Bearer ${accessToken}` },
       }
     )
