@@ -93,6 +93,7 @@ export default async function BookTypePage({ params }: PageProps) {
           assignment_mode:  appointmentType.assignment_mode as 'one_on_one' | 'round_robin_proportional' | 'round_robin_availability' | 'hybrid' | undefined,
           price_presencial: appointmentType.price_presencial ?? null,
           price_virtual:    appointmentType.price_virtual    ?? null,
+          min_notice_hours:  appointmentType.min_notice_hours ?? 0,
           max_notice_days:   appointmentType.max_notice_days ?? null,
           buffer_before_min: appointmentType.buffer_before_min ?? 0,
           buffer_after_min:  appointmentType.buffer_after_min ?? 0,
