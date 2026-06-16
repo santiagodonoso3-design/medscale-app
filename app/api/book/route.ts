@@ -66,6 +66,38 @@ export async function POST(request: Request) {
       return jsonResponse({ success: false, error: 'Organización no encontrada' }, 404)
     }
 
+    // ── Enforce booking notice window (min/max) ──────────────────────────
+    if (appointment_type_id) {
+      const { data: noticeType, error: noticeErr } = await supabase
+        .from('appointment_types')
+        .select('min_notice_hours, max_notice_days')
+        .eq('id', appointment_type_id)
+        .single()
+
+      if (noticeErr) {
+        console.error('[/api/book] notice window fetch error:', noticeErr)
+      } else if (noticeType) {
+        const requestedAt = new Date(`${date}T${time}:00-05:00`)
+        const now = new Date()
+
+        const minHours = noticeType.min_notice_hours ?? 0
+        if (minHours > 0 && requestedAt < new Date(now.getTime() + minHours * 3600 * 1000)) {
+          return jsonResponse(
+            { success: false, error: `Esta cita requiere agendarse con al menos ${minHours} horas de anticipación.` },
+            400
+          )
+        }
+
+        const maxDays = noticeType.max_notice_days ?? 0
+        if (maxDays > 0 && requestedAt > new Date(now.getTime() + maxDays * 24 * 3600 * 1000)) {
+          return jsonResponse(
+            { success: false, error: `Esta cita no puede agendarse con más de ${maxDays} días de anticipación.` },
+            400
+          )
+        }
+      }
+    }
+
     // ── Assign doctor ─────────────────────────────────────────────────────────
     const bodyDoctorId: string | null = doctor_id ?? null  // original value from request
     let selectedDoctorId: string | null = bodyDoctorId
