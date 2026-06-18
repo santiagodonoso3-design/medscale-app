@@ -10,5 +10,5 @@ export default async function CrmServerPage() {
   const perms = getUserPermissions(session.role, session.permissions)
   if (!canAccess(perms, 'crm')) redirect(getFirstAccessibleRoute(perms))
 
-  return <CrmPage readOnly={!canEdit(perms, 'crm')} />
+  return <CrmPage readOnly={!canEdit(perms, 'crm')} orgId={session.orgId} />
 }

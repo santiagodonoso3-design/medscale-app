@@ -559,7 +559,7 @@ function KanbanView({
 
 // ── CrmPage ───────────────────────────────────────────────────────────────────
 
-export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
+export default function CrmPage({ readOnly = false, orgId }: { readOnly?: boolean; orgId: string }) {
   const [leads,          setLeads]          = useState<Lead[]>([])
   const [isLoading,      setIsLoading]      = useState(true)
   const [isModalOpen,    setIsModalOpen]    = useState(false)
@@ -638,9 +638,6 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       setCurrentUserId(user.id)
-      const { data: member } = await supabase
-        .from('organization_members').select('organization_id').eq('user_id', user.id).single()
-      const orgId = member?.organization_id ?? null
       setOrganizationId(orgId)
       if (orgId) {
         const { data: orgData } = await supabase
@@ -688,12 +685,14 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
       const { data, error: err } = await supabase
         .from('leads')
         .select('id, contact_name, contact_last_name, contact_phone, contact_email, contact_cedula, source, status, notes, metadata, procedure_id, procedure_price, created_at, updated_at')
+        .eq('organization_id', orgId)
         .order('created_at', { ascending: false })
       if (err) { setError('Error cargando leads'); return }
       const normalized = (data ?? []).map(l => ({ ...l, status: STATUS_NORMALIZE[l.status] ?? l.status }))
       setLeads(normalized)
       if (normalized.length > 0) {
         const { data: aptData } = await supabase.from('appointments').select('lead_id')
+          .eq('organization_id', orgId)
           .in('lead_id', normalized.map(l => l.id))
         const counts: Record<string, number> = {}
         for (const a of (aptData ?? [])) {
@@ -828,6 +827,7 @@ export default function CrmPage({ readOnly = false }: { readOnly?: boolean }) {
     const { data } = await supabase
       .from('appointments')
       .select('id, scheduled_at, status, notes, doctor:doctor_id(metadata)')
+      .eq('organization_id', orgId)
       .eq('lead_id', lead.id).order('scheduled_at', { ascending: false })
     setLeadAppointments((data ?? []) as LeadAppointment[])
     setLoadingApts(false)
