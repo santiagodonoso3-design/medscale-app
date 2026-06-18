@@ -55,7 +55,11 @@ function fmtDate(iso: string): string {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function AvailabilityEditor() {
+interface AvailabilityEditorProps {
+  orgId: string
+}
+
+export function AvailabilityEditor({ orgId }: AvailabilityEditorProps) {
   // meta
   const [doctors,      setDoctors]      = useState<any[]>([])
   const [locations,    setLocations]    = useState<any[]>([])
@@ -91,8 +95,8 @@ export function AvailabilityEditor() {
   useEffect(() => {
     const load = async () => {
       const [{ data: dData }, { data: lData }] = await Promise.all([
-        supabase.from('doctors').select('id, metadata').order('created_at', { ascending: true }),
-        supabase.from('locations').select('id, name').order('name', { ascending: true }),
+        supabase.from('doctors').select('id, metadata').eq('organization_id', orgId).order('created_at', { ascending: true }),
+        supabase.from('locations').select('id, name').eq('organization_id', orgId).order('name', { ascending: true }),
       ])
       setDoctors(dData ?? [])
       setLocations(lData ?? [])
