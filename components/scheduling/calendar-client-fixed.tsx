@@ -160,10 +160,11 @@ function statusChipClass(status: string): string {
 interface CalendarClientProps {
   userId: string | null
   doctorId?: string | null
+  orgId: string
   readOnly?: boolean
 }
 
-export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarClientProps) {
+export function CalendarClient({ userId, doctorId, orgId, readOnly = false }: CalendarClientProps) {
   const today = todayStr()
   const todayYear = Number(today.slice(0, 4))
   const todayMonth = Number(today.slice(5, 7)) - 1
@@ -241,18 +242,19 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
       { data: aptTypeData },
       { data: formFieldsData },
     ] = await Promise.all([
-      supabase.from('doctors').select('id, specialty, is_active, metadata').eq('is_active', true).order('created_at', { ascending: true }),
-      supabase.from('locations').select('id, name').order('name', { ascending: true }),
+      supabase.from('doctors').select('id, specialty, is_active, metadata').eq('organization_id', orgId).eq('is_active', true).order('created_at', { ascending: true }),
+      supabase.from('locations').select('id, name').eq('organization_id', orgId).order('name', { ascending: true }),
       (() => {
         let q = supabase
           .from('appointments')
           .select('id, scheduled_at, ends_at, status, doctor_id, lead_id, location_id, notes, appointment_type_id, doctor:doctor_id(metadata), lead:lead_id(contact_name,contact_last_name,contact_phone,contact_email,contact_cedula,metadata), location:location_id(name)')
+          .eq('organization_id', orgId)
           .order('scheduled_at', { ascending: true })
         if (doctorId) q = q.eq('doctor_id', doctorId)
         return q
       })(),
-      supabase.from('appointment_types').select('id, name, duration_minutes, modality, price_presencial, price_virtual').eq('active', true).order('name', { ascending: true }),
-      supabase.from('appointment_form_fields').select('appointment_type_id, field_name, field_label, field_type, sort_order').eq('active', true).order('sort_order', { ascending: true }),
+      supabase.from('appointment_types').select('id, name, duration_minutes, modality, price_presencial, price_virtual').eq('organization_id', orgId).eq('active', true).order('name', { ascending: true }),
+      supabase.from('appointment_form_fields').select('appointment_type_id, field_name, field_label, field_type, sort_order').eq('organization_id', orgId).eq('active', true).order('sort_order', { ascending: true }),
     ])
     if (doctorError || locationError || aptError) {
       setError(doctorError?.message || locationError?.message || aptError?.message || 'Error cargando datos')
@@ -479,10 +481,6 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
     setSaving(true)
     setError(null)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      const { data: member } = await supabase.from('organization_members').select('organization_id').eq('user_id', user!.id).single()
-      const orgId = member?.organization_id
-
       let leadId = form.lead_id
       if (!leadId) {
         const { data: leadData, error: leadErr } = await supabase.from('leads').insert({
@@ -1004,7 +1002,7 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
                           onChange={e => setLeadSearch(e.target.value)}
                           onKeyDown={async e => {
                             if (e.key === 'Enter') {
-                              const { data } = await supabase.from('leads').select('id, contact_name, contact_last_name, contact_phone').ilike('contact_name', `%${leadSearch}%`).limit(8)
+                              const { data } = await supabase.from('leads').select('id, contact_name, contact_last_name, contact_phone').eq('organization_id', orgId).ilike('contact_name', `%${leadSearch}%`).limit(8)
                               setLeadResults(data || [])
                             }
                           }}
@@ -1013,7 +1011,7 @@ export function CalendarClient({ userId, doctorId, readOnly = false }: CalendarC
                         />
                         <button
                           onClick={async () => {
-                            const { data } = await supabase.from('leads').select('id, contact_name, contact_last_name, contact_phone').ilike('contact_name', `%${leadSearch}%`).limit(8)
+                            const { data } = await supabase.from('leads').select('id, contact_name, contact_last_name, contact_phone').eq('organization_id', orgId).ilike('contact_name', `%${leadSearch}%`).limit(8)
                             setLeadResults(data || [])
                           }}
                           className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 transition"

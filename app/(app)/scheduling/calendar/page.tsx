@@ -12,5 +12,5 @@ export default async function CalendarPage() {
 
   const doctorId = session.role === 'doctor' ? session.doctorId : null
 
-  return <CalendarClient userId={session.user.id} doctorId={doctorId} readOnly={!canEdit(perms, 'scheduling')} />
+  return <CalendarClient userId={session.user.id} doctorId={doctorId} orgId={session.orgId} readOnly={!canEdit(perms, 'scheduling')} />
 }
