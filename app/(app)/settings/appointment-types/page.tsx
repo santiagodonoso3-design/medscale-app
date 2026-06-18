@@ -367,14 +367,15 @@ export default function AppointmentTypesPage() {
           name: String(d.metadata?.name ?? 'Médico sin nombre'),
         }))
       )
+
+      const { data } = await supabase
+        .from('appointment_types')
+        .select('*')
+        .eq('organization_id', member.organization_id)
+        .order('created_at', { ascending: true })
+      setTypes(data ?? [])
     }
 
-    const { data } = await supabase
-      .from('appointment_types')
-      .select('*')
-      .order('created_at', { ascending: true })
-
-    setTypes(data ?? [])
     setIsLoading(false)
   }, [])
 
