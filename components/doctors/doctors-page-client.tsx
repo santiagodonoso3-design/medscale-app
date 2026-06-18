@@ -171,6 +171,7 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null, orgId
     const { count } = await supabase
       .from('appointments')
       .select('id', { count: 'exact', head: true })
+      .eq('organization_id', orgId)
       .eq('doctor_id', doctorId)
       .in('status', ['scheduled', 'confirmed'])
     if (count && count > 0) {
