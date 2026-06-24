@@ -25,7 +25,7 @@ export async function PATCH(request: Request) {
     const { data: apt, error: fetchErr } = await admin
       .from('appointments')
       .select(`
-        id, lead_id, scheduled_at, ends_at, status, notes, manage_token, organization_id,
+        id, lead_id, doctor_id, appointment_type_id, scheduled_at, ends_at, status, notes, manage_token, organization_id,
         doctor:doctor_id(metadata),
         lead:lead_id(contact_name, contact_last_name, contact_email),
         org:organization_id(name, slug)
@@ -60,11 +60,62 @@ export async function PATCH(request: Request) {
     if (action === 'reschedule') {
       if (!new_date || !new_time) return json({ success: false, error: 'Fecha y hora requeridas' }, 400)
 
-      const newScheduledAt = new Date(`${new_date}T${new_time}:00.000Z`)
+      const newScheduledAt = new Date(`${new_date}T${new_time}:00-05:00`)
       const originalDuration = apt.ends_at
         ? new Date(apt.ends_at).getTime() - new Date(apt.scheduled_at).getTime()
         : 30 * 60000
       const newEndsAt = new Date(newScheduledAt.getTime() + originalDuration)
+
+      // 3a. Min-notice
+      let minHours = 24
+      if ((apt as any).appointment_type_id) {
+        const { data: aptType } = await admin
+          .from('appointment_types')
+          .select('min_notice_hours')
+          .eq('id', (apt as any).appointment_type_id)
+          .single()
+        if (aptType?.min_notice_hours != null) minHours = aptType.min_notice_hours
+      }
+      if (newScheduledAt.getTime() < Date.now() + minHours * 3600 * 1000) {
+        return json({ success: false, error: `Debes reagendar con al menos ${minHours} horas de anticipación.` }, 400)
+      }
+
+      // 3b. Doctor schedule window
+      const dow = new Date(`${new_date}T12:00:00`).getDay()
+      const originalDurationMinutes = Math.round(originalDuration / 60000)
+      const [startHour, startMin] = new_time.split(':').map(Number)
+      const endTotalMinutes = startHour * 60 + startMin + originalDurationMinutes
+      const endHour = Math.floor(endTotalMinutes / 60) % 24
+      const endMin = endTotalMinutes % 60
+      const endLocalStr = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`
+
+      const { data: scheduleRows } = await admin
+        .from('schedules')
+        .select('start_time, end_time')
+        .eq('doctor_id', (apt as any).doctor_id)
+        .eq('active', true)
+        .or(`and(is_recurring.eq.true,day_of_week.eq.${dow}),specific_date.eq.${new_date}`)
+
+      const withinWindow = (scheduleRows ?? []).some(
+        (s: any) => s.start_time <= new_time && s.end_time >= endLocalStr
+      )
+      if (!withinWindow) {
+        return json({ success: false, error: 'El horario seleccionado no está disponible para este médico.' }, 409)
+      }
+
+      // 3c. Collision check (ignores rows with null ends_at via SQL semantics)
+      const { data: conflicts } = await admin
+        .from('appointments')
+        .select('id')
+        .eq('doctor_id', (apt as any).doctor_id)
+        .not('status', 'in', '(cancelled,canceled,no_show)')
+        .neq('id', apt.id)
+        .lt('scheduled_at', newEndsAt.toISOString())
+        .gt('ends_at', newScheduledAt.toISOString())
+
+      if (conflicts && conflicts.length > 0) {
+        return json({ success: false, error: 'Ese horario acaba de ocuparse. Elige otro.' }, 409)
+      }
 
       const { error: updErr } = await admin
         .from('appointments')
