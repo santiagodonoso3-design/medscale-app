@@ -232,3 +232,47 @@ export async function deleteGoogleCalendarEvent(
     console.error('[google/calendar] delete error:', e)
   }
 }
+
+export async function updateGoogleCalendarEvent(
+  doctorId: string,
+  eventId: string,
+  startIso: string,
+  endsIso: string
+): Promise<boolean> {
+  try {
+    const { createServiceClient } = await import('@/lib/supabase/server')
+    const admin = createServiceClient()
+
+    const { data: doctor } = await admin
+      .from('doctors')
+      .select('google_calendar_token, google_calendar_id')
+      .eq('id', doctorId)
+      .single()
+
+    if (!doctor?.google_calendar_token) return false
+
+    const token = doctor.google_calendar_token as any
+    const accessToken = await getValidAccessToken(token, doctorId, admin)
+    const calendarId = doctor.google_calendar_id ?? 'primary'
+
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          start: { dateTime: startIso, timeZone: 'America/Bogota' },
+          end:   { dateTime: endsIso,  timeZone: 'America/Bogota' },
+        }),
+      }
+    )
+
+    return res.ok
+  } catch (e) {
+    console.error('[google/calendar] update error:', e)
+    return false
+  }
+}

@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resend } from '@/lib/email/resend'
 import { cancellationEmail, rescheduleEmail } from '@/lib/email/templates'
 import { logAppointmentEvent } from '@/lib/appointments/log-event'
+import { updateGoogleCalendarEvent } from '@/lib/google/calendar'
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,7 +26,7 @@ export async function PATCH(request: Request) {
     const { data: apt, error: fetchErr } = await admin
       .from('appointments')
       .select(`
-        id, lead_id, doctor_id, appointment_type_id, scheduled_at, ends_at, status, notes, manage_token, organization_id,
+        id, lead_id, doctor_id, appointment_type_id, external_calendar_id, scheduled_at, ends_at, status, notes, manage_token, organization_id,
         doctor:doctor_id(metadata),
         lead:lead_id(contact_name, contact_last_name, contact_email),
         org:organization_id(name, slug)
@@ -123,11 +124,22 @@ export async function PATCH(request: Request) {
         .eq('id', apt.id)
       if (updErr) return json({ success: false, error: updErr.message }, 500)
 
+      let calendarMoved: boolean | null = null
+      if ((apt as any).external_calendar_id) {
+        calendarMoved = await updateGoogleCalendarEvent(
+          (apt as any).doctor_id,
+          (apt as any).external_calendar_id,
+          newScheduledAt.toISOString(),
+          newEndsAt.toISOString()
+        )
+      }
+
       await logAppointmentEvent({
         appointmentId: apt.id,
         eventType: 'rescheduled',
         actorType: 'patient',
         note: 'Reagendado por el paciente',
+        metadata: { calendar_moved: calendarMoved },
       })
 
       if (patientEmail && process.env.RESEND_API_KEY) {
