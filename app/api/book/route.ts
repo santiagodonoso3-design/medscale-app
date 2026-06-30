@@ -274,7 +274,7 @@ export async function POST(request: Request) {
       .from('appointments')
       .select('id')
       .eq('doctor_id', selectedDoctorId)
-      .in('status', ['scheduled', 'confirmed'])
+      .eq('status', 'scheduled')
       .lt('scheduled_at', slotEnd.toISOString())
       .gt('ends_at', slotStart.toISOString())
       .limit(1)
