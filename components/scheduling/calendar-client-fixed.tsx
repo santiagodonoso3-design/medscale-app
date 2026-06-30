@@ -128,15 +128,17 @@ function getDateRange(range: 'hoy' | 'semana' | 'mes' | 'todos'): { from: string
 }
 
 function isoToLocalDate(iso: string): string {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Bogota',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(iso))
 }
 
 function isoToLocalTime(iso: string): string {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/Bogota',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(new Date(iso))
 }
 
 function statusDotColor(status: string): string {
@@ -410,13 +412,18 @@ export function CalendarClient({ userId, doctorId, orgId, readOnly = false }: Ca
     if (!selected || !modalRescheduleDate || !modalRescheduleTime) return
     setModalSaving(true)
     setModalError(null)
-    const scheduledAt = new Date(`${modalRescheduleDate}T${modalRescheduleTime}`).toISOString()
+    const scheduledAt = new Date(`${modalRescheduleDate}T${modalRescheduleTime}:00-05:00`).toISOString()
     const originalDuration = selected.ends_at
       ? new Date(selected.ends_at).getTime() - new Date(selected.scheduled_at).getTime()
       : 30 * 60000
-    const endsAt = new Date(new Date(`${modalRescheduleDate}T${modalRescheduleTime}`).getTime() + originalDuration).toISOString()
+    const endsAt = new Date(new Date(`${modalRescheduleDate}T${modalRescheduleTime}:00-05:00`).getTime() + originalDuration).toISOString()
     const result = await rescheduleAppointment(selected.id, scheduledAt, endsAt)
-    if (result.error) { setModalError(result.error) } else {
+    if (result.error) {
+      const msg = result.error.includes('appointments_no_overlap') || result.error.includes('23P01')
+        ? 'Ese horario ya está ocupado para este médico.'
+        : result.error
+      setModalError(msg)
+    } else {
       await fetchData()
       closeModal()
     }
@@ -495,7 +502,7 @@ export function CalendarClient({ userId, doctorId, orgId, readOnly = false }: Ca
         leadId = leadData.id
       }
 
-      const start = new Date(`${form.scheduled_date}T${form.scheduled_time}`)
+      const start = new Date(`${form.scheduled_date}T${form.scheduled_time}:00-05:00`)
       const selectedType = appointmentTypes.find(t => t.id === form.appointment_type_id)
       const doctor = doctors.find(d => d.id === form.doctor_id)
       const duration = selectedType?.duration_minutes ?? doctor?.metadata?.default_duration ?? 30
@@ -517,7 +524,13 @@ export function CalendarClient({ userId, doctorId, orgId, readOnly = false }: Ca
         modality: form.modality || null,
         price: price,
       })
-      if (aptErr) throw aptErr
+      if (aptErr) {
+        const msg = aptErr.message?.includes('appointments_no_overlap') || (aptErr as any).code === '23P01'
+          ? 'Ese horario ya está ocupado para este médico.'
+          : 'No se pudo crear la cita.'
+        setError(msg)
+        return
+      }
 
       setForm({ doctor_id: doctors[0]?.id ?? '', location_id: locations[0]?.id ?? '', scheduled_date: '', scheduled_time: '', patient_name: '', patient_phone: '', patient_email: '', notes: '', lead_id: '', appointment_type_id: '', modality: 'presencial' as 'presencial' | 'virtual' })
       setLeadSearch('')
