@@ -152,7 +152,7 @@ export function BookAppointmentModal({ isOpen, onClose, onSuccess, lead, orgId }
       const { data: locs } = await supabase.from('locations')
         .select('id').eq('organization_id', orgId).limit(1)
       const locationId  = locs?.[0]?.id ?? null
-      const scheduledAt = new Date(`${selectedDate}T${selectedTime}:00.000Z`)
+      const scheduledAt = new Date(`${selectedDate}T${selectedTime}:00-05:00`)
       const endsAt      = new Date(scheduledAt.getTime() + duration * 60000)
 
       const { error: err } = await supabase.from('appointments').insert({
@@ -166,7 +166,12 @@ export function BookAppointmentModal({ isOpen, onClose, onSuccess, lead, orgId }
         notes:                null,
         external_calendar_id: null,
       })
-      if (err) { setError(err.message); setSaving(false); return }
+      if (err) {
+        const msg = err.message?.includes('appointments_no_overlap') || (err as any).code === '23P01'
+          ? 'Ese horario ya está ocupado para este médico. Elige otro.'
+          : err.message
+        setError(msg); setSaving(false); return
+      }
       onSuccess()
     } catch (e) { setError((e as Error).message); setSaving(false) }
   }
