@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { resend } from '@/lib/email/resend'
 import { bookingConfirmationPatient, bookingNotificationDoctor, bookingNotificationClinic } from '@/lib/email/templates'
-import { createGoogleCalendarEvent } from '@/lib/google/calendar'
+import { createGoogleCalendarEvent, getGoogleCalendarBusy } from '@/lib/google/calendar'
 import { logAppointmentEvent } from '@/lib/appointments/log-event'
 
 const supabasePublic = createClient(
@@ -167,9 +167,7 @@ export async function POST(request: Request) {
 
 
         if (availableIds.length === 0) {
-          // Fallback: use any candidate instead of refusing the booking
-          console.warn('[/api/book] no schedule match — falling back to first candidate')
-          selectedDoctorId = candidateIds[0]
+          return jsonResponse({ success: false, error: 'No hay disponibilidad para ese horario.' }, 400)
         } else if (assignmentMode === 'round_robin_availability') {
           selectedDoctorId = availableIds[0]
         } else {
@@ -266,6 +264,44 @@ export async function POST(request: Request) {
 
     const locationId = locations[0].id
     const duration = appointmentTypeDuration ?? 30
+
+    // ── Collision check before creating the lead ──────────────────────────────
+    const slotStart = new Date(`${date}T${time}:00-05:00`)
+    const slotEnd   = new Date(slotStart.getTime() + duration * 60000)
+
+    // (a) Colisión con otra cita activa del mismo doctor (solapamiento real)
+    const { data: dbConflicts } = await supabase
+      .from('appointments')
+      .select('id')
+      .eq('doctor_id', selectedDoctorId)
+      .in('status', ['scheduled', 'confirmed'])
+      .lt('scheduled_at', slotEnd.toISOString())
+      .gt('ends_at', slotStart.toISOString())
+      .limit(1)
+    if (dbConflicts && dbConflicts.length > 0) {
+      return jsonResponse({ success: false, error: 'Ese horario ya no está disponible.' }, 409)
+    }
+
+    // (b) Colisión con bloqueo del Google Calendar del doctor.
+    //     Fail-open SOLO si la lectura de Google falla (token muerto / error API):
+    //     se loguea y se permite, para no tumbar todo el funnel por un error transitorio.
+    try {
+      const gbusy = await getGoogleCalendarBusy(
+        selectedDoctorId!,
+        slotStart.toISOString(),
+        slotEnd.toISOString()
+      )
+      const collides = (gbusy ?? []).some(b => {
+        const bs = new Date(b.start).getTime()
+        const be = new Date(b.end).getTime()
+        return bs < slotEnd.getTime() && be > slotStart.getTime()
+      })
+      if (collides) {
+        return jsonResponse({ success: false, error: 'Ese horario ya no está disponible.' }, 409)
+      }
+    } catch (e) {
+      console.error('[/api/book] google busy check failed (fail-open):', selectedDoctorId, e)
+    }
 
     // Create lead
     const { data: lead, error: leadError } = await supabase
