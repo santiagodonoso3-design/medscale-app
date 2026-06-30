@@ -25,7 +25,7 @@ export async function getBookedSlots(
     .eq('doctor_id', doctorId)
     .gte('scheduled_at', startOfMonth.toISOString())
     .lte('scheduled_at', endOfMonth.toISOString())
-    .in('status', ['scheduled', 'confirmed'])
+    .eq('status', 'scheduled')
 
   const toBogota = (d: Date) => {
     const str = new Intl.DateTimeFormat('en-CA', {
