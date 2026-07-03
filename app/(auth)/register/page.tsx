@@ -124,13 +124,12 @@ export default function RegisterPage() {
     const userId = authData.user?.id
     if (!userId) { setServerError('No se pudo crear la cuenta. Intenta de nuevo.'); return }
 
+    // Owner and plan are derived server-side from the session — never sent here.
     const res = await fetch('/api/register/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        plan: selectedPlan,
         clinic_name: data.clinic_name,
-        user_id: userId,
         referral_code: referralStatus === 'valid' ? referralCode.toUpperCase().trim() : undefined,
       }),
     })

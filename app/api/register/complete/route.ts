@@ -1,18 +1,68 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
+
+// New orgs always start on the lowest tier. Plan upgrades happen only via
+// superadmin (protected) or the Mercado Pago webhook — never from the client.
+const DEFAULT_PLAN = 'consultorio'
 
 function slugify(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
 }
 
 export async function POST(req: NextRequest) {
-  const { plan, clinic_name, phone, user_id, referral_code } = await req.json()
+  // The owner of the new org is ALWAYS the authenticated session user.
+  // Never trust a user_id from the body.
+  const authClient = await createClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+  }
 
-  if (!plan || !clinic_name || !user_id) {
+  const { clinic_name, phone, referral_code } = await req.json()
+
+  if (!clinic_name || !String(clinic_name).trim()) {
     return NextResponse.json({ error: 'Datos incompletos.' }, { status: 400 })
   }
 
+  const name = String(clinic_name).trim()
+  const slug = slugify(name)
+  if (!slug) {
+    return NextResponse.json({ error: 'Nombre de organización inválido.' }, { status: 400 })
+  }
+
   const supabase = createServiceClient()
+
+  // Anti-abuse: a legitimate registration never has a prior org owned by this
+  // user. Blocks mass org creation from a single account.
+  const { data: existingOwnership } = await supabase
+    .from('organization_members')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('role', 'owner')
+    .limit(1)
+    .maybeSingle()
+
+  if (existingOwnership) {
+    return NextResponse.json(
+      { error: 'Esta cuenta ya tiene una organización.' },
+      { status: 409 }
+    )
+  }
+
+  // Slug collision check
+  const { data: slugTaken } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('slug', slug)
+    .limit(1)
+    .maybeSingle()
+
+  if (slugTaken) {
+    return NextResponse.json(
+      { error: 'Ya existe una organización con ese nombre. Prueba con otro.' },
+      { status: 409 }
+    )
+  }
 
   // Validate referral code server-side if provided
   let referralCodeRecord: { id: string; times_used: number } | null = null
@@ -33,15 +83,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Create organization
+  // Create organization — plan is fixed server-side, never from the client.
   const { data: org, error: orgError } = await supabase
     .from('organizations')
     .insert({
-      name:               clinic_name,
-      slug:               slugify(clinic_name),
-      plan,
-      contact_phone:      phone ?? null,
-      referral_code_id:   referralCodeRecord?.id ?? null,
+      name,
+      slug,
+      plan:             DEFAULT_PLAN,
+      contact_phone:    phone ?? null,
+      referral_code_id: referralCodeRecord?.id ?? null,
     })
     .select('id')
     .single()
@@ -50,13 +100,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: orgError.message }, { status: 500 })
   }
 
-  // Create organization member
+  // Create organization member — owner is ALWAYS the session user.
   const { error: memberError } = await supabase
     .from('organization_members')
     .insert({
       organization_id: org.id,
-      user_id,
-      role: 'owner',
+      user_id:         user.id,
+      role:            'owner',
     })
 
   if (memberError) {
