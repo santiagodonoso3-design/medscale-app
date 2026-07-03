@@ -3,6 +3,8 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { resend } from '@/lib/email/resend'
+import { requirePlatformAdmin } from '@/lib/auth/session'
+import { runScheduledDeletions } from '@/lib/admin/deletions'
 
 export interface Organization {
   id: string
@@ -18,6 +20,7 @@ export interface Organization {
 }
 
 export async function getAllOrganizations(): Promise<Organization[] | null> {
+  await requirePlatformAdmin()
   const admin = createServiceClient()
 
   try {
@@ -61,6 +64,7 @@ export async function createOrganization(
   slug: string,
   plan: 'consultorio' | 'clinica' | 'red'
 ): Promise<{ success: boolean; error?: string; organization?: Organization }> {
+  await requirePlatformAdmin()
   const admin = createServiceClient()
 
   try {
@@ -113,6 +117,7 @@ export async function updateOrganization(
   ai_agent_enabled: boolean,
   monthly_revenue: number
 ): Promise<{ success: boolean; error?: string }> {
+  await requirePlatformAdmin()
   const admin = createServiceClient()
 
   try {
@@ -220,6 +225,7 @@ function deletionWarningEmail(orgName: string): string {
 export async function scheduleOrganizationDeletion(
   id: string
 ): Promise<{ success: boolean; error?: string }> {
+  await requirePlatformAdmin()
   const admin = createServiceClient()
 
   try {
@@ -261,6 +267,7 @@ export async function scheduleOrganizationDeletion(
 export async function cancelOrganizationDeletion(
   id: string
 ): Promise<{ success: boolean; error?: string }> {
+  await requirePlatformAdmin()
   const admin = createServiceClient()
 
   try {
@@ -281,40 +288,12 @@ export async function cancelOrganizationDeletion(
 }
 
 export async function processScheduledDeletions(): Promise<{ deleted: number; error?: string }> {
-  const admin = createServiceClient()
-
-  try {
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-
-    const { data: orgs, error: fetchErr } = await admin
-      .from('organizations')
-      .select('id, name')
-      .not('pending_deletion_at', 'is', null)
-      .lt('pending_deletion_at', cutoff)
-
-    if (fetchErr) return { deleted: 0, error: fetchErr.message }
-    if (!orgs || orgs.length === 0) return { deleted: 0 }
-
-    let deleted = 0
-    for (const org of orgs) {
-      const { error: delErr } = await admin
-        .from('organizations')
-        .delete()
-        .eq('id', org.id)
-      if (!delErr) deleted++
-      else console.error(`[cleanup] Failed to delete org ${org.id}:`, delErr.message)
-    }
-
-    revalidatePath('/admin/organizations')
-    revalidatePath('/admin')
-
-    return { deleted }
-  } catch (e: any) {
-    return { deleted: 0, error: e?.message ?? 'Error interno' }
-  }
+  await requirePlatformAdmin()
+  return runScheduledDeletions()
 }
 
 export async function generateSlug(name: string): Promise<string> {
+  await requirePlatformAdmin()
   return name
     .toLowerCase()
     .trim()

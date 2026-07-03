@@ -1,4 +1,4 @@
-import { processScheduledDeletions } from '@/app/(superadmin)/admin/organizations/actions'
+import { runScheduledDeletions } from '@/lib/admin/deletions'
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization')
@@ -6,7 +6,7 @@ export async function GET(request: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const result = await processScheduledDeletions()
+  const result = await runScheduledDeletions()
 
   if (result.error) {
     console.error('[cleanup] processScheduledDeletions error:', result.error)
