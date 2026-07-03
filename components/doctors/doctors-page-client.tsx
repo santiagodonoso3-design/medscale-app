@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Plus, X, Loader2, Pencil, MoreHorizontal } from 'lucide-react'
+import { removeDoctorMembership } from '@/app/actions/team'
 
 type DoctorRow = {
   id: string
@@ -180,7 +181,17 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null, orgId
       return
     }
     await supabase.from('schedules').delete().eq('doctor_id', doctorId)
-    await supabase.from('organization_members').delete().eq('doctor_id', doctorId)
+    try {
+      await removeDoctorMembership(doctorId)
+    } catch (e: any) {
+      setDeleteError(
+        typeof e?.message === 'string' && e.message.includes('FORBIDDEN')
+          ? 'No tienes permiso para eliminar este médico.'
+          : 'No se pudo eliminar el médico. Intenta de nuevo.'
+      )
+      setDeleteChecking(false)
+      return
+    }
     await supabase.from('doctors').delete().eq('id', doctorId)
     setDeleteConfirmId(null)
     setDeleteChecking(false)

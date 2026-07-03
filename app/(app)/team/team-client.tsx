@@ -1,8 +1,17 @@
 'use client'
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Loader2, Trash2, Plus, SlidersHorizontal } from 'lucide-react'
 import { PermissionsModal, type PermissionsMember } from '@/components/team/permissions-modal'
+import { updateMemberRole, removeMember } from '@/app/actions/team'
+
+// Server actions throw Error(code); Next.js redacts the message in production,
+// so map known codes and fall back to a generic message.
+function memberActionError(e: any): string {
+  const msg = typeof e?.message === 'string' ? e.message : ''
+  if (msg.includes('FORBIDDEN')) return 'No tienes permiso para esta acción.'
+  if (msg.includes('LAST_OWNER')) return 'No puedes dejar la organización sin ningún administrador.'
+  return 'No se pudo completar la acción. Intenta de nuevo.'
+}
 
 const ROLE_LABELS: Record<string, string> = {
   owner: 'Admin',
@@ -41,7 +50,6 @@ interface TeamClientProps {
 }
 
 export function TeamClient({ orgId, members: initialMembers, doctors, currentUserId, doctorsWithSchedules, readOnly = false }: TeamClientProps) {
-  const supabase = createClient()
   const [members, setMembers] = useState(initialMembers)
   const [permissionsMember, setPermissionsMember] = useState<PermissionsMember | null>(null)
   const [showInvite, setShowInvite] = useState(false)
@@ -96,25 +104,23 @@ export function TeamClient({ orgId, members: initialMembers, doctors, currentUse
     if (userId === currentUserId) return
     if (!confirm('¿Eliminar este miembro del equipo?')) return
 
-    const { error } = await supabase
-      .from('organization_members')
-      .delete()
-      .eq('id', memberId)
-
-    if (error) { showToast('Error eliminando miembro'); return }
-    setMembers(prev => prev.filter(m => m.id !== memberId))
-    showToast('Miembro eliminado')
+    try {
+      await removeMember(memberId)
+      setMembers(prev => prev.filter(m => m.id !== memberId))
+      showToast('Miembro eliminado')
+    } catch (e) {
+      showToast(memberActionError(e))
+    }
   }
 
   async function handleRoleChange(memberId: string, newRole: string) {
-    const { error } = await supabase
-      .from('organization_members')
-      .update({ role: newRole })
-      .eq('id', memberId)
-
-    if (error) { showToast('Error actualizando rol'); return }
-    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m))
-    showToast('Rol actualizado')
+    try {
+      await updateMemberRole(memberId, newRole)
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m))
+      showToast('Rol actualizado')
+    } catch (e) {
+      showToast(memberActionError(e))
+    }
   }
 
   function handlePermissionsSaved(memberId: string, permissions: Record<string, string> | null) {
