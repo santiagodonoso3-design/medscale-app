@@ -59,6 +59,8 @@ export default function RegisterPage() {
   const [serverError, setServerError] = useState<string | null>(null)
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [showTerms, setShowTerms] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [sentEmail, setSentEmail] = useState('')
 
   const [referralCode, setReferralCode]   = useState('')
   const [referralStatus, setReferralStatus] = useState<null | 'validating' | 'valid' | 'invalid'>(null)
@@ -113,10 +115,14 @@ export default function RegisterPage() {
     setServerError(null)
     const supabase = createClient()
 
+    const validReferral = referralStatus === 'valid' ? referralCode.toUpperCase().trim() : undefined
+
+    // Store clinic_name + referral_code in user metadata so they survive the
+    // email-confirmation round-trip and can be read at /register/complete-profile.
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
-      options: { data: { clinic_name: data.clinic_name } },
+      options: { data: { clinic_name: data.clinic_name, referral_code: validReferral } },
     })
 
     if (authError) { setServerError(authError.message); return }
@@ -124,13 +130,23 @@ export default function RegisterPage() {
     const userId = authData.user?.id
     if (!userId) { setServerError('No se pudo crear la cuenta. Intenta de nuevo.'); return }
 
-    // Owner and plan are derived server-side from the session — never sent here.
+    // Email confirmation is enabled → signUp does NOT create a session. Ask the
+    // user to confirm their email; the org is created later at complete-profile.
+    if (!authData.session) {
+      setSentEmail(data.email)
+      setEmailSent(true)
+      return
+    }
+
+    // Fallback path (only if email confirmation is ever disabled): a session
+    // exists, so complete the org right away. Owner and plan are derived
+    // server-side from the session — never sent here.
     const res = await fetch('/api/register/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         clinic_name: data.clinic_name,
-        referral_code: referralStatus === 'valid' ? referralCode.toUpperCase().trim() : undefined,
+        referral_code: validReferral,
       }),
     })
 
@@ -146,6 +162,35 @@ export default function RegisterPage() {
   }
 
   const planData = PLANS.find(p => p.id === selectedPlan)
+
+  // ── Email confirmation sent ──
+  if (emailSent) {
+    return (
+      <div className="min-h-screen bg-[#EBF0F6] flex flex-col items-center justify-center px-4 py-16">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 text-center">
+          <img src="/logo-dark.png" alt="MedScale AI" className="h-9 mx-auto mb-6" />
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#EBF0F6]">
+            <CheckCircle2 className="h-7 w-7 text-[#215F73]" />
+          </div>
+          <h1 className="text-xl font-bold text-[#0D2B3E]">Revisa tu correo</h1>
+          <p className="text-sm text-[#4A6B7A] mt-2 leading-relaxed">
+            Enviamos un enlace de confirmación a{' '}
+            <span className="font-semibold text-[#0D2B3E]">{sentEmail}</span>.
+            Ábrelo para activar tu cuenta y terminar de crear tu consultorio.
+          </p>
+          <p className="text-xs text-[#4A6B7A] mt-4">
+            ¿No lo ves? Revisa la carpeta de spam o correo no deseado.
+          </p>
+          <a
+            href="/login"
+            className="inline-block mt-6 text-sm font-semibold text-[#215F73] hover:underline"
+          >
+            Volver a iniciar sesión
+          </a>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-[#EBF0F6]">
