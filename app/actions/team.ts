@@ -91,7 +91,8 @@ export async function removeMember(memberId: string): Promise<void> {
  * The doctor must belong to the caller's org.
  */
 export async function removeDoctorMembership(doctorId: string): Promise<void> {
-  const { orgId } = await requireOrgContext()
+  const { orgId, role } = await requireOrgContext()
+  if (role !== 'owner') throw new Error('FORBIDDEN')
 
   const admin = createServiceClient()
 
