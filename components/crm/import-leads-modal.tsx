@@ -270,10 +270,15 @@ export function ImportLeadsModal({
     const validRows = rows.filter(r => r.valid).map(r => r.data)
     if (!validRows.length) return
     setImporting(true)
-    const result = await importLeads(validRows, organizationId)
-    setImporting(false)
-    reset()
-    onSuccess(result.imported, result.skipped)
+    try {
+      const result = await importLeads(validRows)
+      setImporting(false)
+      reset()
+      onSuccess(result.imported, result.skipped)
+    } catch {
+      setImporting(false)
+      setParseError('No se pudieron importar los leads. Verifica tus permisos e intenta de nuevo.')
+    }
   }
 
   if (!isOpen) return null

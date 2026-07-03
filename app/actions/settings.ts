@@ -1,6 +1,7 @@
 'use server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getOrgIdFromUser } from '@/lib/get-org-id'
+import { requireOrgContext } from '@/lib/auth/session'
 
 export async function getOrgSettings() {
   const supabase = await createClient()
@@ -23,14 +24,16 @@ export async function getOrgSettings() {
 }
 
 export async function uploadOrgLogo(
-  orgId: string,
   base64: string,
   fileName: string,
   contentType: string
 ): Promise<string | null> {
+  const { orgId } = await requireOrgContext()
   const admin = createServiceClient()
 
-  const ext = fileName.split('.').pop()
+  // Path is built from the session-derived orgId only — never client input —
+  // so a caller can't overwrite another org's logo via a crafted path.
+  const ext = (fileName.split('.').pop() ?? '').replace(/[^a-z0-9]/gi, '').toLowerCase() || 'png'
   const path = `logos/${orgId}.${ext}`
   const buffer = Buffer.from(base64, 'base64')
 
@@ -44,12 +47,13 @@ export async function uploadOrgLogo(
   return data.publicUrl
 }
 
-export async function saveOrgSettings(orgId: string, data: {
+export async function saveOrgSettings(data: {
   name?: string
   primary_color?: string
   logo_url?: string | null
   sidebar_theme?: 'dark' | 'light'
 }) {
+  const { orgId } = await requireOrgContext()
   const admin = createServiceClient()
   const { error } = await admin
     .from('organizations')

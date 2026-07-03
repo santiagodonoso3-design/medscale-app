@@ -2,6 +2,7 @@
 
 import { unstable_noStore as noStore } from 'next/cache'
 import { createServiceClient } from '@/lib/supabase/server'
+import { requireOrgContext } from '@/lib/auth/session'
 
 // ── Timezone helpers (Bogotá = UTC-5, no DST) ────────────────────────────────
 
@@ -67,9 +68,11 @@ export interface RawDashboardData {
 
 // ── Fetch all data for a given year ──────────────────────────────────────────
 
-export async function getDashboardRawData(year: number, orgId: string): Promise<RawDashboardData | null> {
+export async function getDashboardRawData(year: number): Promise<RawDashboardData | null> {
   noStore()
   try {
+    const { orgId } = await requireOrgContext()
+    if (!Number.isInteger(year) || year < 2020 || year > 2030) return null
     const admin    = createServiceClient()
     const fromDate = `${year}-01-01`
     const toDate   = `${year + 1}-01-01`
@@ -185,8 +188,9 @@ export async function getDashboardRawData(year: number, orgId: string): Promise<
 
 // ── Years that have appointment or lead data ──────────────────────────────────
 
-export async function getDashboardYears(orgId: string): Promise<number[]> {
+export async function getDashboardYears(): Promise<number[]> {
   try {
+    const { orgId } = await requireOrgContext()
     const admin   = createServiceClient()
     const curYear = currentBogotaYear()
     const [{ data: firstApt }, { data: firstLead }] = await Promise.all([

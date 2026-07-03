@@ -36,8 +36,8 @@ export default async function DashboardPage() {
   )
 
   const [rawData, availableYears] = await Promise.all([
-    getDashboardRawData(currentYear, session.orgId),
-    getDashboardYears(session.orgId),
+    getDashboardRawData(currentYear),
+    getDashboardYears(),
   ])
 
   if (!rawData) {
@@ -74,7 +74,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-6 xl:p-10">
-      <DashboardClient initialData={rawData} availableYears={availableYears} orgId={session.orgId} />
+      <DashboardClient initialData={rawData} availableYears={availableYears} />
     </div>
   )
 }

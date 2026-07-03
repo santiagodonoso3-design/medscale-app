@@ -47,7 +47,7 @@ export default function GeneralPage() {
   const handleSave = async () => {
     if (!orgId) return
     setSaving(true)
-    const ok = await saveOrgSettings(orgId, { name, primary_color: primaryColor, logo_url: logoUrl, sidebar_theme: sidebarTheme })
+    const ok = await saveOrgSettings({ name, primary_color: primaryColor, logo_url: logoUrl, sidebar_theme: sidebarTheme })
     setSaving(false)
     if (!ok) showToast('Error al guardar')
     else showToast('Cambios guardados')
@@ -61,11 +61,11 @@ export default function GeneralPage() {
     const reader = new FileReader()
     reader.onload = async () => {
       const base64 = (reader.result as string).split(',')[1]
-      const url = await uploadOrgLogo(orgId, base64, file.name, file.type)
+      const url = await uploadOrgLogo(base64, file.name, file.type)
       setUploading(false)
       if (!url) { showToast('Error subiendo logo'); return }
       setLogoUrl(url)
-      await saveOrgSettings(orgId, { name, primary_color: primaryColor, logo_url: url })
+      await saveOrgSettings({ name, primary_color: primaryColor, logo_url: url })
       showToast('Logo guardado correctamente')
     }
     reader.readAsDataURL(file)

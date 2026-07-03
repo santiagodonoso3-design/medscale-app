@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@supabase/supabase-js'
+import { requireOrgContext } from '@/lib/auth/session'
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,8 +27,12 @@ export interface ImportLeadsResult {
 
 export async function importLeads(
   rows: ImportLeadRow[],
-  organizationId: string,
 ): Promise<ImportLeadsResult> {
+  // Identity is derived from the session, never from the client. CRM is
+  // owner=full / staff=full / doctor=none — doctors may never import leads.
+  const { orgId, role } = await requireOrgContext()
+  if (role === 'doctor') throw new Error('FORBIDDEN')
+
   if (!rows.length) return { imported: 0, skipped: 0 }
 
   // Fetch existing emails in this org for duplicate detection
@@ -35,7 +40,7 @@ export async function importLeads(
   const { data: existing } = await admin
     .from('leads')
     .select('contact_email')
-    .eq('organization_id', organizationId)
+    .eq('organization_id', orgId)
     .in('contact_email', emails)
 
   const existingSet = new Set(
@@ -49,7 +54,7 @@ export async function importLeads(
     const email = row.email.toLowerCase()
     if (existingSet.has(email)) { skipped++; continue }
     toInsert.push({
-      organization_id: organizationId,
+      organization_id: orgId,
       contact_name:    row.nombre.trim(),
       contact_cedula:  row.cedula?.trim() || null,
       contact_phone:   row.telefono.trim(),
