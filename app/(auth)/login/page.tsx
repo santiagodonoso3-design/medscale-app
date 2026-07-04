@@ -38,7 +38,7 @@ export default function LoginPage() {
     setServerError(null)
     const supabase = createClient()
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data: authData, error } = await supabase.auth.signInWithPassword({
       email: data.email,
       password: data.password,
     })
@@ -46,6 +46,26 @@ export default function LoginPage() {
     if (error) {
       setServerError('Credenciales incorrectas. Intenta de nuevo.')
       return
+    }
+
+    // Org-less users (e.g. confirmed their email but abandoned before creating
+    // their org) must finish at complete-profile instead of bouncing off the
+    // dashboard. getOrgIdFromUser is server-only (service role), so we use the
+    // sanctioned client-side membership lookup (RLS-scoped to their own org).
+    const userId = authData.user?.id
+    if (userId) {
+      const { data: member } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', userId)
+        .limit(1)
+        .maybeSingle()
+
+      if (!member?.organization_id) {
+        router.push('/register/complete-profile')
+        router.refresh()
+        return
+      }
     }
 
     router.push('/dashboard')
