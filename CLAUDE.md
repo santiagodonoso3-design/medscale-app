@@ -62,17 +62,42 @@ const { data: member } = await supabase
   .single()
 ```
 
-**4. Service client para operaciones admin:**
+**4. Service client para operaciones admin (RLS bypass — identidad PRIMERO):**
 ```typescript
 import { createServiceClient } from '@/lib/supabase/server'
 const admin = createServiceClient() // síncrono, NO async
 ```
+Service role SOLO después de derivar identidad con `requireOrgContext()`/`requirePlatformAdmin()` (lib/auth/session.ts) para sesión de usuario, o validación de secret (`x-webhook-secret`, `CRON_SECRET`) para webhooks/crons. NUNCA confiar en orgId/userId/plan/doctorId del body del cliente. Toda query de negocio con service client lleva `.eq('organization_id', orgId)` derivado de sesión.
 
 **5. Client de auth para server components:**
 ```typescript
 import { createClient } from '@/lib/supabase/server'
 const supabase = await createClient() // async, usa cookies
 ```
+
+**6. Server action con service role — patrón canónico (ver `app/actions/team.ts`):**
+```typescript
+import { requireOrgContext } from '@/lib/auth/session'
+import { createServiceClient } from '@/lib/supabase/server'
+
+export async function updateMemberRole(memberId: string, newRole: string) {
+  const { userId, orgId, role } = await requireOrgContext()  // 1. identidad de sesión
+  if (role !== 'owner') throw new Error('FORBIDDEN')          // 2. check de rol
+  const admin = createServiceClient()
+  const { data: member } = await admin
+    .from('organization_members')
+    .select('id, user_id, role')
+    .eq('id', memberId)
+    .eq('organization_id', orgId)                            // 3. verificar pertenencia al org
+    .single()
+  if (!member) throw new Error('FORBIDDEN')
+  await admin.from('organization_members')
+    .update({ role: newRole })
+    .eq('id', memberId)
+    .eq('organization_id', orgId)                            // 4. query fenceada por org
+}
+```
+Las tres actions de `app/actions/team.ts` (`updateMemberRole`, `removeMember`, `removeDoctorMembership`) siguen este patrón: `requireOrgContext()` → check de rol → verificación de pertenencia al org → query fenceada por `organization_id`.
 
 ### Patrones PROHIBIDOS
 
@@ -88,6 +113,11 @@ const admin = await createServiceClient()
 
 // ❌ NUNCA — queries sin filtro de organization_id
 .from('doctors').select('*') // trae TODOS los doctores de TODOS los tenants
+
+// ❌ NUNCA — confiar en orgId/userId/plan/doctorId del body del cliente
+// service role bypassa RLS → un orgId del cliente = acceso cross-tenant.
+// Derivar SIEMPRE de requireOrgContext()/requirePlatformAdmin() (sesión) o secret (webhook/cron).
+const { orgId } = await req.json() // ← INCORRECTO: derivar con requireOrgContext()
 
 // ❌ NUNCA — createServerClient con service role key
 // createServerClient es para cookies/auth, NO para service role
@@ -219,6 +249,10 @@ Pendientes que NO se atacan ahora a propósito — cada uno tiene un trigger que
 
 - [ ] **Backfill de performed_at en procedimientos viejos.** Procedimientos sin performed_at caen por cascada al mes de la cita, no del procedimiento — puede descuadrar el mes en dashboard. **Trigger: si se requiere precisión histórica exacta en métricas de procedimientos.** Fix: backfillear performed_at desde la última cita completed del lead.
 
+- [ ] **Extender `requireOrgContext()` para retornar `permissions` y migrar gates a `canEdit()`.** Hoy `requireOrgContext()` solo devuelve `{ userId, orgId, role }`, así que los gates de `app/actions/team.ts` (`removeDoctorMembership`) e `importLeads.ts` chequean por ROL (`role !== 'owner'` / `role === 'doctor'`), no por permiso fino. **Trigger: cuando se quiera respetar overrides de permisos por miembro (ej. un owner que revoca CRM a un staff con `doctors:'full'`).** Fix: agregar `permissions` al retorno de `requireOrgContext()` y reemplazar los checks de rol por `canEdit(perms, 'crm'|'team'|...)` de lib/permissions.ts.
+
+- [ ] **Unificar `importLeads.ts` a `createServiceClient()`.** `app/(app)/crm/actions/importLeads.ts` construye su propio cliente service role a nivel de módulo con `createClient` de `@supabase/supabase-js`, en vez del helper `createServiceClient()` de lib/supabase/server. **Trigger: próxima refactor del CRM o del flujo de import.** Fix: reemplazar por `createServiceClient()` para un único punto de construcción del cliente service role.
+
 ---
 
 ## 🏗️ Decisiones Técnicas
@@ -311,6 +345,7 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 - Doctor permitido: /scheduling, /doctors, /settings/integrations
 - Staff bloqueado: /dashboard, /admin
 - Staff solo lectura: /team (puede ver lista, no invitar/editar/eliminar)
+- /team es FUNCIONAL (ya no placeholder): owner invita/cambia rol/elimina miembros vía server actions en `app/actions/team.ts`. Las mutaciones NO van directas desde el browser — la policy de escritura de `organization_members` se eliminó, así que toda escritura pasa por server action con `requireOrgContext()` + check owner. Ver patrón obligatorio #6.
 - Staff acceso completo: /crm, /scheduling, /conversations, /settings/*
 - Doctor en /dashboard → redirect a /scheduling/calendar
 - **NO hay verificación de roles en middleware**
