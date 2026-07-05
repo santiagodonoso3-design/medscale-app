@@ -316,7 +316,7 @@ Get-Content -LiteralPath "app\book\[org-slug]\page.tsx"
 
 **Toda query a datos de negocio DEBE incluir `.eq('organization_id', orgId)`**
 
-**Inserts de doctors deben ir por `/api/doctors` con service role, no directos desde client**
+**Inserts de doctors van por `/api/doctors` (POST) — exige sesión de OWNER y deriva la org de la sesión con `requireOrgContext()`; NO acepta orgId/userId del body. Mismo patrón en `/api/onboarding/step2`. Nunca inserts directos desde client.**
 
 **Superadmin usa `createServiceClient()`, NUNCA `createClient()`** — necesita acceso cross-tenant sin RLS
 

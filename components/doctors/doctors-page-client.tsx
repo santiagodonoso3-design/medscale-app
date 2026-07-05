@@ -140,13 +140,11 @@ export function DoctorsPageClient({ isDoctor = false, userDoctorId = null, orgId
       const { error } = await supabase.from('doctors').update(payload).eq('id', editingId)
       if (error) { setFormError(error.message); setSaving(false); return }
     } else {
-      const { data: auth } = await supabase.auth.getUser()
+      // orgId, userId y rol se derivan de la sesión en el endpoint — no se envían.
       const res = await fetch('/api/doctors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orgId,
-          userId: auth.user?.id,
           specialty: payload.specialty,
           metadata: payload.metadata,
           is_active: payload.is_active,

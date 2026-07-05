@@ -1,11 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { checkPlanLimit, limitErrorMessage } from '@/lib/plans'
+import { requireOrgContext } from '@/lib/auth/session'
 
 export async function POST(req: NextRequest) {
-  const { orgId, name, specialty, duration, userId } = await req.json()
+  // Identidad derivada de la sesión — nunca del body. Sin sesión → 401.
+  let ctx
+  try {
+    ctx = await requireOrgContext()
+  } catch {
+    return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+  }
+  const { orgId, userId, role } = ctx
 
-  if (!orgId || !name || !specialty || !userId) {
+  // Solo el owner crea médicos (doctors es 'full' solo para owner en permissions).
+  if (role !== 'owner') {
+    return NextResponse.json({ error: 'No autorizado.' }, { status: 403 })
+  }
+
+  const { name, specialty, duration } = await req.json()
+
+  if (!name || !specialty) {
     return NextResponse.json({ error: 'Datos incompletos.' }, { status: 400 })
   }
 

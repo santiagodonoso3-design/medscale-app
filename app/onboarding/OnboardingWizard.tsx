@@ -129,7 +129,7 @@ export function OnboardingWizard({ orgId, orgName, userEmail, userId }: Props) {
       const res = await fetch('/api/onboarding/step2', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orgId, userId, ...step2 }),
+        body: JSON.stringify({ ...step2 }),
       })
       setSaving(false)
       if (!res.ok) {
