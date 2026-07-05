@@ -66,6 +66,35 @@ export async function POST(request: Request) {
       return jsonResponse({ success: false, error: 'Organización no encontrada' }, 404)
     }
 
+    // ── Coherencia cross-tenant: los IDs del body deben pertenecer a la org ──────
+    // La ruta es pública (sin sesión). org.id se deriva del org_slug, y todo ID que
+    // venga del cliente (doctor_id, appointment_type_id) se valida contra ESE org.id
+    // ANTES de usarse, para que un atacante no inyecte una cita ni dispare un evento
+    // de calendario apuntando a un doctor o tipo de cita de OTRA organización.
+    if (doctor_id) {
+      const { data: validDoctor } = await supabase
+        .from('doctors')
+        .select('id')
+        .eq('id', doctor_id)
+        .eq('organization_id', org.id)
+        .maybeSingle()
+      if (!validDoctor) {
+        return jsonResponse({ success: false, error: 'Médico no válido para esta organización' }, 400)
+      }
+    }
+
+    if (appointment_type_id) {
+      const { data: validType } = await supabase
+        .from('appointment_types')
+        .select('id')
+        .eq('id', appointment_type_id)
+        .eq('organization_id', org.id)
+        .maybeSingle()
+      if (!validType) {
+        return jsonResponse({ success: false, error: 'Tipo de cita no válido para esta organización' }, 400)
+      }
+    }
+
     // ── Enforce booking notice window (min/max) ──────────────────────────
     if (appointment_type_id) {
       const { data: noticeType, error: noticeErr } = await supabase
