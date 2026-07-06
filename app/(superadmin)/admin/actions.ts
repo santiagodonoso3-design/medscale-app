@@ -1,5 +1,6 @@
 'use server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { requirePlatformAdmin } from '@/lib/auth/session'
 
 export interface OrgMetric {
   id: string
@@ -29,6 +30,7 @@ export interface DashboardMetrics {
 }
 
 export async function getDashboardMetrics(): Promise<DashboardMetrics | null> {
+  await requirePlatformAdmin()
   const admin = createServiceClient()
 
   try {
