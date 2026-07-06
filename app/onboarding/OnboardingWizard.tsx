@@ -86,7 +86,7 @@ export function OnboardingWizard({ orgId, orgName, userEmail, userId }: Props) {
     fetch('/api/onboarding/step4', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orgId, doctorId }),
+      body: JSON.stringify({ doctorId }),
     })
       .then((r) => r.json())
       .then((body) => {
@@ -109,7 +109,7 @@ export function OnboardingWizard({ orgId, orgName, userEmail, userId }: Props) {
       const res = await fetch('/api/onboarding/step1', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orgId, ...step1 }),
+        body: JSON.stringify({ ...step1 }),
       })
       setSaving(false)
       if (!res.ok) {
@@ -178,7 +178,7 @@ export function OnboardingWizard({ orgId, orgName, userEmail, userId }: Props) {
     await fetch('/api/onboarding/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ organization_id: orgId }),
+      body: JSON.stringify({}),
     })
     router.push('/dashboard')
   }

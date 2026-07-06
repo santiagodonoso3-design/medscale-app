@@ -1,20 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
+import { requireOrgContext } from '@/lib/auth/session'
 
 function slugify(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
 }
 
 export async function POST(req: NextRequest) {
-  const { orgId, name, city, phone, contact_email } = await req.json()
+  // La org se deriva de la sesión — nunca del body (antes era IDOR).
+  let ctx
+  try {
+    ctx = await requireOrgContext()
+  } catch {
+    return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+  }
+  const { orgId } = ctx
 
-  if (!orgId || !name || !city) {
+  const { name, city, phone, contact_email } = await req.json()
+
+  if (!name || !city) {
     return NextResponse.json({ error: 'Datos incompletos.' }, { status: 400 })
   }
-
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const admin = createServiceClient()
 

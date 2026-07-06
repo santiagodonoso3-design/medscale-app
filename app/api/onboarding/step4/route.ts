@@ -1,14 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { requireOrgContext } from '@/lib/auth/session'
 
 export async function POST(req: NextRequest) {
-  const { orgId, doctorId } = await req.json()
+  let ctx
+  try {
+    ctx = await requireOrgContext()
+  } catch {
+    return NextResponse.json({ error: 'No autenticado.' }, { status: 401 })
+  }
+  const { orgId } = ctx
 
-  if (!orgId || !doctorId) {
+  const { doctorId } = await req.json()
+
+  if (!doctorId) {
     return NextResponse.json({ error: 'Datos incompletos.' }, { status: 400 })
   }
 
   const admin = createServiceClient()
+
+  // Validar que el doctor pertenece a la org antes de vincularlo al tipo de cita.
+  const { data: doctor } = await admin
+    .from('doctors')
+    .select('id')
+    .eq('id', doctorId)
+    .eq('organization_id', orgId)
+    .maybeSingle()
+  if (!doctor) {
+    return NextResponse.json({ error: 'Médico no válido para esta organización.' }, { status: 403 })
+  }
 
   const { data: org, error: orgError } = await admin
     .from('organizations')
