@@ -64,7 +64,7 @@ export default function RegisterPage() {
 
   const [referralCode, setReferralCode]   = useState('')
   const [referralStatus, setReferralStatus] = useState<null | 'validating' | 'valid' | 'invalid'>(null)
-  const [referralData, setReferralData]   = useState<{ referrer_name: string; discount_type: string; discount_value: number } | null>(null)
+  const [referralData, setReferralData]   = useState<{ discount_type: string; discount_value: number } | null>(null)
 
   useEffect(() => {
     if (!referralCode.trim()) {
@@ -79,7 +79,7 @@ export default function RegisterPage() {
         const data = await res.json()
         if (data.valid) {
           setReferralStatus('valid')
-          setReferralData({ referrer_name: data.referrer_name, discount_type: data.discount_type, discount_value: data.discount_value })
+          setReferralData({ discount_type: data.discount_type, discount_value: data.discount_value })
         } else {
           setReferralStatus('invalid')
           setReferralData(null)
@@ -378,7 +378,7 @@ export default function RegisterPage() {
                     <p className="mt-1 text-xs text-emerald-600 font-semibold">
                       ✓ Descuento de {referralData.discount_type === 'percentage'
                         ? `${referralData.discount_value}%`
-                        : `$${referralData.discount_value.toLocaleString('es-CO')}`} aplicado · Referido por {referralData.referrer_name}
+                        : `$${referralData.discount_value.toLocaleString('es-CO')}`} aplicado
                     </p>
                   )}
                   {referralStatus === 'invalid' && (
