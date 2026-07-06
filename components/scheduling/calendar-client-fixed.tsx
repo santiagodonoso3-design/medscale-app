@@ -400,12 +400,17 @@ export function CalendarClient({ userId, doctorId, orgId, readOnly = false }: Ca
     if (!selected) return
     setModalSaving(true)
     setModalError(null)
-    const result = await updateAppointmentNotes(selected.id, modalNotes)
-    if (result.error) { setModalError(result.error) } else {
-      await fetchData()
-      setSelected(prev => prev ? { ...prev, notes: modalNotes } : null)
+    try {
+      const result = await updateAppointmentNotes(selected.id, modalNotes)
+      if (result.error) { setModalError(result.error) } else {
+        await fetchData()
+        setSelected(prev => prev ? { ...prev, notes: modalNotes } : null)
+      }
+    } catch {
+      setModalError('No tienes permiso para esta acción.')
+    } finally {
+      setModalSaving(false)
     }
-    setModalSaving(false)
   }
 
   async function handleReschedule() {
@@ -417,17 +422,22 @@ export function CalendarClient({ userId, doctorId, orgId, readOnly = false }: Ca
       ? new Date(selected.ends_at).getTime() - new Date(selected.scheduled_at).getTime()
       : 30 * 60000
     const endsAt = new Date(new Date(`${modalRescheduleDate}T${modalRescheduleTime}:00-05:00`).getTime() + originalDuration).toISOString()
-    const result = await rescheduleAppointment(selected.id, scheduledAt, endsAt)
-    if (result.error) {
-      const msg = result.error.includes('appointments_no_overlap') || result.error.includes('23P01')
-        ? 'Ese horario ya está ocupado para este médico.'
-        : result.error
-      setModalError(msg)
-    } else {
-      await fetchData()
-      closeModal()
+    try {
+      const result = await rescheduleAppointment(selected.id, scheduledAt, endsAt)
+      if (result.error) {
+        const msg = result.error.includes('appointments_no_overlap') || result.error.includes('23P01')
+          ? 'Ese horario ya está ocupado para este médico.'
+          : result.error
+        setModalError(msg)
+      } else {
+        await fetchData()
+        closeModal()
+      }
+    } catch {
+      setModalError('No tienes permiso para esta acción.')
+    } finally {
+      setModalSaving(false)
     }
-    setModalSaving(false)
   }
 
   async function handleUpdateStatus(newStatus: 'completed' | 'no_show') {
@@ -444,14 +454,19 @@ export function CalendarClient({ userId, doctorId, orgId, readOnly = false }: Ca
     if (!selected || !cancelReason.trim()) return
     setModalSaving(true)
     setModalError(null)
-    // Log cancellation first, then update status
-    await logCancellation(selected.id, cancelReason.trim(), userId)
-    const result = await cancelAppointment(selected.id)
-    if (result.error) { setModalError(result.error) } else {
-      await fetchData()
-      closeModal()
+    try {
+      // Log cancellation first, then update status
+      await logCancellation(selected.id, cancelReason.trim())
+      const result = await cancelAppointment(selected.id)
+      if (result.error) { setModalError(result.error) } else {
+        await fetchData()
+        closeModal()
+      }
+    } catch {
+      setModalError('No tienes permiso para esta acción.')
+    } finally {
+      setModalSaving(false)
     }
-    setModalSaving(false)
   }
 
   // ── Inline status change (list view badge) ────────────────────────────────

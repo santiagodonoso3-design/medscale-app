@@ -2,6 +2,7 @@
 
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { getOrgIdFromUser } from '@/lib/get-org-id'
+import { requireOrgContext } from '@/lib/auth/session'
 import { revalidatePath } from 'next/cache'
 import { resend } from '@/lib/email/resend'
 import { cancellationEmail, rescheduleEmail, noShowFollowUpEmail } from '@/lib/email/templates'
@@ -10,13 +11,14 @@ import { logAppointmentEvent } from '@/lib/appointments/log-event'
 
 // ── Email helper (fire-and-forget, never throws) ──────────────────────────────
 
-async function fetchAptForEmail(id: string) {
+async function fetchAptForEmail(id: string, orgId: string) {
   try {
     const admin = createServiceClient()
     const { data } = await admin
       .from('appointments')
       .select('scheduled_at, manage_token, lead:lead_id(contact_name, contact_last_name, contact_email), org:organization_id(name, slug)')
       .eq('id', id)
+      .eq('organization_id', orgId)
       .single()
     return data
   } catch { return null }
@@ -38,33 +40,42 @@ function fmtTime(iso: string): string {
 // ── Actions ───────────────────────────────────────────────────────────────────
 
 export async function cancelAppointment(id: string): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { error } = await supabase
+  const { orgId, role } = await requireOrgContext()
+  if (role === 'doctor') throw new Error('FORBIDDEN')
+
+  const admin = createServiceClient()
+
+  // Tenant fence: solo la org del que llama. 0 filas ⇒ cita ajena ⇒ abortar
+  // ANTES de tocar lead / calendar / email.
+  const { data: updated, error } = await admin
     .from('appointments')
     .update({ status: 'cancelled' })
     .eq('id', id)
+    .eq('organization_id', orgId)
+    .select('id')
   if (error) return { error: error.message }
+  if (!updated || updated.length === 0) throw new Error('FORBIDDEN')
   revalidatePath('/scheduling/calendar')
 
-  // Sync lead status to cancelo_cita
-  const adminSync = createServiceClient()
-  const { data: aptLead } = await adminSync
+  // Sync lead status to cancelo_cita (org-fenced)
+  const { data: aptLead } = await admin
     .from('appointments')
     .select('lead_id')
     .eq('id', id)
+    .eq('organization_id', orgId)
     .single()
   if (aptLead?.lead_id) {
-    await adminSync.from('leads').update({ status: 'cancelo_cita' }).eq('id', aptLead.lead_id)
+    await admin.from('leads').update({ status: 'cancelo_cita' }).eq('id', aptLead.lead_id).eq('organization_id', orgId)
   }
 
-  // Delete Google Calendar event if exists (non-blocking)
+  // Delete Google Calendar event if exists (non-blocking, org-fenced read)
   Promise.allSettled([
     (async () => {
-      const admin = createServiceClient()
       const { data: aptData } = await admin
         .from('appointments')
         .select('external_calendar_id, doctor_id')
         .eq('id', id)
+        .eq('organization_id', orgId)
         .single()
       if (aptData?.external_calendar_id && aptData?.doctor_id) {
         await deleteGoogleCalendarEvent(aptData.doctor_id, aptData.external_calendar_id)
@@ -72,11 +83,11 @@ export async function cancelAppointment(id: string): Promise<{ error?: string }>
     })(),
   ]).catch(() => {})
 
-  // Send cancellation email (non-blocking)
+  // Send cancellation email (non-blocking) — solo tras pasar el check de tenant
   if (process.env.RESEND_API_KEY) {
     Promise.allSettled([
       (async () => {
-        const apt = await fetchAptForEmail(id)
+        const apt = await fetchAptForEmail(id, orgId)
         if (!apt) return
         const lead = Array.isArray(apt.lead) ? apt.lead[0] : apt.lead
         const patientEmail = lead?.contact_email
@@ -110,14 +121,26 @@ export async function cancelAppointment(id: string): Promise<{ error?: string }>
 
 export async function logCancellation(
   appointmentId: string,
-  reason: string,
-  userId: string | null
+  reason: string
 ): Promise<{ error?: string }> {
+  const { userId, orgId, role } = await requireOrgContext()
+  if (role === 'doctor') throw new Error('FORBIDDEN')
+
+  // Verificar que la cita pertenece a la org antes de escribir en el audit-log.
+  const admin = createServiceClient()
+  const { data: apt } = await admin
+    .from('appointments')
+    .select('id')
+    .eq('id', appointmentId)
+    .eq('organization_id', orgId)
+    .single()
+  if (!apt) throw new Error('FORBIDDEN')
+
   await logAppointmentEvent({
     appointmentId,
     eventType: 'cancelled',
-    actorType: userId ? 'staff' : 'system',
-    performedBy: userId,
+    actorType: 'staff',
+    performedBy: userId,   // SIEMPRE el usuario de sesión, nunca del body
     note: reason,
   })
   return {}
@@ -127,12 +150,18 @@ export async function updateAppointmentNotes(
   id: string,
   notes: string
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { error } = await supabase
+  const { orgId, role } = await requireOrgContext()
+  if (role === 'doctor') throw new Error('FORBIDDEN')
+
+  const admin = createServiceClient()
+  const { data: updated, error } = await admin
     .from('appointments')
     .update({ notes })
     .eq('id', id)
+    .eq('organization_id', orgId)
+    .select('id')
   if (error) return { error: error.message }
+  if (!updated || updated.length === 0) throw new Error('FORBIDDEN')
   revalidatePath('/scheduling/calendar')
   return {}
 }
@@ -210,19 +239,28 @@ export async function rescheduleAppointment(
   scheduledAt: string,
   endsAt: string
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { error } = await supabase
+  const { orgId, role } = await requireOrgContext()
+  if (role === 'doctor') throw new Error('FORBIDDEN')
+
+  const admin = createServiceClient()
+  // La constraint appointments_no_overlap se sigue evaluando en la DB (aplica
+  // con service client igual). El error de solapamiento vuelve en `error` y el
+  // caller lo mapea; 0 filas ⇒ cita ajena ⇒ abortar antes del email.
+  const { data: updated, error } = await admin
     .from('appointments')
     .update({ scheduled_at: scheduledAt, ends_at: endsAt })
     .eq('id', id)
+    .eq('organization_id', orgId)
+    .select('id')
   if (error) return { error: error.message }
+  if (!updated || updated.length === 0) throw new Error('FORBIDDEN')
   revalidatePath('/scheduling/calendar')
 
-  // Send reschedule email (non-blocking)
+  // Send reschedule email (non-blocking) — solo tras pasar el check de tenant
   if (process.env.RESEND_API_KEY) {
     Promise.allSettled([
       (async () => {
-        const apt = await fetchAptForEmail(id)
+        const apt = await fetchAptForEmail(id, orgId)
         if (!apt) return
         const lead = Array.isArray(apt.lead) ? apt.lead[0] : apt.lead
         const patientEmail = lead?.contact_email
