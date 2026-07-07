@@ -184,7 +184,7 @@ La protección por roles la manejan `layout.tsx` y cada página vía `getSession
 
 ```
 lib/
-  auth/session.ts        → getSession() — USAR SIEMPRE en server components
+  auth/session.ts        → getSession(), requireOrgContext(), requirePlatformAdmin()
   get-org-id.ts          → getOrgIdFromUser() — para actions/APIs
   admin/impersonate.ts   → Impersonation de orgs (start/stop/get)
   supabase/server.ts     → createClient() + createServiceClient()
@@ -192,6 +192,7 @@ lib/
   email/resend.ts        → envío de emails
   email/templates.ts     → templates HTML
   google/calendar.ts     → integración Google Calendar
+  date.ts                → helpers de fecha Bogotá (FUENTE ÚNICA)
 
 app/
   (app)/                 → rutas protegidas del dashboard
@@ -201,6 +202,21 @@ app/
   book/                  → agendamiento público
   api/                   → API routes
 ```
+
+### Fechas y timezone (Bogotá, UTC-5, sin DST)
+
+- `lib/date.ts` es la **FUENTE ÚNICA** de verdad para fechas. Usar sus helpers: `buildBogotaISO(dateStr, timeStr)`, `bogotaDayStr(iso)`, `bogotaTimeStr(iso)`, `bogotaMonthStr(iso)`, `todayBogotaStr()`, `bogotaWeekday(iso)`.
+- **PROHIBIDO:** `.slice(0,10)` sobre un timestamp de la DB (da el día en UTC, no en Bogotá — desfasa citas nocturnas al día siguiente). Usar `bogotaDayStr(iso)`.
+- **PROHIBIDO:** ``new Date(`${fecha}T${hora}`)`` sin offset (Vercel corre en UTC → interpreta la hora como UTC). Usar `buildBogotaISO(fecha, hora)`, que aplica `-05:00`.
+- Los 4 paths de creación de cita (`/api/book`, `crm/book-appointment-modal`, `scheduling/calendar-client-fixed`, `appointment/manage`) ya construyen con `-05:00` correcto. `calendar-client-fixed.tsx` ya migrado a `bogotaDayStr` para agrupar por día.
+- **Deuda:** quedan `.slice(0,10)` sobre `scheduled_at` en otros archivos (dashboard ya usa su propio helper correcto; verificar caso por caso antes de migrar — no todo `.slice` es bug).
+
+### Auditoría de seguridad — estado (sesión jul 2026)
+
+- **Patrón canónico obligatorio:** identidad (`requireOrgContext`/`requirePlatformAdmin`) → check de rol → verificación de pertenencia a org → query fenceada con `.eq('organization_id', orgId)` derivado de sesión. Ejemplo canónico: `app/actions/team.ts` (ver patrón obligatorio #6).
+- **Cerrado y verificado:** superadmin actions, register/complete, dashboard, settings, importLeads, `/api/doctors`, `/api/onboarding` step1-4, `/api/book` (valida doctor∈org), scheduling actions, google disconnect/select-calendar, request-agent, plans/check, referrals/validate, crons con guard de `CRON_SECRET`.
+- **Congelado (no tocar):** NB-2/C-8 — OAuth `state` sin firmar en `/api/google/callback` y `/api/google/auth`, pendiente de verificación de Google. No modificar el flujo OAuth hasta el veredicto.
+- **Backlog de seguridad pendiente:** NB-9 (webhooks con `WEBHOOK_SECRET` global — rediseñar a secret/firma por-org), NB-14 (endpoints CRM sin `canEdit` — defensa en profundidad), NB-16 (comparación de firma MP no constante), NB-18/19/20 (bajos).
 
 ---
 
