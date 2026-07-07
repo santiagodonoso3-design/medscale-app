@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Plus, Search, X, Loader2, CalendarDays, List, ChevronLeft, ChevronRight, ChevronDown, CheckCircle, XCircle, Calendar } from 'lucide-react'
 import { CalendarPicker, type ScheduleOption } from '@/components/shared/CalendarPicker'
 import { AppointmentActivity } from '@/components/scheduling/appointment-activity'
+import { bogotaDayStr, todayBogotaStr } from '@/lib/date'
 import {
   cancelAppointment,
   updateAppointmentNotes,
@@ -320,7 +321,7 @@ export function CalendarClient({ userId, doctorId, orgId, readOnly = false }: Ca
   const appointmentsByDay = useMemo(() => {
     const map: Record<string, AppointmentRecord[]> = {}
     filteredAppointments.forEach(apt => {
-      const day = apt.scheduled_at.slice(0, 10)
+      const day = bogotaDayStr(apt.scheduled_at)
       if (!map[day]) map[day] = []
       map[day].push(apt)
     })
@@ -334,16 +335,16 @@ export function CalendarClient({ userId, doctorId, orgId, readOnly = false }: Ca
 
   // ── List view data ─────────────────────────────────────────────────────────
 
-  const todayForFilter = todayStr()
+  const todayForFilter = todayBogotaStr()
 
   const upcomingData = useMemo(() => {
     const source = filteredAppointments.filter(a => {
-      const day = a.scheduled_at.slice(0, 10)
+      const day = bogotaDayStr(a.scheduled_at)
       return day >= todayForFilter && a.status !== 'cancelled'
     })
     const grouped: Record<string, AppointmentRecord[]> = {}
     source.forEach(apt => {
-      const day = apt.scheduled_at.slice(0, 10)
+      const day = bogotaDayStr(apt.scheduled_at)
       if (!grouped[day]) grouped[day] = []
       grouped[day].push(apt)
     })
@@ -357,14 +358,14 @@ export function CalendarClient({ userId, doctorId, orgId, readOnly = false }: Ca
   const pastData = useMemo(() => {
     const range = getDateRange(listRange)
     const source = filteredAppointments.filter(a => {
-      const day = a.scheduled_at.slice(0, 10)
+      const day = bogotaDayStr(a.scheduled_at)
       const isPast = day < todayForFilter
       const inRange = range ? day >= range.from && day <= range.to : true
       return isPast && inRange && (showCancelled || a.status !== 'cancelled')
     })
     const grouped: Record<string, AppointmentRecord[]> = {}
     source.forEach(apt => {
-      const day = apt.scheduled_at.slice(0, 10)
+      const day = bogotaDayStr(apt.scheduled_at)
       if (!grouped[day]) grouped[day] = []
       grouped[day].push(apt)
     })
