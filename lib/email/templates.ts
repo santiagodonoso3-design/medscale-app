@@ -109,10 +109,20 @@ export function bookingConfirmationPatient(p: BookingEmailParams): string {
 
 // ── Shared brand shell helper (collapsed HTML, same as confirmation) ─────────
 
-export function brandShell(lang: string, orgName: string, bodyHtml: string, accentColor = C.primary): string {
+export interface EmailBrand {
+  logoUrl?: string | null
+  primaryColor?: string | null
+}
+
+export function brandShell(lang: string, orgName: string, bodyHtml: string, brand?: EmailBrand): string {
   const SG = `font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif`
   const IN = `font-family:'Inter',Helvetica,Arial,sans-serif`
-  return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/></head><body style="margin:0;padding:0;background:${C.bg};${IN}"><div style="max-width:600px;margin:0 auto;padding:32px 16px"><div style="background:${C.card};border-radius:16px 16px 0 0;border:1px solid ${C.border};border-bottom:none;padding:32px 36px 0;text-align:center"><div style="margin-bottom:16px"><img src="https://app.medscale.app/logo-dark.png" alt="MedScale AI" height="36" style="height:36px;width:auto;display:block;margin:0 auto 8px;" /><p style="margin:4px 0 0;font-size:9px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:${C.accent}">FOR HEALTHCARE GROWTH</p></div><p style="margin:0;${SG};font-size:20px;font-weight:600;color:${C.fg}">${orgName}</p><div style="height:4px;background:${accentColor};margin:20px -36px 0"></div></div><div style="background:${C.card};border:1px solid ${C.border};border-top:none;border-bottom:none;padding:32px 36px">${bodyHtml}</div><div style="background:${C.bg};border:1px solid ${C.border};border-top:none;border-radius:0 0 16px 16px;padding:20px 36px;text-align:center"><p style="margin:0;font-size:11px;color:${C.muted};${IN}">Powered by <strong style="color:${C.fg}">MedScale AI</strong> · medscale.app</p></div></div></body></html>`
+  const accentColor = brand?.primaryColor ?? C.primary
+  // Org logo replaces the MedScale logo AND its tagline; without it, keep both
+  const logoBlock = brand?.logoUrl
+    ? `<img src="${brand.logoUrl}" alt="${orgName}" height="36" style="height:36px;width:auto;display:block;margin:0 auto 8px;" />`
+    : `<img src="https://app.medscale.app/logo-dark.png" alt="MedScale AI" height="36" style="height:36px;width:auto;display:block;margin:0 auto 8px;" /><p style="margin:4px 0 0;font-size:9px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:${C.accent}">FOR HEALTHCARE GROWTH</p>`
+  return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/></head><body style="margin:0;padding:0;background:${C.bg};${IN}"><div style="max-width:600px;margin:0 auto;padding:32px 16px"><div style="background:${C.card};border-radius:16px 16px 0 0;border:1px solid ${C.border};border-bottom:none;padding:32px 36px 0;text-align:center"><div style="margin-bottom:16px">${logoBlock}</div><p style="margin:0;${SG};font-size:20px;font-weight:600;color:${C.fg}">${orgName}</p><div style="height:4px;background:${accentColor};margin:20px -36px 0"></div></div><div style="background:${C.card};border:1px solid ${C.border};border-top:none;border-bottom:none;padding:32px 36px">${bodyHtml}</div><div style="background:${C.bg};border:1px solid ${C.border};border-top:none;border-radius:0 0 16px 16px;padding:20px 36px;text-align:center"><p style="margin:0;font-size:11px;color:${C.muted};${IN}">Powered by <strong style="color:${C.fg}">MedScale AI</strong> · medscale.app</p></div></div></body></html>`
 }
 
 function apptCell(label: string, value: string): string {
@@ -161,7 +171,7 @@ export function cancellationEmail(p: SimpleEmailParams): string {
   ` : ''
 
   const bodyHtml = `<h1 style="${SG};font-size:22px;font-weight:700;color:#DC3545;margin:0 0 16px">${heading}</h1><p style="${IN};font-size:15px;color:${C.muted};margin:0 0 24px;line-height:1.6">${body}</p><div style="border:1px solid ${C.border};border-radius:12px;overflow:hidden"><table style="width:100%;border-collapse:collapse">${typeRow}<tr>${apptCell(lDate, p.date)}${apptCell(lTime, p.time)}</tr></table></div>${ctaSection}`
-  return brandShell(lang, p.orgName, bodyHtml, '#DC3545')
+  return brandShell(lang, p.orgName, bodyHtml, { primaryColor: '#DC3545' })
 }
 
 // ── No-show follow-up email ───────────────────────────────────────────────────
@@ -195,7 +205,7 @@ export function noShowFollowUpEmail(p: {
       </a>
     </div>
   `
-  return brandShell('es', p.orgName, bodyHtml, C.primary)
+  return brandShell('es', p.orgName, bodyHtml, { primaryColor: C.primary })
 }
 
 // ── Reschedule notification ───────────────────────────────────────────────────
@@ -221,7 +231,7 @@ export function rescheduleEmail(p: RescheduleEmailParams): string {
   const lNewTime = isEs ? 'Nueva hora'    : 'New time'
   const typeRow  = p.appointmentTypeName ? `<tr style="border-bottom:1px solid ${C.border}">${apptCell(lType, p.appointmentTypeName)}<td></td></tr>` : ''
   const bodyHtml = `<h1 style="font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif;font-size:22px;font-weight:700;color:${C.fg};margin:0 0 16px">${heading}</h1><p style="font-family:'Inter',Helvetica,Arial,sans-serif;font-size:15px;color:${C.muted};margin:0 0 24px;line-height:1.6">${body}</p><div style="border:1px solid ${C.border};border-radius:12px;overflow:hidden"><table style="width:100%;border-collapse:collapse">${typeRow}<tr>${apptCell(lNewDate, p.newDate)}${apptCell(lNewTime, p.newTime)}</tr></table></div>`
-  return brandShell(lang, p.orgName, bodyHtml, C.primary)
+  return brandShell(lang, p.orgName, bodyHtml, { primaryColor: C.primary })
 }
 
 // ── Clinic booking notification ───────────────────────────────────────────────
@@ -312,7 +322,7 @@ export function invitationEmail(p: InvitationEmailParams): string {
       El enlace expirará en 24 horas.
     </p>
   `
-  return brandShell('es', p.orgName, bodyHtml, C.primary)
+  return brandShell('es', p.orgName, bodyHtml, { primaryColor: C.primary })
 }
 
 // ── Internal clinic notification (legacy) ─────────────────────────────────────
@@ -358,6 +368,7 @@ export function automationEmail(
   orgName: string,
   bodyText: string,
   ctaButton?: { label: string; url: string },
+  brand?: EmailBrand,
 ): string {
   const SG = `font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif`
   const IN = `font-family:'Inter',Helvetica,Arial,sans-serif`
@@ -375,5 +386,5 @@ export function automationEmail(
     ? `<div style="text-align:center;margin-top:24px"><a href="${ctaButton.url}" style="display:inline-block;background:${C.primary};color:#ffffff;${SG};font-size:14px;font-weight:600;padding:12px 32px;border-radius:10px;text-decoration:none">${ctaButton.label}</a></div>`
     : ''
 
-  return brandShell('es', orgName, paragraphs + cta)
+  return brandShell('es', orgName, paragraphs + cta, brand)
 }

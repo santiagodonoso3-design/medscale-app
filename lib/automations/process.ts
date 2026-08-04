@@ -1,5 +1,5 @@
 import { resend } from '@/lib/email/resend'
-import { automationEmail } from '@/lib/email/templates'
+import { automationEmail, type EmailBrand } from '@/lib/email/templates'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = any
@@ -24,6 +24,8 @@ interface OrgData {
   id: string
   name: string
   slug: string | null
+  logo_url: string | null
+  primary_color: string | null
 }
 
 interface LeadRow {
@@ -77,6 +79,10 @@ function doctorNameFromMeta(doctor: { metadata?: Record<string, unknown> | null 
   return String(doctor?.metadata?.name ?? 'Tu médico')
 }
 
+function brandFromOrg(org: OrgData): EmailBrand {
+  return { logoUrl: org.logo_url, primaryColor: org.primary_color }
+}
+
 function parseBirthday(value: unknown): { month: number; day: number } | null {
   if (!value || typeof value !== 'string') return null
   const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
@@ -95,7 +101,8 @@ async function sendAndLog(
   subject: string,
   bodyText: string,
   orgName: string,
-  ctaUrl?: string,
+  brand?: EmailBrand,
+  cta?: { label: string; url: string },
 ): Promise<boolean> {
   let status = 'sent'
   try {
@@ -103,7 +110,7 @@ async function sendAndLog(
       from: 'citas@medscale.app',
       to:   lead.contact_email,
       subject,
-      html: automationEmail(orgName, bodyText, ctaUrl ? { label: 'Reagendar cita', url: ctaUrl } : undefined),
+      html: automationEmail(orgName, bodyText, cta, brand),
     })
   } catch (err) {
     console.error(`[automations] Send failed rule=${rule.id} to=${lead.contact_email}:`, err)
@@ -181,7 +188,8 @@ async function processEventRule(
       replaceVars(rule.email_subject, vars),
       replaceVars(rule.email_body, vars),
       org.name,
-      ctaUrl,
+      brandFromOrg(org),
+      ctaUrl ? { label: 'Reagendar cita', url: ctaUrl } : undefined,
     )
     if (ok) sent++
   }
@@ -253,6 +261,7 @@ async function processProcedureFollowup(
       replaceVars(rule.email_subject, vars),
       replaceVars(rule.email_body, vars),
       org.name,
+      brandFromOrg(org),
     )
     if (ok) sent++
   }
@@ -294,6 +303,7 @@ async function processProcedureCompleted(
       replaceVars(rule.email_subject, vars),
       replaceVars(rule.email_body, vars),
       org.name,
+      brandFromOrg(org),
     )
     if (ok) sent++
   }
@@ -358,6 +368,7 @@ async function processBirthday(
       replaceVars(rule.email_subject, vars),
       replaceVars(rule.email_body, vars),
       org.name,
+      brandFromOrg(org),
     )
     if (ok) sent++
   }
@@ -463,6 +474,7 @@ async function processSpecialDate(
       replaceVars(rule.email_subject, vars),
       replaceVars(rule.email_body, vars),
       org.name,
+      brandFromOrg(org),
     )
     if (ok) sent++
   }
@@ -581,6 +593,8 @@ async function processLeadStatusRule(
     )
   }
 
+  const ctaUrl = org.slug ? `${APP_URL}/book/${org.slug}` : undefined
+
   let sent = 0
   for (const lead of candidates) {
     if (sent >= remaining) break
@@ -593,6 +607,8 @@ async function processLeadStatusRule(
       replaceVars(rule.email_subject, vars),
       replaceVars(rule.email_body, vars),
       org.name,
+      brandFromOrg(org),
+      ctaUrl ? { label: 'Agendar cita', url: ctaUrl } : undefined,
     )
     if (ok) sent++
   }
@@ -622,7 +638,7 @@ export async function processAutomationRules(admin: Admin): Promise<number> {
   const orgIds = [...new Set<string>(rules.map((r: { organization_id: string }) => r.organization_id))]
   const { data: orgs } = await admin
     .from('organizations')
-    .select('id, name, slug')
+    .select('id, name, slug, logo_url, primary_color')
     .in('id', orgIds)
 
   const orgMap = new Map<string, OrgData>(
