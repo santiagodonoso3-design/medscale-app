@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { resend } from '@/lib/email/resend'
 import { requirePlatformAdmin } from '@/lib/auth/session'
 import { runScheduledDeletions } from '@/lib/admin/deletions'
+import { seedLeadStatuses } from '@/lib/organizations/seed-statuses'
 
 export interface Organization {
   id: string
@@ -85,6 +86,8 @@ export async function createOrganization(
     if (error || !newOrg) {
       return { success: false, error: error?.message || 'Error creando organización' }
     }
+
+    await seedLeadStatuses(admin, newOrg.id)
 
     const organization: Organization = {
       id: newOrg.id,

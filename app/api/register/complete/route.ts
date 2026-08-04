@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { seedLeadStatuses } from '@/lib/organizations/seed-statuses'
 
 // New orgs always start on the lowest tier. Plan upgrades happen only via
 // superadmin (protected) or the Mercado Pago webhook — never from the client.
@@ -99,6 +100,8 @@ export async function POST(req: NextRequest) {
   if (orgError) {
     return NextResponse.json({ error: orgError.message }, { status: 500 })
   }
+
+  await seedLeadStatuses(supabase, org.id)
 
   // Create organization member — owner is ALWAYS the session user.
   const { error: memberError } = await supabase
