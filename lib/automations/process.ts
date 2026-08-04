@@ -470,6 +470,136 @@ async function processSpecialDate(
   return sent
 }
 
+// lead_status: lead has spent delay_days in the rule.audience status and has not
+// replied nor booked a new appointment since entering it. One email per lead, ever.
+async function processLeadStatusRule(
+  admin: Admin, rule: AutomationRule, org: OrgData, remaining: number,
+): Promise<number> {
+  const targetStatus = rule.audience
+  if (!targetStatus || targetStatus === 'all' || targetStatus === 'birthday') return 0
+
+  const delayDays = rule.delay_days ?? 0
+  // Entered the status on (today - delayDays) or earlier → has spent ≥ delayDays in it
+  const cutoff = getDayRange(addDays(getTodayBogota(), -delayDays)).end
+
+  const { data: transitions } = await admin
+    .from('lead_status_history')
+    .select('lead_id, changed_at')
+    .eq('organization_id', rule.organization_id)
+    .eq('to_status', targetStatus)
+    .lte('changed_at', cutoff)
+    .order('changed_at', { ascending: false })
+    .limit(remaining + 100)
+
+  if (!transitions?.length) return 0
+
+  // Most recent qualifying transition per lead (rows come newest-first)
+  const changedAtMap = new Map<string, string>()
+  for (const t of transitions as { lead_id: string; changed_at: string }[]) {
+    if (!changedAtMap.has(t.lead_id)) changedAtMap.set(t.lead_id, t.changed_at)
+  }
+
+  const { data: leads } = await admin
+    .from('leads')
+    .select('id, contact_name, contact_last_name, contact_email, status')
+    .eq('organization_id', rule.organization_id)
+    .eq('status', targetStatus) // must STILL be in the target status
+    .in('id', [...changedAtMap.keys()])
+    .not('contact_email', 'is', null)
+
+  if (!leads?.length) return 0
+
+  const { data: existingLogs } = await admin
+    .from('automation_logs')
+    .select('lead_id')
+    .eq('automation_rule_id', rule.id)
+    .in('lead_id', leads.map((l: { id: string }) => l.id))
+
+  const logged = new Set<string>(existingLogs?.map((l: { lead_id: string }) => l.lead_id) ?? [])
+
+  const candidates = (leads as LeadRow[]).filter(l => !logged.has(l.id))
+  if (!candidates.length) return 0
+
+  // Revalidation in batch: discard leads that replied (inbound message) or booked
+  // an appointment after entering the status
+  const candidateIds = candidates.map(l => l.id)
+  let minMs = Infinity
+  for (const id of candidateIds) {
+    const t = changedAtMap.get(id)
+    if (!t) continue
+    const ms = new Date(t).getTime()
+    if (!Number.isNaN(ms) && ms < minMs) minMs = ms
+  }
+  const minChangedAt = Number.isFinite(minMs)
+    ? new Date(minMs).toISOString()
+    : new Date(0).toISOString()
+
+  const [{ data: inboundMsgs }, { data: newAppts }] = await Promise.all([
+    admin
+      .from('messages')
+      .select('lead_id, created_at')
+      .eq('organization_id', rule.organization_id)
+      .eq('direction', 'inbound')
+      .in('lead_id', candidateIds)
+      .gt('created_at', minChangedAt),
+    admin
+      .from('appointments')
+      .select('lead_id, created_at')
+      .eq('organization_id', rule.organization_id)
+      .in('lead_id', candidateIds)
+      .gt('created_at', minChangedAt),
+  ])
+
+  const replied = new Set<string>()
+  for (const m of (inboundMsgs ?? []) as { lead_id: string; created_at: string }[]) {
+    const changedAt = changedAtMap.get(m.lead_id)
+    if (!changedAt) continue
+    const changedMs = new Date(changedAt).getTime()
+    const eventMs   = new Date(m.created_at).getTime()
+    // Unparseable timestamps → fail toward NOT sending
+    if (Number.isNaN(changedMs) || Number.isNaN(eventMs) || eventMs > changedMs) {
+      replied.add(m.lead_id)
+    }
+  }
+  const booked = new Set<string>()
+  for (const a of (newAppts ?? []) as { lead_id: string; created_at: string }[]) {
+    const changedAt = changedAtMap.get(a.lead_id)
+    if (!changedAt) continue
+    const changedMs = new Date(changedAt).getTime()
+    const eventMs   = new Date(a.created_at).getTime()
+    // Unparseable timestamps → fail toward NOT sending
+    if (Number.isNaN(changedMs) || Number.isNaN(eventMs) || eventMs > changedMs) {
+      booked.add(a.lead_id)
+    }
+  }
+
+  const discardedReplied = candidates.filter(l => replied.has(l.id)).length
+  const discardedBooked  = candidates.filter(l => !replied.has(l.id) && booked.has(l.id)).length
+  if (discardedReplied || discardedBooked) {
+    console.log(
+      `[automations] rule=${rule.id} lead_status: discarded ${discardedReplied} (inbound reply), ${discardedBooked} (new appointment)`,
+    )
+  }
+
+  let sent = 0
+  for (const lead of candidates) {
+    if (sent >= remaining) break
+    if (replied.has(lead.id) || booked.has(lead.id)) continue
+
+    const vars = { nombre: leadFullName(lead), nombre_clinica: org.name, nombre_doctor: 'Tu médico' }
+    const ok = await sendAndLog(
+      admin, rule,
+      { id: lead.id, contact_email: lead.contact_email },
+      replaceVars(rule.email_subject, vars),
+      replaceVars(rule.email_body, vars),
+      org.name,
+    )
+    if (ok) sent++
+  }
+
+  return sent
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export async function processAutomationRules(admin: Admin): Promise<number> {
@@ -526,6 +656,9 @@ export async function processAutomationRules(admin: Admin): Promise<number> {
           break
         case 'special_date':
           sent = await processSpecialDate(admin, rule, org, today, currentYear, remaining)
+          break
+        case 'lead_status':
+          sent = await processLeadStatusRule(admin, rule, org, remaining)
           break
       }
       if (sent > 0) {
