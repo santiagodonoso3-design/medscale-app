@@ -15,7 +15,7 @@ const MONTH_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct
 
 const STATUS_COLORS: Record<string, string> = {
   cita_valoracion_agendada: '#3b82f6',
-  asistio_a_cita:           '#10b981',
+  asistio_cita:             '#10b981',
   en_tratamiento_medico:    '#f59e0b',
   cancelo_cita:             '#ef4444',
 }
@@ -25,7 +25,6 @@ const STATUS_LABELS: Record<string, string> = {
   contactado:               'Contactado',
   cita_valoracion_agendada: 'Cita agendada',
   asistio_cita:             'Asistió a cita',
-  asistio_a_cita:           'Asistió a cita',
   en_tratamiento_medico:    'En tratamiento',
   cancelo_cita:             'Canceló cita',
   finalizado:               'Finalizado',

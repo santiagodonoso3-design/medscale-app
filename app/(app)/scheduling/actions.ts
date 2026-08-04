@@ -190,7 +190,7 @@ export async function updateAppointmentStatus(
       .eq('id', id)
       .single()
     if (apt?.lead_id) {
-      const leadStatus = status === 'completed' ? 'asistio_a_cita' : 'cancelo_cita'
+      const leadStatus = status === 'completed' ? 'asistio_cita' : 'cancelo_cita'
       await admin.from('leads').update({ status: leadStatus }).eq('id', apt.lead_id)
     }
 
