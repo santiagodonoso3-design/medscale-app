@@ -67,7 +67,7 @@ export default async function BookTypePage({ params }: PageProps) {
 
   const { data: schedules } = await supabaseAdmin
     .from('schedules')
-    .select('id, doctor_id, location_id, day_of_week, start_time, end_time')
+    .select('id, doctor_id, location_id, day_of_week, start_time, end_time, is_recurring, active, specific_date')
     .in('doctor_id', (doctors || []).map(d => d.id))
 
   return (

@@ -65,3 +65,13 @@ export async function fetchScheduleRowsForDate(
   if (error) { console.error('[availability] schedules fetch error:', error); return [] }
   return (data ?? []) as ScheduleRow[]
 }
+
+/**
+ * Une los bloques de todos los médicos presentes en `rows` para una fecha.
+ * Se resuelve médico por médico: un día bloqueado de un médico no apaga el día
+ * para los demás. Útil en asignación automática, donde aún no hay médico elegido.
+ */
+export function resolveBlocksForAnyDoctor(rows: ScheduleRow[], date: string): Block[] {
+  const doctorIds = [...new Set(rows.map(r => r.doctor_id))]
+  return doctorIds.flatMap(id => resolveBlocksForDate(rows, id, date))
+}

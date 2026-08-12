@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { getBookedSlots } from '@/app/actions/booking'
 import { DatePicker } from '@/components/ui/date-picker'
+import { resolveBlocksForDate, resolveBlocksForAnyDoctor } from '@/lib/availability/resolve'
 
 // ── Brand tokens ──────────────────────────────────────────────────────────────
 const B = {
@@ -55,10 +56,13 @@ interface LocationOption {
 interface ScheduleOption {
   id: string
   doctor_id: string
-  location_id: string
-  day_of_week: number
-  start_time: string
-  end_time: string
+  location_id: string | null
+  day_of_week: number | null
+  start_time: string | null
+  end_time: string | null
+  is_recurring: boolean
+  active: boolean
+  specific_date: string | null
 }
 
 interface FormField {
@@ -111,10 +115,6 @@ const MONTH_NAMES = [
 
 function todayBogota(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
-}
-
-function toSupabaseDay(jsDay: number): number {
-  return jsDay === 0 ? 7 : jsDay
 }
 
 function generateSlots(startTime: string, endTime: string, durationMin: number): string[] {
@@ -208,15 +208,14 @@ function CalendarPicker({
 
   const calendarGrid = useMemo(() => buildCalendarGrid(viewYear, viewMonth), [viewYear, viewMonth])
 
-  const availableSupabaseDays = useMemo(() => {
-    const set = new Set<number>()
-    effectiveSchedules.forEach(s => set.add(Number(s.day_of_week)))
-    return set
-  }, [effectiveSchedules])
+  function blocksFor(dateStr: string) {
+    return doctorId
+      ? resolveBlocksForDate(effectiveSchedules, doctorId, dateStr)
+      : resolveBlocksForAnyDoctor(effectiveSchedules, dateStr)
+  }
 
   function isDayAvailable(dateStr: string): boolean {
-    const supabaseDay = toSupabaseDay(new Date(dateStr + 'T12:00:00').getDay())
-    if (!availableSupabaseDays.has(supabaseDay)) return false
+    if (blocksFor(dateStr).length === 0) return false
     if (maxNoticeDays != null) {
       const maxAllowedDate = new Date()
       maxAllowedDate.setDate(maxAllowedDate.getDate() + maxNoticeDays)
@@ -228,12 +227,14 @@ function CalendarPicker({
 
   const slotsForDate = useMemo(() => {
     if (!selectedDate) return []
-    const supabaseDay = toSupabaseDay(new Date(selectedDate + 'T12:00:00').getDay())
-    const matching    = effectiveSchedules.filter(s => s.day_of_week === supabaseDay)
-    const all         = new Set<string>()
-    matching.forEach(s => generateSlots(s.start_time, s.end_time, duration).forEach(slot => all.add(slot)))
-    return Array.from(all).filter(slot => new Date(selectedDate + 'T' + slot + ':00') >= minAllowedTime).sort()
-  }, [selectedDate, effectiveSchedules, duration, minAllowedTime])
+    const all = new Set<string>()
+    blocksFor(selectedDate).forEach(b =>
+      generateSlots(b.start, b.end, duration).forEach(slot => all.add(slot))
+    )
+    return Array.from(all)
+      .filter(slot => new Date(selectedDate + 'T' + slot + ':00') >= minAllowedTime)
+      .sort()
+  }, [selectedDate, effectiveSchedules, doctorId, duration, minAllowedTime])
 
   function isSlotBooked(time: string): boolean {
     if (!selectedDate || !doctorId) return false
