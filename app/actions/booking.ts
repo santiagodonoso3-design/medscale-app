@@ -42,10 +42,8 @@ export async function getBookedSlots(
     start: toBogota(new Date(a.scheduled_at)),
     end:   toBogota(new Date(a.ends_at)),
   }))
-  console.log('[DEBUG booking] doctorId=', doctorId, 'mes=', year, month, 'dbSlots=', JSON.stringify(dbSlots))
 
   const googleBusy = await getGoogleCalendarBusy(doctorId, startOfMonth.toISOString(), endOfMonth.toISOString())
-  console.log('[DEBUG booking] googleBusy RAW=', JSON.stringify(googleBusy))
   const gcalSlots = googleBusy.map(b => ({
     start: toBogota(new Date(b.start)),
     end:   toBogota(new Date(b.end)),
