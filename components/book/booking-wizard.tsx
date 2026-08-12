@@ -192,7 +192,7 @@ function CalendarPicker({
     if (!doctorId) { setBookedSlots([]); return }
     setSlotsLoading(true)
     getBookedSlots(doctorId, viewYear, viewMonth)
-      .then(setBookedSlots)
+      .then(r => { console.log('[DEBUG bookedSlots]', JSON.stringify(r, null, 2)); setBookedSlots(r) })
       .catch(() => setBookedSlots([]))
       .finally(() => setSlotsLoading(false))
   }, [doctorId, viewYear, viewMonth])
