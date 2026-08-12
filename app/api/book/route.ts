@@ -3,6 +3,7 @@ import { resend } from '@/lib/email/resend'
 import { bookingConfirmationPatient, bookingNotificationDoctor, bookingNotificationClinic } from '@/lib/email/templates'
 import { createGoogleCalendarEvent, getGoogleCalendarBusy } from '@/lib/google/calendar'
 import { logAppointmentEvent } from '@/lib/appointments/log-event'
+import { fetchScheduleRowsForDate, resolveBlocksForDate, isTimeWithinBlocks } from '@/lib/availability/resolve'
 
 const supabasePublic = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -177,22 +178,10 @@ export async function POST(request: Request) {
         }
 
         // 3a. Filter to doctors whose schedule covers the requested slot
-        // day_of_week in DB: 0=Sun..6=Sat — same as JS getDay() (per CLAUDE.md)
-        const dayOfWeek = new Date(date + 'T12:00:00').getDay()
-
-        const { data: schedules, error: schedError } = await supabase
-          .from('schedules')
-          .select('doctor_id, start_time, end_time')
-          .in('doctor_id', candidateIds)
-          .eq('day_of_week', dayOfWeek)
-
-        if (schedError) console.error('[/api/book] schedules fetch error:', schedError)
-
-        const availableIds: string[] = [...new Set(
-          (schedules ?? [])
-            .filter((s: any) => s.start_time <= time && time < s.end_time)
-            .map((s: any) => s.doctor_id as string)
-        )]
+        const scheduleRows = await fetchScheduleRowsForDate(supabase, candidateIds, date)
+        const availableIds: string[] = candidateIds.filter(id =>
+          isTimeWithinBlocks(resolveBlocksForDate(scheduleRows, id, date), time)
+        )
 
 
         if (availableIds.length === 0) {
@@ -269,6 +258,15 @@ export async function POST(request: Request) {
       appointmentTypePrice    = modality === 'virtual'
         ? ((typeData?.price_virtual    as number) ?? null)
         : ((typeData?.price_presencial as number) ?? null)
+    }
+
+    // ── Guard de horario: aplica SIEMPRE, venga el médico del body o del round-robin ──
+    if (selectedDoctorId) {
+      const guardRows = await fetchScheduleRowsForDate(supabase, [selectedDoctorId], date)
+      const guardBlocks = resolveBlocksForDate(guardRows, selectedDoctorId, date)
+      if (!isTimeWithinBlocks(guardBlocks, time)) {
+        return jsonResponse({ success: false, error: 'No hay disponibilidad para ese horario.' }, 400)
+      }
     }
 
     // Determine assignment type: patient chose explicitly vs system auto-assigned
