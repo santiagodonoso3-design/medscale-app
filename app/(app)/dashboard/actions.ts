@@ -207,3 +207,89 @@ export async function getDashboardYears(): Promise<number[]> {
     return [new Date().getFullYear()]
   }
 }
+
+export interface MonthProcedureDetail {
+  id: string
+  patient_name: string
+  procedure_name: string
+  procedure_price: number
+  date: string          // YYYY-MM-DD que se usó para anclar el mes
+  date_inferred: boolean // true si NO vino de performed_at
+}
+
+export async function getMonthProcedureDetail(ym: string): Promise<MonthProcedureDetail[] | null> {
+  noStore()
+  try {
+    const { orgId } = await requireOrgContext()
+    if (!/^\d{4}-\d{2}$/.test(ym)) return null
+    const admin = createServiceClient()
+
+    const { data: rows } = await admin
+      .from('lead_procedures')
+      .select('id, lead_id, procedure_price, performed_at, created_at, procedure:procedure_id(name)')
+      .eq('organization_id', orgId)
+
+    if (!rows || rows.length === 0) return []
+
+    const sinFecha = (rows as any[]).filter(r => !r.performed_at)
+    const leadIdsSinFecha = [...new Set(sinFecha.map(r => r.lead_id))]
+
+    const latestByLead = new Map<string, string>()
+    if (leadIdsSinFecha.length > 0) {
+      const { data: procApts } = await admin
+        .from('appointments')
+        .select('lead_id, scheduled_at')
+        .eq('organization_id', orgId)
+        .in('lead_id', leadIdsSinFecha)
+        .eq('status', 'completed')
+        .order('scheduled_at', { ascending: false })
+      for (const a of (procApts ?? [])) {
+        if (a.lead_id && !latestByLead.has(a.lead_id)) latestByLead.set(a.lead_id, a.scheduled_at)
+      }
+    }
+
+    const enriched = (rows as any[]).map(r => {
+      let dateStr: string
+      let inferred: boolean
+      if (r.performed_at) {
+        dateStr = r.performed_at
+        inferred = false
+      } else if (latestByLead.has(r.lead_id)) {
+        dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date(latestByLead.get(r.lead_id)!))
+        inferred = true
+      } else {
+        dateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date(r.created_at))
+        inferred = true
+      }
+      return { raw: r, dateStr, inferred }
+    }).filter(e => e.dateStr.slice(0, 7) === ym)
+
+    if (enriched.length === 0) return []
+
+    const leadIds = [...new Set(enriched.map(e => e.raw.lead_id))]
+    const { data: leadRows } = await admin
+      .from('leads')
+      .select('id, contact_name, contact_last_name')
+      .eq('organization_id', orgId)
+      .in('id', leadIds)
+
+    const nameById = new Map<string, string>()
+    for (const l of (leadRows ?? [])) {
+      nameById.set(l.id, `${l.contact_name ?? ''} ${l.contact_last_name ?? ''}`.trim() || 'Sin nombre')
+    }
+
+    return enriched
+      .map(e => ({
+        id: e.raw.id as string,
+        patient_name: nameById.get(e.raw.lead_id) ?? 'Sin nombre',
+        procedure_name: (e.raw.procedure?.name as string) ?? 'Sin procedimiento',
+        procedure_price: Number(e.raw.procedure_price),
+        date: e.dateStr,
+        date_inferred: e.inferred,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+  } catch (err) {
+    console.error('[getMonthProcedureDetail] error:', err)
+    return null
+  }
+}
