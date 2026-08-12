@@ -225,20 +225,19 @@ function CalendarPicker({
     return new Date(dateStr + 'T23:59:00') >= minAllowedTime
   }
 
-  const slotsForDate = useMemo(() => {
-    if (!selectedDate) return []
+  function slotsForDay(dateStr: string): string[] {
     const all = new Set<string>()
-    blocksFor(selectedDate).forEach(b =>
+    blocksFor(dateStr).forEach(b =>
       generateSlots(b.start, b.end, duration).forEach(slot => all.add(slot))
     )
     return Array.from(all)
-      .filter(slot => new Date(selectedDate + 'T' + slot + ':00') >= minAllowedTime)
+      .filter(slot => new Date(dateStr + 'T' + slot + ':00') >= minAllowedTime)
       .sort()
-  }, [selectedDate, effectiveSchedules, doctorId, duration, minAllowedTime])
+  }
 
-  function isSlotBooked(time: string): boolean {
-    if (!selectedDate || !doctorId) return false
-    const slotStart = new Date(`${selectedDate}T${time}:00`)
+  function isSlotBookedOn(dateStr: string, time: string): boolean {
+    if (!doctorId) return false
+    const slotStart = new Date(`${dateStr}T${time}:00`)
     const slotEnd   = new Date(slotStart.getTime() + duration * 60000)
     return bookedSlots.some(({ start, end }) => {
       const apptStart = new Date(start)
@@ -248,6 +247,29 @@ function CalendarPicker({
       return slotStart < bufferedApptEnd && slotEnd > bufferedApptStart
     })
   }
+
+  const slotsForDate = useMemo(
+    () => (selectedDate ? slotsForDay(selectedDate) : []),
+    [selectedDate, effectiveSchedules, doctorId, duration, minAllowedTime]
+  )
+
+  function isSlotBooked(time: string): boolean {
+    if (!selectedDate || !doctorId) return false
+    return isSlotBookedOn(selectedDate, time)
+  }
+
+  // Días donde el médico atiende pero TODOS los cupos están ocupados.
+  // No se calcula mientras bookedSlots está cargando, para evitar parpadeo.
+  const fullDays = useMemo(() => {
+    const set = new Set<string>()
+    if (slotsLoading || !doctorId || bookedSlots.length === 0) return set
+    calendarGrid.forEach(dateStr => {
+      if (!dateStr || dateStr < today) return
+      const slots = slotsForDay(dateStr)
+      if (slots.length > 0 && slots.every(t => isSlotBookedOn(dateStr, t))) set.add(dateStr)
+    })
+    return set
+  }, [calendarGrid, bookedSlots, slotsLoading, doctorId, effectiveSchedules, duration, minAllowedTime, bufferBeforeMin, bufferAfterMin, today])
 
   const isPrevDisabled = viewYear === todayYear && viewMonth === todayMonth
 
@@ -311,20 +333,36 @@ function CalendarPicker({
               const isSelected  = dateStr === selectedDate
               const isPast      = dateStr < today
               const isAvailable = isDayAvailable(dateStr)
+              const isFull      = isAvailable && fullDays.has(dateStr)
+              const isDisabled  = isPast || !isAvailable || isFull
               return (
-                <button key={dateStr} disabled={isPast || !isAvailable} onClick={() => onSelect(dateStr, '')}
-                  className="aspect-square rounded-lg text-xs font-medium transition flex items-center justify-center"
+                <button key={dateStr} disabled={isDisabled} onClick={() => onSelect(dateStr, '')}
+                  title={isFull ? 'Sin cupos disponibles' : undefined}
+                  className="relative aspect-square rounded-lg text-xs font-medium transition flex items-center justify-center"
                   style={{
                     background: isSelected ? primaryColor : 'transparent',
-                    color:      isSelected ? '#fff' : isPast || !isAvailable ? B.border : B.fg,
-                    outline:    isToday && isAvailable && !isSelected ? `2px solid ${B.accent}` : 'none',
-                    cursor:     isPast || !isAvailable ? 'not-allowed' : 'pointer',
+                    color:      isSelected ? '#fff'
+                                : isPast || !isAvailable ? B.border
+                                : isFull ? B.muted
+                                : B.fg,
+                    outline:    isToday && isAvailable && !isFull && !isSelected ? `2px solid ${B.accent}` : 'none',
+                    cursor:     isDisabled ? 'not-allowed' : 'pointer',
+                    opacity:    isFull ? 0.6 : 1,
                   }}>
                   {Number(dateStr.slice(8))}
+                  {isFull && !isSelected && (
+                    <span className="absolute bottom-0.5 h-1 w-1 rounded-full" style={{ background: B.muted }} />
+                  )}
                 </button>
               )
             })}
           </div>
+          {fullDays.size > 0 && (
+            <div className="flex items-center gap-1.5 mt-2.5 text-[11px]" style={{ color: B.muted }}>
+              <span className="h-1 w-1 rounded-full inline-block" style={{ background: B.muted }} />
+              Sin cupos disponibles
+            </div>
+          )}
         </div>
 
         {selectedDate && (
