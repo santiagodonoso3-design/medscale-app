@@ -43,7 +43,7 @@ Auditoría exhaustiva enfocada en código limpio y coherencia de datos. Eje: sep
 - Pendientes anotados con trigger en sección "Deuda técnica diferida": escala birthday/special_date (>5k leads), knip para huérfanos, ESLint duro.
 
 #### Demo — Clínica Aurora Estética
-- Org demo creada (org_id: fd9ef9af-342f-458f-94ec-4dc99898a874, slug: clinica-aurora, plan clinica, metadata is_demo=true).
+- Org demo creada (org_id: [demo, ver CONTEXT.local.md], slug: clinica-aurora, plan clinica, metadata is_demo=true).
 - Owner demo: demo@medscale.app. 2 médicos, 2 tipos de cita con 3 campos custom, 5 procedimientos.
 - Data del año generada por SQL: ~213 leads, ~179 citas, ~100 procedimientos. Curva de ingresos en sierra ascendente (~30M/mes promedio, ene 18M → jun 42M).
 - Script de rejuvenecer (empuja todas las fechas de Aurora +N días) para mantener el demo fresco todo el año. Correr las 3 sentencias por separado cuando el calendario se vea viejo.
@@ -180,7 +180,7 @@ Bariatric: los procedimientos no caían en el mes correcto en "Tendencia mensual
 - Junio pasó de 9 a 27 citas (correcto)
 
 #### Ferttes — datos actualizados
-- org_id: 4270c9b0-cbaa-4a94-bea7-508387a2529c | admin@ferttes.com | plan Growth
+- org_id: [Ferttes, ver CONTEXT.local.md] | plan Growth
 - 5 médicos: Dra. Juliana Tamayo, Dra. Laura Mendoza, Dr. Germán Raigosa, Dr. Felipe Velez, Dra. Andrea Vasquez
 - 330 leads, 317 citas, 16 procedimientos (data real, NO migrada de Airtable)
 - 2 tipos de cita activos: Consulta Médica (presencial), Asesoría Virtual (virtual)
@@ -300,9 +300,9 @@ Bariatric: los procedimientos no caían en el mes correcto en "Tendencia mensual
 ---
 
 ### Cliente Bariatric Latam (27 Mayo 2026)
-- org_id: f9ca61f7-49bb-4d1e-9d02-d5c77fc9bb87
+- org_id: [Bariatric, ver CONTEXT.local.md]
 - slug: dr-carlos-lopera
-- carlosloperadigital@gmail.com
+- [email owner, ver CONTEXT.local.md]
 - 1 médico (Dr. Carlos Lopera), Google Calendar conectado
 - 100 leads, 100 citas, plan Growth
 

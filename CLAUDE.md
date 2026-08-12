@@ -507,11 +507,5 @@ Ferttes: plan Clínica (beta, sin restricciones)
 - Para crear recursos (doctors, leads), usar API routes con service role, no inserts directos desde client
 - Verificar plan limits antes de inserts de recursos limitados
 
-### Cliente beta
-- Ferttes (org_id: 4270c9b0-cbaa-4a94-bea7-508387a2529c) | admin@ferttes.com | app.medscale.app | plan Clínica (beta, sin restricciones)
-
-### Cliente Bariatric Latam
-- org_id: f9ca61f7-49bb-4d1e-9d02-d5c77fc9bb87 | slug: dr-carlos-lopera | carlosloperadigital@gmail.com | plan Clínica
-
-### Cuenta de prueba
-- Clinica Lab 2 (org_id: 669ed7cb-3e4d-43a7-8065-cfd7ee8de47c) | labdepamdigital@gmail.com | plan Consultorio — NOTA: org eliminada, reemplazar con nueva org de prueba
+### Orgs de referencia
+Los org_id, slugs y emails de clientes de producción, demo y prueba viven en `CONTEXT.local.md` (gitignoreado, no versionar). Pedirlo al usuario cuando se necesite.
