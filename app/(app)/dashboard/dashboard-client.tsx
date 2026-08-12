@@ -6,8 +6,8 @@ import {
   Tooltip, ResponsiveContainer, ReferenceLine, Legend, LabelList,
 } from 'recharts'
 import { Loader2, MoreHorizontal } from 'lucide-react'
-import type { RawDashboardData } from './actions'
-import { getDashboardRawData } from './actions'
+import type { RawDashboardData, MonthProcedureDetail } from './actions'
+import { getDashboardRawData, getMonthProcedureDetail } from './actions'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -38,6 +38,11 @@ const CURRENT_MONTH = Number(_nowBogota.slice(5, 7))
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function pad(n: number) { return String(n).padStart(2, '0') }
+
+function fmtDateOnly(dateStr: string): string {
+  const [y, mo, d] = dateStr.split('-').map(Number)
+  return `${d} ${MONTH_LABELS[mo - 1]} ${y}`
+}
 
 function bogotaDateStr(date: Date): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(date)
@@ -553,6 +558,24 @@ export function DashboardClient({
   const [isPending, startTransition]        = useTransition()
   const [activePreset, setActivePreset]     = useState('this_year')
   const [customOpen, setCustomOpen]         = useState(false)
+  const [openMonth, setOpenMonth] = useState<string | null>(null)
+  const [monthDetail, setMonthDetail] = useState<MonthProcedureDetail[]>([])
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  function handleMonthClick(state: any) {
+    const label = state?.activeLabel
+    if (!label) return
+    const idx = MONTH_LABELS.indexOf(label)
+    if (idx < 0) return
+    const ym = `${selectedYear}-${pad(idx + 1)}`
+    if (openMonth === ym) { setOpenMonth(null); setMonthDetail([]); return }
+    setOpenMonth(ym)
+    setDetailLoading(true)
+    getMonthProcedureDetail(ym)
+      .then(r => setMonthDetail(r ?? []))
+      .catch(() => setMonthDetail([]))
+      .finally(() => setDetailLoading(false))
+  }
 
   function handleYearChange(year: number) {
     if (year === selectedYear) return
@@ -792,9 +815,9 @@ export function DashboardClient({
       {/* ── Fila 2: Tendencia mensual (ancho completo) ────────────────────── */}
       <div className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-opacity ${isPending ? 'opacity-50' : ''}`}>
         <h2 className="text-base font-semibold text-slate-900">Tendencia mensual</h2>
-        <p className="text-xs text-slate-400 mt-0.5 mb-4">Evolución del año completo · cantidad de citas y leads</p>
+        <p className="text-xs text-slate-400 mt-0.5 mb-4">Evolución del año completo · toca un mes para ver el detalle</p>
         <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={m.monthlyLines} margin={{ top: 20, right: 8, left: -20, bottom: 0 }} barGap={2} barCategoryGap="25%">
+          <BarChart data={m.monthlyLines} margin={{ top: 20, right: 8, left: -20, bottom: 0 }} barGap={2} barCategoryGap="25%" onClick={handleMonthClick} style={{ cursor: 'pointer' }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
             <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
@@ -812,6 +835,71 @@ export function DashboardClient({
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+        {openMonth && (
+          <div className="mt-5 border-t border-slate-100 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-900">
+                Procedimientos · {MONTH_LABELS[Number(openMonth.slice(5, 7)) - 1]} {openMonth.slice(0, 4)}
+              </h3>
+              <button onClick={() => { setOpenMonth(null); setMonthDetail([]) }}
+                className="text-xs text-slate-400 hover:text-slate-600 transition">Cerrar</button>
+            </div>
+            {detailLoading ? (
+              <div className="flex items-center gap-2 py-6 text-sm text-slate-400">
+                <Loader2 className="w-4 h-4 animate-spin" /> Cargando detalle...
+              </div>
+            ) : monthDetail.length === 0 ? (
+              <p className="py-6 text-sm text-slate-400">No hay procedimientos registrados en este mes.</p>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs uppercase tracking-wide text-slate-400 border-b border-slate-100">
+                        <th className="py-2 pr-3 font-medium">Paciente</th>
+                        <th className="py-2 pr-3 font-medium">Procedimiento</th>
+                        <th className="py-2 pr-3 font-medium">Fecha</th>
+                        <th className="py-2 font-medium text-right">Valor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {monthDetail.map(d => (
+                        <tr key={d.id} className="border-b border-slate-50 last:border-0">
+                          <td className="py-2 pr-3 text-slate-900">{d.patient_name}</td>
+                          <td className="py-2 pr-3 text-slate-600">{d.procedure_name}</td>
+                          <td className="py-2 pr-3 text-slate-500 whitespace-nowrap">
+                            {fmtDateOnly(d.date)}
+                            {d.date_inferred && (
+                              <span className="ml-1.5 text-[10px] text-amber-500" title="Fecha estimada: este procedimiento no tiene fecha de realización registrada">estimada</span>
+                            )}
+                          </td>
+                          <td className="py-2 text-right font-medium text-slate-900 whitespace-nowrap">
+                            {d.procedure_price > 0 ? formatCOP(d.procedure_price) : <span className="text-slate-300">—</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-slate-200">
+                        <td className="py-2.5 text-xs font-semibold text-slate-500" colSpan={3}>
+                          {monthDetail.length} procedimiento{monthDetail.length === 1 ? '' : 's'}
+                        </td>
+                        <td className="py-2.5 text-right font-bold text-slate-900 whitespace-nowrap">
+                          {formatCOP(monthDetail.reduce((s, d) => s + d.procedure_price, 0))}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+                {monthDetail.some(d => d.date_inferred) && (
+                  <p className="mt-2.5 text-[11px] text-slate-400">
+                    Las fechas marcadas como <span className="text-amber-500">estimada</span> se infirieron de la última cita atendida del paciente, porque el procedimiento no tiene fecha de realización registrada.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Fila 3: Ingresos por mes + Razones cancelación ───────────────── */}
