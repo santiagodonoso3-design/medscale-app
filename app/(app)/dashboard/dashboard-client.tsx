@@ -578,6 +578,8 @@ export function DashboardClient({
   }
 
   function handleYearChange(year: number) {
+    setOpenMonth(null)
+    setMonthDetail([])
     if (year === selectedYear) return
     setActivePreset('custom')
     setSelectedYear(year)
