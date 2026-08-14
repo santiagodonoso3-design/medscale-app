@@ -18,6 +18,20 @@ export async function GET(request: NextRequest) {
         const orgId = await getOrgIdFromUser(data.user.id)
 
         if (!orgId) {
+          // Platform admins sin organización van al panel, no a crear una clínica.
+          // .maybeSingle(): la ausencia de fila es el caso normal (usuarios de clínicas).
+          const { createServiceClient } = await import('@/lib/supabase/server')
+          const adminClient = createServiceClient()
+          const { data: pa } = await adminClient
+            .from('platform_admins')
+            .select('id')
+            .eq('user_id', data.user.id)
+            .maybeSingle()
+
+          if (pa) {
+            return NextResponse.redirect(`${origin}/admin`)
+          }
+
           // Authenticated user without an organization. Two cases land here:
           //  - Email confirmation link for a pending email+password signup.
           //  - Google OAuth sign-in that never went through registration.

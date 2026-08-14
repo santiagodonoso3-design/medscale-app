@@ -107,20 +107,37 @@ export async function promoteUserToAdmin(
     if (usersError) return { success: false, error: 'Error consultando usuarios' }
 
     const authUser = usersData.users.find((u) => u.email?.toLowerCase() === normalizedEmail)
-    if (!authUser) {
-      return {
-        success: false,
-        error: 'Ese correo no tiene cuenta en MedScale. Pídele que inicie sesión con Google primero.',
+
+    // userId se resuelve por dos vías: cuenta existente o creada aquí mismo.
+    // La bandera decide el rollback: solo se elimina la cuenta si la creó esta llamada.
+    let userId: string
+    let userWasCreated = false
+
+    if (authUser) {
+      userId = authUser.id
+    } else {
+      // email_confirm es obligatorio: sin él, al entrar con Google, Supabase
+      // no enlaza la identidad al usuario existente y duplica cuentas.
+      // Sin password: el acceso es por Google.
+      const { data: created, error: createErr } = await admin.auth.admin.createUser({
+        email: normalizedEmail,
+        email_confirm: true,
+      })
+      if (createErr || !created?.user) {
+        return { success: false, error: 'No se pudo crear la cuenta: ' + (createErr?.message ?? 'error desconocido') }
       }
+      userId = created.user.id
+      userWasCreated = true
     }
 
-    const { data: created, error: insertError } = await admin
+    const { data: inserted, error: insertError } = await admin
       .from('platform_admins')
-      .insert({ user_id: authUser.id, email: normalizedEmail, role, scope })
+      .insert({ user_id: userId, email: normalizedEmail, role, scope })
       .select('id')
       .single()
 
-    if (insertError || !created) {
+    if (insertError || !inserted) {
+      if (userWasCreated) await admin.auth.admin.deleteUser(userId)
       if (insertError?.code === '23505') {
         return { success: false, error: 'Ese usuario ya es administrador' }
       }
@@ -131,13 +148,14 @@ export async function promoteUserToAdmin(
       const { error: assignError } = await admin
         .from('platform_admin_organizations')
         .insert(organizationIds.map((orgId) => ({
-          platform_admin_id: created.id,
+          platform_admin_id: inserted.id,
           organization_id: orgId,
         })))
 
       if (assignError) {
         // No puede quedar un admin 'assigned' sin asignaciones
-        await admin.from('platform_admins').delete().eq('id', created.id)
+        await admin.from('platform_admins').delete().eq('id', inserted.id)
+        if (userWasCreated) await admin.auth.admin.deleteUser(userId)
         return { success: false, error: assignError.message || 'Error asignando clínicas' }
       }
     }

@@ -13,7 +13,17 @@ export default async function AppShell({ children }: { children: ReactNode }) {
     // Separar ambos casos evita el loop /login <-> /dashboard del middleware.
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (user) redirect('/onboarding')
+    if (user) {
+      // Platform admins sin org van al panel, no a crear una clínica
+      const adminClient = createServiceClient()
+      const { data: pa } = await adminClient
+        .from('platform_admins')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (pa) redirect('/admin')
+      redirect('/onboarding')
+    }
     redirect('/login')
   }
 
