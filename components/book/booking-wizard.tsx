@@ -18,6 +18,7 @@ import {
 import { getBookedSlots } from '@/app/actions/booking'
 import { DatePicker } from '@/components/ui/date-picker'
 import { resolveBlocksForDate, resolveBlocksForAnyDoctor } from '@/lib/availability/resolve'
+import { captureAttribution, type Attribution } from '@/lib/attribution'
 
 // ── Brand tokens ──────────────────────────────────────────────────────────────
 const B = {
@@ -464,6 +465,7 @@ export default function BookingWizard({
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [attribution, setAttribution] = useState<Attribution>({})
 
   const selectedDoctor = useMemo(
     () => availableDoctors.find(d => d.id === formData.doctor_id) ?? null,
@@ -481,6 +483,22 @@ export default function BookingWizard({
       setFormData(p => ({ ...p, doctor_id: availableDoctors[0].id }))
     }
   }, [availableDoctors])
+
+  // Captura de atribucion al montar. sessionStorage evita perderla si el
+  // paciente recarga o navega entre pasos del wizard.
+  useEffect(() => {
+    const STORAGE_KEY = 'medscale_attribution'
+    const fresh = captureAttribution(window.location.search, document.referrer)
+    if (Object.keys(fresh).length > 0) {
+      setAttribution(fresh)
+      try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(fresh)) } catch {}
+      return
+    }
+    try {
+      const stored = sessionStorage.getItem(STORAGE_KEY)
+      if (stored) setAttribution(JSON.parse(stored))
+    } catch {}
+  }, [])
 
   const goNext = () => {
     const i = stepOrder.indexOf(currentStep)
@@ -512,6 +530,7 @@ export default function BookingWizard({
           email:               formData.email,
           cedula:              formData.cedula,
           custom_fields:       { ...formData.customFields, 'tipo-identificacion': formData.id_type },
+          attribution:         attribution,
         }),
       })
       const result = await response.json()

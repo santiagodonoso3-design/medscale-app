@@ -4,6 +4,7 @@ import { bookingConfirmationPatient, bookingNotificationDoctor, bookingNotificat
 import { createGoogleCalendarEvent, getGoogleCalendarBusy } from '@/lib/google/calendar'
 import { logAppointmentEvent } from '@/lib/appointments/log-event'
 import { fetchScheduleRowsForDate, resolveBlocksForDate, isTimeWithinBlocks } from '@/lib/availability/resolve'
+import { sanitizeAttribution } from '@/lib/attribution'
 
 const supabasePublic = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,6 +21,7 @@ function jsonResponse(payload: Record<string, unknown>, status = 200) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
+    const attribution = sanitizeAttribution((body as any)?.attribution)
 
     const {
       org_slug,
@@ -342,7 +344,11 @@ export async function POST(request: Request) {
         contact_cedula: cedula || null,
         source: 'book',
         notes: null,
-        metadata: custom_fields && Object.keys(custom_fields).length > 0 ? custom_fields : null,
+        metadata: (() => {
+          const cf = custom_fields && Object.keys(custom_fields).length > 0 ? custom_fields : {}
+          const merged = attribution ? { ...cf, attribution } : cf
+          return Object.keys(merged).length > 0 ? merged : null
+        })(),
         status: 'cita_valoracion_agendada',
       })
       .select('id')
@@ -373,6 +379,7 @@ export async function POST(request: Request) {
         appointment_type_id: appointment_type_id ?? null,
         modality: modality ?? null,
         price: appointmentTypePrice ?? null,
+        metadata: attribution ? { attribution } : {},
       })
       .select('id, manage_token')
       .single()
@@ -387,7 +394,7 @@ export async function POST(request: Request) {
       eventType: 'created',
       actorType: 'patient',
       note: 'Cita agendada por el paciente',
-      metadata: { modality: modality ?? 'presencial', source: 'book' },
+      metadata: { modality: modality ?? 'presencial', source: 'book', ...(attribution ? { attribution } : {}) },
     })
 
     // ── Create Google Calendar event (non-blocking) ───────────────────────────
