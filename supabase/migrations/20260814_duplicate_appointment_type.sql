@@ -79,3 +79,8 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.duplicate_appointment_type(uuid) TO authenticated;
+
+-- El default privilege de Supabase sobre el schema public otorga EXECUTE a anon
+-- por defecto; se revoca explicitamente (la funcion es solo para sesiones autenticadas).
+REVOKE EXECUTE ON FUNCTION public.duplicate_appointment_type(uuid) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.duplicate_appointment_type(uuid) FROM anon;
