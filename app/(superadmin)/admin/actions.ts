@@ -1,6 +1,6 @@
 'use server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { requirePlatformAdmin } from '@/lib/auth/session'
+import { requirePlatformAdminScope } from '@/lib/auth/session'
 
 export interface OrgMetric {
   id: string
@@ -30,7 +30,7 @@ export interface DashboardMetrics {
 }
 
 export async function getDashboardMetrics(): Promise<DashboardMetrics | null> {
-  await requirePlatformAdmin()
+  const scope = await requirePlatformAdminScope()
   const admin = createServiceClient()
 
   try {
@@ -39,12 +39,30 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics | null> {
     const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
     const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59).toISOString()
 
-    const { data: orgs, error: orgsError } = await admin
+    let orgsQuery = admin
       .from('organizations')
       .select('id, name, slug, plan, is_active, monthly_revenue, created_at')
-      .order('created_at', { ascending: false })
+    if (scope.orgIds !== null) orgsQuery = orgsQuery.in('id', scope.orgIds)
+    const { data: orgs, error: orgsError } = await orgsQuery.order('created_at', { ascending: false })
 
     if (orgsError || !orgs) return null
+
+    let usersCount = admin.from('organization_members').select('id', { count: 'exact', head: true })
+    let leadsCount = admin.from('leads').select('id', { count: 'exact', head: true })
+    let appointmentsCount = admin.from('appointments').select('id', { count: 'exact', head: true })
+    let appointmentsThisMonthCount = admin.from('appointments').select('id', { count: 'exact', head: true })
+      .gte('scheduled_at', firstDayThisMonth)
+    let appointmentsLastMonthCount = admin.from('appointments').select('id', { count: 'exact', head: true })
+      .gte('scheduled_at', firstDayLastMonth)
+      .lte('scheduled_at', lastDayLastMonth)
+
+    if (scope.orgIds !== null) {
+      usersCount = usersCount.in('organization_id', scope.orgIds)
+      leadsCount = leadsCount.in('organization_id', scope.orgIds)
+      appointmentsCount = appointmentsCount.in('organization_id', scope.orgIds)
+      appointmentsThisMonthCount = appointmentsThisMonthCount.in('organization_id', scope.orgIds)
+      appointmentsLastMonthCount = appointmentsLastMonthCount.in('organization_id', scope.orgIds)
+    }
 
     const [
       { count: totalUsers },
@@ -53,14 +71,11 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics | null> {
       { count: appointmentsThisMonth },
       { count: appointmentsLastMonth },
     ] = await Promise.all([
-      admin.from('organization_members').select('id', { count: 'exact', head: true }),
-      admin.from('leads').select('id', { count: 'exact', head: true }),
-      admin.from('appointments').select('id', { count: 'exact', head: true }),
-      admin.from('appointments').select('id', { count: 'exact', head: true })
-        .gte('scheduled_at', firstDayThisMonth),
-      admin.from('appointments').select('id', { count: 'exact', head: true })
-        .gte('scheduled_at', firstDayLastMonth)
-        .lte('scheduled_at', lastDayLastMonth),
+      usersCount,
+      leadsCount,
+      appointmentsCount,
+      appointmentsThisMonthCount,
+      appointmentsLastMonthCount,
     ])
 
     const orgMetrics = await Promise.all(

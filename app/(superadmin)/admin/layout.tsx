@@ -1,23 +1,24 @@
 import { redirect } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
-import { requirePlatformAdmin } from '@/lib/auth/session'
+import { requirePlatformAdminScope } from '@/lib/auth/session'
 import { AdminLayout } from '@/components/admin/layout'
 
 export default async function SuperAdminLayout({ children }: { children: React.ReactNode }) {
-  let authorized = true
+  let scope = null
   try {
-    await requirePlatformAdmin()
+    scope = await requirePlatformAdminScope()
   } catch {
-    authorized = false
+    scope = null
   }
-  if (!authorized) redirect('/dashboard')
+  if (!scope) redirect('/dashboard')
 
   const admin = createServiceClient()
-  const { data: orgs } = await admin
+  let orgsQuery = admin
     .from('organizations')
     .select('id, name, logo_url')
     .eq('is_active', true)
-    .order('name')
+  if (scope.orgIds !== null) orgsQuery = orgsQuery.in('id', scope.orgIds)
+  const { data: orgs } = await orgsQuery.order('name')
 
   return <AdminLayout allOrganizations={orgs || []}>{children}</AdminLayout>
 }

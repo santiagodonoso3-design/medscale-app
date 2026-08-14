@@ -3,7 +3,7 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { resend } from '@/lib/email/resend'
-import { requirePlatformAdmin } from '@/lib/auth/session'
+import { requirePlatformAdmin, requirePlatformAdminScope, assertOrgAllowed } from '@/lib/auth/session'
 import { runScheduledDeletions } from '@/lib/admin/deletions'
 import { seedLeadStatuses } from '@/lib/organizations/seed-statuses'
 
@@ -21,14 +21,15 @@ export interface Organization {
 }
 
 export async function getAllOrganizations(): Promise<Organization[] | null> {
-  await requirePlatformAdmin()
+  const scope = await requirePlatformAdminScope()
   const admin = createServiceClient()
 
   try {
-    const { data: orgs, error } = await admin
+    let orgsQuery = admin
       .from('organizations')
       .select('id, name, slug, plan, is_active, ai_agent_enabled, monthly_revenue, created_at, pending_deletion_at')
-      .order('created_at', { ascending: false })
+    if (scope.orgIds !== null) orgsQuery = orgsQuery.in('id', scope.orgIds)
+    const { data: orgs, error } = await orgsQuery.order('created_at', { ascending: false })
 
     if (error) return null
 
@@ -65,7 +66,8 @@ export async function createOrganization(
   slug: string,
   plan: 'consultorio' | 'clinica' | 'red'
 ): Promise<{ success: boolean; error?: string; organization?: Organization }> {
-  await requirePlatformAdmin()
+  const scope = await requirePlatformAdminScope()
+  if (scope.orgIds !== null) throw new Error('FORBIDDEN')
   const admin = createServiceClient()
 
   try {
@@ -120,7 +122,7 @@ export async function updateOrganization(
   ai_agent_enabled: boolean,
   monthly_revenue: number
 ): Promise<{ success: boolean; error?: string }> {
-  await requirePlatformAdmin()
+  await assertOrgAllowed(id)
   const admin = createServiceClient()
 
   try {
@@ -228,7 +230,7 @@ function deletionWarningEmail(orgName: string): string {
 export async function scheduleOrganizationDeletion(
   id: string
 ): Promise<{ success: boolean; error?: string }> {
-  await requirePlatformAdmin()
+  await assertOrgAllowed(id)
   const admin = createServiceClient()
 
   try {
@@ -270,7 +272,7 @@ export async function scheduleOrganizationDeletion(
 export async function cancelOrganizationDeletion(
   id: string
 ): Promise<{ success: boolean; error?: string }> {
-  await requirePlatformAdmin()
+  await assertOrgAllowed(id)
   const admin = createServiceClient()
 
   try {
@@ -291,7 +293,8 @@ export async function cancelOrganizationDeletion(
 }
 
 export async function processScheduledDeletions(): Promise<{ deleted: number; error?: string }> {
-  await requirePlatformAdmin()
+  const scope = await requirePlatformAdminScope()
+  if (scope.orgIds !== null) throw new Error('FORBIDDEN')
   return runScheduledDeletions()
 }
 

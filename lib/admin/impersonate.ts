@@ -2,6 +2,7 @@
 import { cookies } from 'next/headers'
 import { createServiceClient } from '@/lib/supabase/server'
 import { createClient } from '@/lib/supabase/server'
+import { assertOrgAllowed } from '@/lib/auth/session'
 
 const COOKIE_NAME = 'impersonate_org_id'
 
@@ -30,6 +31,12 @@ export async function startImpersonation(orgId: string): Promise<{ success: bool
     .eq('id', orgId)
     .single()
   if (!org) return { success: false, error: 'Organización no encontrada' }
+
+  try {
+    await assertOrgAllowed(orgId)
+  } catch {
+    return { success: false, error: 'No autorizado para esta organización' }
+  }
 
   const cookieStore = await cookies()
   cookieStore.set(COOKIE_NAME, orgId, {
