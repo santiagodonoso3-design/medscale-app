@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Plus, Copy, Check, Loader2, Pencil, Link2, X, Save, Settings, Clock, ClipboardList, GripVertical, Trash2 } from 'lucide-react'
+import { Plus, Copy, CopyPlus, Check, Loader2, Pencil, Link2, X, Save, Settings, Clock, ClipboardList, GripVertical, Trash2 } from 'lucide-react'
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -310,6 +310,7 @@ export default function AppointmentTypesPage() {
   const [formError,     setFormError]     = useState<string | null>(null)
   const [copiedId,      setCopiedId]      = useState<string | null>(null)
   const [slugManual,    setSlugManual]    = useState(false)
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
   const [activeTab,     setActiveTab]     = useState<'general' | 'rules' | 'form'>('general')
   const [notifications, setNotifications] = useState<NotificationRow[]>(NOTIF_DEFAULTS)
   const [notifLoading,  setNotifLoading]  = useState(false)
@@ -528,6 +529,17 @@ export default function AppointmentTypesPage() {
     setTypes(prev => prev.map(x => x.id === t.id ? { ...x, active: !x.active } : x))
   }
 
+  const duplicateType = async (t: AppointmentType) => {
+    setDuplicatingId(t.id)
+    const { error } = await supabase.rpc('duplicate_appointment_type', { p_source_id: t.id })
+    setDuplicatingId(null)
+    if (error) {
+      alert('No se pudo duplicar el tipo de cita: ' + error.message)
+      return
+    }
+    await loadData()
+  }
+
   const copyLink = async (t: AppointmentType) => {
     if (!org) return
     const url = `${window.location.origin}/book/${org.slug}/${t.slug}`
@@ -655,6 +667,16 @@ export default function AppointmentTypesPage() {
                   <span className="flex-1 min-w-0 text-xs text-slate-400 font-mono truncate">
                     /book/{org?.slug}/{t.slug}
                   </span>
+                  <button
+                    onClick={() => duplicateType(t)}
+                    disabled={duplicatingId === t.id}
+                    className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition disabled:opacity-50"
+                    title="Duplicar tipo de cita"
+                  >
+                    {duplicatingId === t.id
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <CopyPlus className="h-4 w-4" />}
+                  </button>
                   <button
                     onClick={() => copyLink(t)}
                     className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
