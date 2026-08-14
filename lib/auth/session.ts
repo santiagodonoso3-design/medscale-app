@@ -15,17 +15,31 @@ export async function getSession() {
   if (impersonateOrgId) {
     const { data: platformAdmin } = await admin
       .from('platform_admins')
-      .select('id')
+      .select('id, scope')
       .eq('user_id', user.id)
       .single()
 
     if (platformAdmin) {
-      return {
-        user,
-        orgId: impersonateOrgId,
-        role: 'owner' as const,
-        doctorId: null,
-        isImpersonating: true,
+      let allowed = platformAdmin.scope === 'global'
+
+      if (!allowed) {
+        const { data: assignment } = await admin
+          .from('platform_admin_organizations')
+          .select('id')
+          .eq('platform_admin_id', platformAdmin.id)
+          .eq('organization_id', impersonateOrgId)
+          .maybeSingle()
+        allowed = !!assignment
+      }
+
+      if (allowed) {
+        return {
+          user,
+          orgId: impersonateOrgId,
+          role: 'owner' as const,
+          doctorId: null,
+          isImpersonating: true,
+        }
       }
     }
   }

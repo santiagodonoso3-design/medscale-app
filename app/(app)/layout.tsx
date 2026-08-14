@@ -31,17 +31,29 @@ export default async function AppShell({ children }: { children: ReactNode }) {
 
   const { data: platformAdmin } = await admin
     .from('platform_admins')
-    .select('id')
+    .select('id, scope')
     .eq('user_id', session.user.id)
     .single()
 
   if (platformAdmin) {
     isPlatformAdmin = true
-    const { data: orgs } = await admin
+
+    // null = alcance global; [] = asignado a cero clínicas (lista vacía, nunca todas)
+    let allowedOrgIds: string[] | null = null
+    if (platformAdmin.scope !== 'global') {
+      const { data: assignments } = await admin
+        .from('platform_admin_organizations')
+        .select('organization_id')
+        .eq('platform_admin_id', platformAdmin.id)
+      allowedOrgIds = (assignments ?? []).map(a => a.organization_id as string)
+    }
+
+    let orgsQuery = admin
       .from('organizations')
       .select('id, name, logo_url')
       .eq('is_active', true)
-      .order('name')
+    if (allowedOrgIds !== null) orgsQuery = orgsQuery.in('id', allowedOrgIds)
+    const { data: orgs } = await orgsQuery.order('name')
     allOrganizations = orgs || []
   }
 
