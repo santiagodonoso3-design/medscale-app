@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-
-const SUPERADMIN_EMAILS = (process.env.SUPERADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase())
+import { createServiceClient } from '@/lib/supabase/server'
+import { requirePlatformAdmin } from '@/lib/auth/session'
 
 async function isAdmin(): Promise<boolean> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  return !!(user && SUPERADMIN_EMAILS.includes(user.email?.toLowerCase() ?? ''))
+  try {
+    await requirePlatformAdmin()
+    return true
+  } catch {
+    return false
+  }
 }
 
 export async function GET() {

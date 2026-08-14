@@ -70,7 +70,7 @@ export async function requireOrgContext(): Promise<{
  * (never the impersonate_org_id cookie) and verifies membership in the
  * platform_admins table with the service client. Throws FORBIDDEN otherwise.
  */
-export async function requirePlatformAdmin(): Promise<{ userId: string }> {
+export async function requirePlatformAdmin(): Promise<{ userId: string; role: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('UNAUTHORIZED')
@@ -78,10 +78,10 @@ export async function requirePlatformAdmin(): Promise<{ userId: string }> {
   const admin = createServiceClient()
   const { data: platformAdmin } = await admin
     .from('platform_admins')
-    .select('id')
+    .select('id, role')
     .eq('user_id', user.id)
     .single()
 
   if (!platformAdmin) throw new Error('FORBIDDEN')
-  return { userId: user.id }
+  return { userId: user.id, role: platformAdmin.role as string }
 }
