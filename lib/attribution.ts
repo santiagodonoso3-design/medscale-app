@@ -3,6 +3,7 @@
 // El body del cliente NUNCA se confia: solo pasan llaves de la whitelist.
 
 export const ATTRIBUTION_KEYS = [
+  'ref',
   'utm_source',
   'utm_medium',
   'utm_campaign',
