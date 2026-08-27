@@ -204,7 +204,7 @@ export async function getGoogleCalendarBusy(
 export async function deleteGoogleCalendarEvent(
   doctorId: string,
   eventId: string
-): Promise<void> {
+): Promise<boolean> {
   try {
     const { createServiceClient } = await import('@/lib/supabase/server')
     const admin = createServiceClient()
@@ -215,21 +215,24 @@ export async function deleteGoogleCalendarEvent(
       .eq('id', doctorId)
       .single()
 
-    if (!doctor?.google_calendar_token) return
+    if (!doctor?.google_calendar_token) return false
 
     const token = doctor.google_calendar_token as any
     const accessToken = await getValidAccessToken(token, doctorId, admin)
     const calendarId = doctor.google_calendar_id ?? 'primary'
 
-    await fetch(
+    const res = await fetch(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`,
       {
         method:  'DELETE',
         headers: { Authorization: `Bearer ${accessToken}` },
       }
     )
+    // 404/410 = el evento ya no existe en Google — el resultado deseado ya se cumplió
+    return res.ok || res.status === 404 || res.status === 410
   } catch (e) {
     console.error('[google/calendar] delete error:', e)
+    return false
   }
 }
 

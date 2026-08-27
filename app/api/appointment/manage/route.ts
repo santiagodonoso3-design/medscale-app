@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { resend } from '@/lib/email/resend'
 import { cancellationEmail, rescheduleEmail } from '@/lib/email/templates'
 import { logAppointmentEvent } from '@/lib/appointments/log-event'
-import { updateGoogleCalendarEvent } from '@/lib/google/calendar'
+import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from '@/lib/google/calendar'
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -181,6 +181,20 @@ export async function PATCH(request: Request) {
         .eq('id', apt.id)
       if (updErr) return json({ success: false, error: updErr.message }, 500)
 
+      let calendarDeleted: boolean | null = null
+      if ((apt as any).external_calendar_id) {
+        calendarDeleted = await deleteGoogleCalendarEvent(
+          (apt as any).doctor_id,
+          (apt as any).external_calendar_id
+        )
+        if (calendarDeleted) {
+          await admin
+            .from('appointments')
+            .update({ external_calendar_id: null })
+            .eq('id', apt.id)
+        }
+      }
+
       const cancelLeadId = (apt as any).lead_id
       if (cancelLeadId) {
         await admin.from('leads').update({ status: 'cancelo_cita' }).eq('id', cancelLeadId)
@@ -191,6 +205,7 @@ export async function PATCH(request: Request) {
         eventType: 'cancelled',
         actorType: 'patient',
         note: cancel_reason.trim(),
+        metadata: { calendar_deleted: calendarDeleted },
       })
 
       const feedbackUrl = apt.manage_token ? `https://app.medscale.app/appointment/${apt.manage_token}/feedback` : undefined
