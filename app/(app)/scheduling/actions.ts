@@ -1,7 +1,6 @@
 'use server'
 
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { getOrgIdFromUser } from '@/lib/get-org-id'
 import { requireOrgContext } from '@/lib/auth/session'
 import { revalidatePath } from 'next/cache'
 import { resend } from '@/lib/email/resend'
@@ -170,28 +169,29 @@ export async function updateAppointmentStatus(
   id: string,
   status: 'scheduled' | 'completed' | 'cancelled' | 'no_show' | 'confirmed'
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'No autenticado' }
-  const orgId = await getOrgIdFromUser(user.id)
-  if (!orgId) return { error: 'Organización no encontrada' }
+  const { userId, orgId, role } = await requireOrgContext()
+  if (role === 'doctor') throw new Error('FORBIDDEN')
+
   const admin = createServiceClient()
-  const { error } = await admin
+  const { data: updated, error } = await admin
     .from('appointments')
     .update({ status })
     .eq('id', id)
     .eq('organization_id', orgId)
+    .select('id')
   if (error) return { error: error.message }
+  if (!updated || updated.length === 0) throw new Error('FORBIDDEN')
 
   if (status === 'completed' || status === 'cancelled' || status === 'no_show') {
     const { data: apt } = await admin
       .from('appointments')
       .select('lead_id, manage_token, lead:lead_id(contact_name, contact_last_name, contact_email), org:organization_id(name, slug)')
       .eq('id', id)
+      .eq('organization_id', orgId)
       .single()
     if (apt?.lead_id) {
       const leadStatus = status === 'completed' ? 'asistio_cita' : 'cancelo_cita'
-      await admin.from('leads').update({ status: leadStatus }).eq('id', apt.lead_id)
+      await admin.from('leads').update({ status: leadStatus }).eq('id', apt.lead_id).eq('organization_id', orgId)
     }
 
     // Loguear el cambio de status en el timeline de auditoría
@@ -200,7 +200,7 @@ export async function updateAppointmentStatus(
         appointmentId: id,
         eventType: status,
         actorType: 'staff',
-        performedBy: user.id,
+        performedBy: userId,
         note: status === 'completed' ? 'Cita marcada como completada' : 'Cita marcada como no asistió',
       })
     }
