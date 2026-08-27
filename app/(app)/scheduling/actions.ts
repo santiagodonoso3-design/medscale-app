@@ -194,14 +194,40 @@ export async function updateAppointmentStatus(
       await admin.from('leads').update({ status: leadStatus }).eq('id', apt.lead_id).eq('organization_id', orgId)
     }
 
+    let calendarDeleted: boolean | null = null
+    if (status === 'cancelled') {
+      const { data: aptCal } = await admin
+        .from('appointments')
+        .select('external_calendar_id, doctor_id')
+        .eq('id', id)
+        .eq('organization_id', orgId)
+        .single()
+      if (aptCal?.external_calendar_id && aptCal?.doctor_id) {
+        calendarDeleted = await deleteGoogleCalendarEvent(
+          aptCal.doctor_id,
+          aptCal.external_calendar_id
+        )
+        if (calendarDeleted) {
+          await admin
+            .from('appointments')
+            .update({ external_calendar_id: null })
+            .eq('id', id)
+            .eq('organization_id', orgId)
+        }
+      }
+    }
+
     // Loguear el cambio de status en el timeline de auditoría
-    if (status === 'completed' || status === 'no_show') {
+    if (status === 'completed' || status === 'no_show' || status === 'cancelled') {
       await logAppointmentEvent({
         appointmentId: id,
         eventType: status,
         actorType: 'staff',
         performedBy: userId,
-        note: status === 'completed' ? 'Cita marcada como completada' : 'Cita marcada como no asistió',
+        note: status === 'completed' ? 'Cita marcada como completada'
+            : status === 'no_show'   ? 'Cita marcada como no asistió'
+            :                          'Cita cancelada desde el calendario',
+        metadata: status === 'cancelled' ? { calendar_deleted: calendarDeleted } : undefined,
       })
     }
 
