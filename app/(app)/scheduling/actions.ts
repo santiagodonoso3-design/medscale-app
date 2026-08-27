@@ -171,7 +171,10 @@ export async function updateAppointmentStatus(
   status: 'scheduled' | 'completed' | 'cancelled' | 'no_show' | 'confirmed'
 ): Promise<{ error?: string }> {
   const { userId, orgId, role } = await requireOrgContext()
-  if (role === 'doctor') throw new Error('FORBIDDEN')
+  // Los médicos pueden marcar asistencia (completed/no_show/confirmed/
+  // scheduled) pero no cancelar: cancelar mueve el status del lead y borra
+  // el evento de Google Calendar, y eso queda reservado a staff admin.
+  if (role === 'doctor' && status === 'cancelled') throw new Error('FORBIDDEN')
 
   const admin = createServiceClient()
   const { data: updated, error } = await admin
