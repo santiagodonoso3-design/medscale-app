@@ -5,7 +5,7 @@ import { requireOrgContext } from '@/lib/auth/session'
 import { revalidatePath } from 'next/cache'
 import { resend } from '@/lib/email/resend'
 import { cancellationEmail, rescheduleEmail, noShowFollowUpEmail } from '@/lib/email/templates'
-import { deleteGoogleCalendarEvent } from '@/lib/google/calendar'
+import { deleteGoogleCalendarEvent, updateGoogleCalendarEvent } from '@/lib/google/calendar'
 import { logAppointmentEvent } from '@/lib/appointments/log-event'
 
 // ── Email helper (fire-and-forget, never throws) ──────────────────────────────
@@ -270,7 +270,7 @@ export async function rescheduleAppointment(
   scheduledAt: string,
   endsAt: string
 ): Promise<{ error?: string }> {
-  const { orgId, role } = await requireOrgContext()
+  const { userId, orgId, role } = await requireOrgContext()
   if (role === 'doctor') throw new Error('FORBIDDEN')
 
   const admin = createServiceClient()
@@ -286,6 +286,31 @@ export async function rescheduleAppointment(
   if (error) return { error: error.message }
   if (!updated || updated.length === 0) throw new Error('FORBIDDEN')
   revalidatePath('/scheduling/calendar')
+
+  let calendarMoved: boolean | null = null
+  const { data: aptCal } = await admin
+    .from('appointments')
+    .select('external_calendar_id, doctor_id')
+    .eq('id', id)
+    .eq('organization_id', orgId)
+    .single()
+  if (aptCal?.external_calendar_id && aptCal?.doctor_id) {
+    calendarMoved = await updateGoogleCalendarEvent(
+      aptCal.doctor_id,
+      aptCal.external_calendar_id,
+      scheduledAt,
+      endsAt
+    )
+  }
+
+  await logAppointmentEvent({
+    appointmentId: id,
+    eventType: 'rescheduled',
+    actorType: 'staff',
+    performedBy: userId,
+    note: 'Cita reagendada desde el panel',
+    metadata: { calendar_moved: calendarMoved },
+  })
 
   // Send reschedule email (non-blocking) — solo tras pasar el check de tenant
   if (process.env.RESEND_API_KEY) {
