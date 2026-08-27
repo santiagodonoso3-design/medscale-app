@@ -36,13 +36,35 @@ function fmtTime(iso: string): string {
   }).format(new Date(iso))
 }
 
+async function assertPuedeTocarCita(
+  admin: ReturnType<typeof createServiceClient>,
+  id: string, orgId: string, userId: string, role: string
+): Promise<void> {
+  if (role !== 'doctor') return
+  const { data: doc } = await admin
+    .from('doctors')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('organization_id', orgId)
+    .single()
+  if (!doc?.id) throw new Error('FORBIDDEN')
+  const { data: apt } = await admin
+    .from('appointments')
+    .select('id')
+    .eq('id', id)
+    .eq('organization_id', orgId)
+    .eq('doctor_id', doc.id)
+    .single()
+  if (!apt) throw new Error('FORBIDDEN')
+}
+
 // ── Actions ───────────────────────────────────────────────────────────────────
 
 export async function cancelAppointment(id: string): Promise<{ error?: string }> {
-  const { orgId, role } = await requireOrgContext()
-  if (role === 'doctor') throw new Error('FORBIDDEN')
+  const { userId, orgId, role } = await requireOrgContext()
 
   const admin = createServiceClient()
+  await assertPuedeTocarCita(admin, id, orgId, userId, role)
 
   // Tenant fence: solo la org del que llama. 0 filas ⇒ cita ajena ⇒ abortar
   // ANTES de tocar lead / calendar / email.
@@ -124,10 +146,10 @@ export async function logCancellation(
   reason: string
 ): Promise<{ error?: string }> {
   const { userId, orgId, role } = await requireOrgContext()
-  if (role === 'doctor') throw new Error('FORBIDDEN')
 
   // Verificar que la cita pertenece a la org antes de escribir en el audit-log.
   const admin = createServiceClient()
+  await assertPuedeTocarCita(admin, appointmentId, orgId, userId, role)
   const { data: apt } = await admin
     .from('appointments')
     .select('id')
@@ -171,12 +193,9 @@ export async function updateAppointmentStatus(
   status: 'scheduled' | 'completed' | 'cancelled' | 'no_show' | 'confirmed'
 ): Promise<{ error?: string }> {
   const { userId, orgId, role } = await requireOrgContext()
-  // Los médicos pueden marcar asistencia (completed/no_show/confirmed/
-  // scheduled) pero no cancelar: cancelar mueve el status del lead y borra
-  // el evento de Google Calendar, y eso queda reservado a staff admin.
-  if (role === 'doctor' && status === 'cancelled') throw new Error('FORBIDDEN')
 
   const admin = createServiceClient()
+  await assertPuedeTocarCita(admin, id, orgId, userId, role)
   const { data: updated, error } = await admin
     .from('appointments')
     .update({ status })
@@ -271,9 +290,9 @@ export async function rescheduleAppointment(
   endsAt: string
 ): Promise<{ error?: string }> {
   const { userId, orgId, role } = await requireOrgContext()
-  if (role === 'doctor') throw new Error('FORBIDDEN')
 
   const admin = createServiceClient()
+  await assertPuedeTocarCita(admin, id, orgId, userId, role)
   // La constraint appointments_no_overlap se sigue evaluando en la DB (aplica
   // con service client igual). El error de solapamiento vuelve en `error` y el
   // caller lo mapea; 0 filas ⇒ cita ajena ⇒ abortar antes del email.
