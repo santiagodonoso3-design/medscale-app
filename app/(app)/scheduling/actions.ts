@@ -378,6 +378,7 @@ export async function getAppointmentLogs(
 
   const nameById: Record<string, string> = {}
   if (staffIds.length > 0) {
+    // 1) Médicos: nombre desde doctors.metadata.name
     const { data: docs } = await admin
       .from('doctors')
       .select('user_id, metadata')
@@ -385,6 +386,23 @@ export async function getAppointmentLogs(
     for (const d of docs ?? []) {
       const nm = (d.metadata as Record<string, unknown> | null)?.name
       if (d.user_id && nm) nameById[d.user_id as string] = String(nm)
+    }
+
+    // 2) Resto (staff/owner sin fila en doctors): nombre desde auth.users,
+    //    con el email como último recurso. Nunca dejar el actor sin nombre.
+    const pendientes = staffIds.filter(uid => !nameById[uid])
+    for (const uid of pendientes) {
+      try {
+        const { data: authUser } = await admin.auth.admin.getUserById(uid)
+        const meta = authUser?.user?.user_metadata as Record<string, unknown> | undefined
+        const nm =
+          (meta?.full_name as string | undefined) ??
+          (meta?.name as string | undefined) ??
+          authUser?.user?.email
+        if (nm) nameById[uid] = String(nm)
+      } catch {
+        // usuario borrado o sin permisos: se queda sin nombre
+      }
     }
   }
 
