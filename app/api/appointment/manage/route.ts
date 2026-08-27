@@ -39,7 +39,7 @@ export async function PATCH(request: Request) {
 
     const { data: orgData } = await admin
       .from('organizations')
-      .select('contact_email')
+      .select('contact_email, logo_url, primary_color')
       .eq('id', apt.organization_id)
       .single()
 
@@ -49,6 +49,10 @@ export async function PATCH(request: Request) {
     const orgName     = (org as any)?.name ?? ''
     const orgSlug     = (org as any)?.slug ?? ''
     const clinicEmail = orgData?.contact_email as string | null
+    const brand = {
+      logoUrl:      ((orgData as any)?.logo_url      as string | null) ?? null,
+      primaryColor: ((orgData as any)?.primary_color as string | null) ?? null,
+    }
     const patientEmail = lead?.contact_email
     const patientName  = [lead?.contact_name, lead?.contact_last_name].filter(Boolean).join(' ') || 'Paciente'
     const doctorName   = doctor?.metadata ? String((doctor.metadata as any).name ?? '') : null
@@ -151,7 +155,7 @@ export async function PATCH(request: Request) {
             patientName, orgName, appointmentTypeName: null,
             newDate: fmtDate(newScheduledAt.toISOString()),
             newTime: fmtTime(newScheduledAt.toISOString()),
-          }),
+          }, brand),
         }).catch(err => console.error('[manage] reschedule email error:', err))
       }
 
@@ -164,7 +168,7 @@ export async function PATCH(request: Request) {
             patientName, orgName, appointmentTypeName: null,
             newDate: fmtDate(newScheduledAt.toISOString()),
             newTime: fmtTime(newScheduledAt.toISOString()),
-          }),
+          }, brand),
         }).catch(err => console.error('[manage] reschedule clinic email error:', err))
       }
 
@@ -222,7 +226,7 @@ export async function PATCH(request: Request) {
             time: fmtTime(apt.scheduled_at),
             feedbackUrl,
             bookingUrl,
-          }),
+          }, brand),
         }).catch(err => console.error('[manage] cancel email error:', err))
       }
 
@@ -235,7 +239,7 @@ export async function PATCH(request: Request) {
             patientName, orgName, appointmentTypeName: null,
             date: fmtDate(apt.scheduled_at),
             time: fmtTime(apt.scheduled_at),
-          }),
+          }, brand),
         }).catch(err => console.error('[manage] cancel clinic email error:', err))
       }
 

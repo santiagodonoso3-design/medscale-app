@@ -15,7 +15,7 @@ async function fetchAptForEmail(id: string, orgId: string) {
     const admin = createServiceClient()
     const { data } = await admin
       .from('appointments')
-      .select('scheduled_at, manage_token, lead:lead_id(contact_name, contact_last_name, contact_email), org:organization_id(name, slug)')
+      .select('scheduled_at, manage_token, lead:lead_id(contact_name, contact_last_name, contact_email), org:organization_id(name, slug, logo_url, primary_color)')
       .eq('id', id)
       .eq('organization_id', orgId)
       .single()
@@ -94,6 +94,7 @@ export async function cancelAppointment(id: string): Promise<{ error?: string }>
         const org = (Array.isArray(apt.org) ? apt.org[0] : apt.org as any)
         const orgName = org?.name ?? ''
         const orgSlug = org?.slug ?? ''
+        const brand = { logoUrl: org?.logo_url ?? null, primaryColor: org?.primary_color ?? null }
         const patientName = [lead.contact_name, lead.contact_last_name].filter(Boolean).join(' ') || 'Paciente'
         const feedbackUrl = apt.manage_token ? `https://app.medscale.app/appointment/${apt.manage_token}/feedback` : undefined
         const bookingUrl  = orgSlug ? `https://app.medscale.app/book/${orgSlug}` : undefined
@@ -109,7 +110,7 @@ export async function cancelAppointment(id: string): Promise<{ error?: string }>
             time: fmtTime(apt.scheduled_at),
             feedbackUrl,
             bookingUrl,
-          }),
+          }, brand),
         })
       })().catch(err => console.error('[email] cancellation error:', err)),
     ])
@@ -185,7 +186,7 @@ export async function updateAppointmentStatus(
   if (status === 'completed' || status === 'cancelled' || status === 'no_show') {
     const { data: apt } = await admin
       .from('appointments')
-      .select('lead_id, manage_token, lead:lead_id(contact_name, contact_last_name, contact_email), org:organization_id(name, slug)')
+      .select('lead_id, manage_token, lead:lead_id(contact_name, contact_last_name, contact_email), org:organization_id(name, slug, logo_url, primary_color)')
       .eq('id', id)
       .eq('organization_id', orgId)
       .single()
@@ -242,6 +243,7 @@ export async function updateAppointmentStatus(
           const patientName = [lead?.contact_name, lead?.contact_last_name].filter(Boolean).join(' ') || 'Paciente'
           const orgName     = org?.name ?? ''
           const orgSlug     = org?.slug ?? ''
+          const brand       = { logoUrl: org?.logo_url ?? null, primaryColor: org?.primary_color ?? null }
           const feedbackUrl = apt.manage_token ? `https://app.medscale.app/appointment/${apt.manage_token}/feedback` : ''
           const bookingUrl  = orgSlug ? `https://app.medscale.app/book/${orgSlug}` : ''
           if (!feedbackUrl) return
@@ -249,7 +251,7 @@ export async function updateAppointmentStatus(
             from:    'citas@medscale.app',
             to:      patientEmail,
             subject: `¿No pudiste asistir? — ${orgName}`,
-            html:    noShowFollowUpEmail({ patientName, orgName, feedbackUrl, bookingUrl }),
+            html:    noShowFollowUpEmail({ patientName, orgName, feedbackUrl, bookingUrl }, brand),
           })
         })().catch(err => console.error('[email] no_show follow-up error:', err)),
       ])
@@ -291,7 +293,9 @@ export async function rescheduleAppointment(
         const lead = Array.isArray(apt.lead) ? apt.lead[0] : apt.lead
         const patientEmail = lead?.contact_email
         if (!patientEmail) return
-        const orgName = (Array.isArray(apt.org) ? apt.org[0] : apt.org as any)?.name ?? ''
+        const org = (Array.isArray(apt.org) ? apt.org[0] : apt.org as any)
+        const orgName = org?.name ?? ''
+        const brand = { logoUrl: org?.logo_url ?? null, primaryColor: org?.primary_color ?? null }
         const patientName = [lead.contact_name, lead.contact_last_name].filter(Boolean).join(' ') || 'Paciente'
         await resend.emails.send({
           from:    'citas@medscale.app',
@@ -303,7 +307,7 @@ export async function rescheduleAppointment(
             appointmentTypeName: null,
             newDate: fmtDate(scheduledAt),
             newTime: fmtTime(scheduledAt),
-          }),
+          }, brand),
         })
       })().catch(err => console.error('[email] reschedule error:', err)),
     ])

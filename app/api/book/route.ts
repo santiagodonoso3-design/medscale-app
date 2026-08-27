@@ -60,7 +60,7 @@ export async function POST(request: Request) {
 
     const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .select('id, name, contact_email')
+      .select('id, name, contact_email, logo_url, primary_color')
       .eq('slug', org_slug)
       .single()
 
@@ -469,7 +469,10 @@ export async function POST(request: Request) {
             from:    'citas@medscale.app',
             to:      email,
             subject: `Cita confirmada — ${orgNameDisplay}`,
-            html:    bookingConfirmationPatient(emailParams),
+            html:    bookingConfirmationPatient(emailParams, {
+              logoUrl:      ((org as any).logo_url      as string | null) ?? null,
+              primaryColor: ((org as any).primary_color as string | null) ?? null,
+            }),
           }),
         ])
         results.forEach(r => { if (r.status === 'rejected') console.error('[email] failed:', r.reason) })

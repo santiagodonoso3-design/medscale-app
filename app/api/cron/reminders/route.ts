@@ -73,7 +73,7 @@ export async function GET(request: Request) {
         id, scheduled_at, modality,
         leads(contact_name, contact_last_name, contact_email),
         doctors(metadata),
-        organizations(name),
+        organizations(name, logo_url, primary_color),
         appointment_types(name)
       `)
       .eq('appointment_type_id', notif.appointment_type_id)
@@ -115,7 +115,10 @@ export async function GET(request: Request) {
           hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Bogota',
         }).format(scheduledAt)
 
-        const html = brandShell('es', orgName, reminderBody(patientName, doctorName, dateStr, timeStr, typeName))
+        const html = brandShell('es', orgName, reminderBody(patientName, doctorName, dateStr, timeStr, typeName), {
+          logoUrl:      ((org as any)?.logo_url      as string | null) ?? null,
+          primaryColor: ((org as any)?.primary_color as string | null) ?? null,
+        })
 
         await resend.emails.send({
           from: 'citas@medscale.app',

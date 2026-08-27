@@ -44,3 +44,7 @@ next-env.d.ts
 
 # contexto local con identificadores de producción
 CONTEXT.local.md
+
+# Local tooling y auditorias
+.claude/
+audit/
