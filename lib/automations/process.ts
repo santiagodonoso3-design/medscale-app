@@ -8,6 +8,8 @@ const MAX_EMAILS = 50
 const APP_URL = 'https://app.medscale.app'
 // Postgres SQLSTATE unique_violation — raised by automation_logs_dedup_unique
 const UNIQUE_VIOLATION = '23505'
+// Audiences with dedicated engine logic; anything else must be an ACTIVE lead_statuses.key
+const RESERVED_AUDIENCES_MOTOR = new Set(['all', 'birthday', 'noshow'])
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -730,6 +732,24 @@ export async function processAutomationRules(admin: Admin): Promise<number> {
     const org = orgMap.get(rule.organization_id)
     if (!org) continue
     if (!rule.email_subject || !rule.email_body) continue
+
+    // Guard: a non-reserved audience must exist as an ACTIVE status of the org.
+    // Otherwise skip the rule (log it, never break the cron).
+    if (rule.audience && !RESERVED_AUDIENCES_MOTOR.has(rule.audience)) {
+      const { data: statusExists } = await admin
+        .from('lead_statuses')
+        .select('key')
+        .eq('organization_id', rule.organization_id)
+        .eq('key', rule.audience)
+        .eq('is_active', true)
+        .maybeSingle()
+      if (!statusExists) {
+        console.error(
+          `[automations] rule ${rule.id} audience="${rule.audience}" no existe/activo en lead_statuses — skip`,
+        )
+        continue
+      }
+    }
 
     const remaining = MAX_EMAILS - totalSent
 

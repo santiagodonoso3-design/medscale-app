@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Plus, Loader2, Pencil, X, Save, Zap, Calendar, Trash2, Users } from 'lucide-react'
 import { DatePicker } from '@/components/ui/date-picker'
 
@@ -65,20 +65,15 @@ const BIRTHDAY_DEF: RuleTypeDef = {
   delayLabel: () => 'El día del cumpleaños',
 }
 
-const AUDIENCE_OPTIONS = [
-  { value: 'all',                      label: 'Todos los leads con email' },
-  { value: 'cita_valoracion_agendada', label: 'Leads con cita agendada' },
-  { value: 'asistio_cita',             label: 'Leads que asistieron a cita' },
-  { value: 'noshow',                   label: 'Leads que no asistieron (no-show)' },
-  { value: 'en_tratamiento_medico',    label: 'Leads en tratamiento médico' },
-  { value: 'finalizado',               label: 'Leads con procedimiento finalizado' },
-  { value: 'cancelo_cita',             label: 'Leads que cancelaron' },
-  { value: 'birthday',                 label: 'Cumpleañeros del día' },
-]
+// Reserved audience keys — application-level, not from catalog.
+// Any other audience value is a lead_statuses.key of the org (loaded at runtime).
+const RESERVED_AUDIENCES = [
+  { value: 'all',      label: 'Todos los leads con email' },
+  { value: 'birthday', label: 'Cumpleañeros del día' },
+  { value: 'noshow',   label: 'Leads que no asistieron (no-show)' },
+] as const
 
-const AUDIENCE_LABEL: Record<string, string> = Object.fromEntries(
-  AUDIENCE_OPTIONS.map(o => [o.value, o.label])
-)
+interface LeadStatus { key: string; label: string; sort_order: number; is_system: boolean }
 
 const EMPTY_FORM = {
   name: '',
@@ -110,9 +105,8 @@ function Toggle({ active, onClick }: { active: boolean; onClick: () => void }) {
   )
 }
 
-function AudienceChip({ audience }: { audience: string | null }) {
-  if (!audience || audience === 'all') return null
-  const label = AUDIENCE_LABEL[audience] ?? audience
+function AudienceChip({ label }: { label: string | null }) {
+  if (!label) return null
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 mt-1">
       <Users className="h-3 w-3" />
@@ -126,11 +120,13 @@ function RuleCard({
   def,
   onEdit,
   onToggle,
+  audienceLabel = null,
 }: {
   rule: AutomationRule | null
   def: RuleTypeDef
   onEdit: () => void
   onToggle: () => void
+  audienceLabel?: string | null // resolved by the parent (it owns the audience label map)
 }) {
   if (!rule) {
     return (
@@ -164,7 +160,7 @@ function RuleCard({
               ? def.delayLabel(rule.delay_days)
               : def.delayLabel(0)}
           </p>
-          {rule.rule_type === 'birthday' && <AudienceChip audience={rule.audience} />}
+          {rule.rule_type === 'birthday' && <AudienceChip label={audienceLabel} />}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Toggle active={rule.is_active} onClick={onToggle} />
@@ -203,6 +199,40 @@ export default function AutomationsPage() {
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+
+  const [leadStatuses, setLeadStatuses]     = useState<LeadStatus[]>([])
+  const [statusesLoaded, setStatusesLoaded] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/lead-statuses')
+      .then(r => r.ok ? r.json() : [])
+      .then((data: LeadStatus[]) => {
+        setLeadStatuses(data)
+        setStatusesLoaded(true)
+      })
+      .catch(() => setStatusesLoaded(true))
+  }, [])
+
+  // Order: all → org statuses (by sort_order) → birthday → noshow
+  const audienceOptions = useMemo(() => {
+    const statusOpts = leadStatuses.map(s => ({ value: s.key, label: s.label }))
+    return [
+      RESERVED_AUDIENCES[0], // all
+      ...statusOpts,
+      RESERVED_AUDIENCES[1], // birthday
+      RESERVED_AUDIENCES[2], // noshow
+    ]
+  }, [leadStatuses])
+
+  const audienceLabelMap = useMemo<Record<string, string>>(
+    () => Object.fromEntries(audienceOptions.map(o => [o.value, o.label] as const)),
+    [audienceOptions],
+  )
+
+  function audienceLabelFor(audience: string | null): string | null {
+    if (!audience || audience === 'all') return null
+    return audienceLabelMap[audience] ?? audience
+  }
 
   function getRuleByType(ruleType: string) {
     return rules.find(r => r.rule_type === ruleType) ?? null
@@ -412,6 +442,7 @@ export default function AutomationsPage() {
                 def={BIRTHDAY_DEF}
                 onEdit={() => rule ? openEdit(rule) : openCreate('birthday')}
                 onToggle={() => rule && handleToggle(rule)}
+                audienceLabel={audienceLabelFor(rule?.audience ?? null)}
               />
             )
           })()}
@@ -436,7 +467,7 @@ export default function AutomationsPage() {
                       })}
                     </p>
                   )}
-                  <AudienceChip audience={rule.audience} />
+                  <AudienceChip label={audienceLabelFor(rule.audience)} />
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Toggle active={rule.is_active} onClick={() => handleToggle(rule)} />
@@ -526,10 +557,11 @@ export default function AutomationsPage() {
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Enviar a</label>
                   <select
                     value={form.audience}
+                    disabled={!statusesLoaded}
                     onChange={e => setForm(p => ({ ...p, audience: e.target.value }))}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
                   >
-                    {AUDIENCE_OPTIONS.map(opt => (
+                    {audienceOptions.map(opt => (
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}
                   </select>

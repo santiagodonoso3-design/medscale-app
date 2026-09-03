@@ -5,6 +5,41 @@ import { createServiceClient } from '@/lib/supabase/server'
 const FIXED_RULE_TYPES = ['followup_post_cita', 'noshow_recovery', 'procedure_followup', 'procedure_completed', 'birthday']
 const ALL_RULE_TYPES = [...FIXED_RULE_TYPES, 'special_date']
 
+// Audiences with dedicated engine logic (lib/automations/process.ts). Any other
+// value must be an ACTIVE lead_statuses.key of the org.
+const RESERVED_AUDIENCES = ['all', 'birthday', 'noshow'] as const
+
+async function validateAudience(
+  admin: ReturnType<typeof createServiceClient>,
+  orgId: string,
+  audience: string | null | undefined,
+  ruleType: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!audience) return { ok: true }
+
+  // lead_status requires a real status, never a reserved keyword (the engine skips them)
+  if (ruleType === 'lead_status' && (audience === 'all' || audience === 'birthday')) {
+    return { ok: false, error: 'Las reglas de estado del lead requieren un status específico, no "todos" ni "cumpleaños"' }
+  }
+
+  if ((RESERVED_AUDIENCES as readonly string[]).includes(audience)) {
+    return { ok: true }
+  }
+
+  const { data } = await admin
+    .from('lead_statuses')
+    .select('key')
+    .eq('organization_id', orgId)
+    .eq('key', audience)
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (!data) {
+    return { ok: false, error: `El estado "${audience}" no existe o está inactivo en tu organización` }
+  }
+  return { ok: true }
+}
+
 export async function GET() {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
@@ -37,6 +72,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Cuerpo del email requerido' }, { status: 400 })
 
   const admin = createServiceClient()
+
+  const audienceCheck = await validateAudience(admin, session.orgId, audience, rule_type)
+  if (!audienceCheck.ok) {
+    return NextResponse.json({ error: audienceCheck.error }, { status: 400 })
+  }
 
   if (FIXED_RULE_TYPES.includes(rule_type)) {
     const { data: existing } = await admin
@@ -89,6 +129,24 @@ export async function PATCH(req: NextRequest) {
   if (is_active !== undefined) updates.is_active = Boolean(is_active)
 
   const admin = createServiceClient()
+
+  // Validate audience against the rule's own rule_type (the body does not carry it)
+  if (audience !== undefined && audience !== null) {
+    const { data: existingRule } = await admin
+      .from('automation_rules')
+      .select('rule_type')
+      .eq('id', id)
+      .eq('organization_id', session.orgId)
+      .maybeSingle()
+    if (!existingRule) {
+      return NextResponse.json({ error: 'Regla no encontrada' }, { status: 404 })
+    }
+    const audienceCheck = await validateAudience(admin, session.orgId, audience, existingRule.rule_type)
+    if (!audienceCheck.ok) {
+      return NextResponse.json({ error: audienceCheck.error }, { status: 400 })
+    }
+  }
+
   const { data, error } = await admin
     .from('automation_rules')
     .update(updates)
