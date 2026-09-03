@@ -1,7 +1,11 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
-import { Plus, Loader2, Pencil, X, Save, Zap, Calendar, Trash2, Users } from 'lucide-react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import Link from 'next/link'
+import {
+  Plus, Loader2, Pencil, X, Save, Zap, Calendar, Trash2, Users,
+  Mail, Clock, Bell, GitBranch,
+} from 'lucide-react'
 import { DatePicker } from '@/components/ui/date-picker'
 
 interface AutomationRule {
@@ -26,32 +30,36 @@ interface RuleTypeDef {
   delayLabel: (delay: number) => string
 }
 
+interface RuleStats { sent_30d: number; last_sent_at: string | null }
+
+const EMPTY_STATS: RuleStats = { sent_30d: 0, last_sent_at: null }
+
 const EVENT_RULE_DEFS: RuleTypeDef[] = [
   {
     rule_type: 'followup_post_cita',
-    defaultName: 'Seguimiento post cita',
-    defaultDescription: 'Email de seguimiento enviado días después de una cita completada.',
+    defaultName: 'Reconecta después de la cita',
+    defaultDescription: 'Un correo unos días después de la consulta para mantener la relación y motivar la próxima visita.',
     defaultDelay: 3,
     delayLabel: d => `${d} día${d !== 1 ? 's' : ''} después de cita completada`,
   },
   {
     rule_type: 'noshow_recovery',
-    defaultName: 'Recuperación no-show',
-    defaultDescription: 'Email de recuperación enviado a pacientes que no asistieron a su cita.',
+    defaultName: 'Recupera pacientes que no asistieron',
+    defaultDescription: 'Cuando un paciente no llega a su cita, este correo lo reconecta y facilita agendar de nuevo.',
     defaultDelay: 1,
     delayLabel: d => `${d} día${d !== 1 ? 's' : ''} después de no-show`,
   },
   {
     rule_type: 'procedure_followup',
-    defaultName: 'Seguimiento procedimiento',
-    defaultDescription: 'Email enviado cuando el lead inicia tratamiento médico.',
+    defaultName: 'Al iniciar tratamiento',
+    defaultDescription: 'Un correo cuando el paciente pasa a "En tratamiento médico", con instrucciones o palabras de acompañamiento.',
     defaultDelay: 7,
     delayLabel: d => `${d} día${d !== 1 ? 's' : ''} después de iniciar tratamiento`,
   },
   {
     rule_type: 'procedure_completed',
-    defaultName: 'Procedimiento finalizado',
-    defaultDescription: 'Email enviado cuando el lead pasa a estado finalizado.',
+    defaultName: 'Al finalizar tratamiento',
+    defaultDescription: 'Un correo cuando el paciente completa su proceso, ideal para pedir referidos o dejar la puerta abierta.',
     defaultDelay: 0,
     delayLabel: d => d === 0 ? 'Al finalizar (próximo cron)' : `${d} días después de finalizar`,
   },
@@ -59,8 +67,8 @@ const EVENT_RULE_DEFS: RuleTypeDef[] = [
 
 const BIRTHDAY_DEF: RuleTypeDef = {
   rule_type: 'birthday',
-  defaultName: 'Cumpleaños',
-  defaultDescription: 'Email de felicitación enviado el día del cumpleaños del paciente.',
+  defaultName: 'Felicitación de cumpleaños',
+  defaultDescription: 'El día del cumpleaños del paciente le llega un correo tuyo, con la posibilidad de incluir un beneficio.',
   defaultDelay: null,
   delayLabel: () => 'El día del cumpleaños',
 }
@@ -75,6 +83,9 @@ const RESERVED_AUDIENCES = [
 
 interface LeadStatus { key: string; label: string; sort_order: number; is_system: boolean }
 
+// Variables the engine replaces in subject/body (lib/automations/process.ts)
+const VARIABLES = ['nombre', 'nombre_clinica', 'nombre_doctor']
+
 const EMPTY_FORM = {
   name: '',
   description: '',
@@ -87,6 +98,48 @@ const EMPTY_FORM = {
 
 function isEventBased(ruleType: string) {
   return ruleType !== 'birthday' && ruleType !== 'special_date'
+}
+
+// CTA button the engine adds to this rule type's email (preview fidelity)
+function ctaLabelFor(ruleType: string): string | undefined {
+  return ruleType === 'noshow_recovery' ? 'Reagendar cita' : undefined
+}
+
+function formatRelative(iso: string | null): string {
+  if (!iso) return 'nunca'
+  const diff = Date.now() - new Date(iso).getTime()
+  const h = Math.floor(diff / 3600000)
+  if (h < 1) return 'hace menos de 1 hora'
+  if (h < 24) return `hace ${h}h`
+  const d = Math.floor(h / 24)
+  if (d < 7) return `hace ${d}d`
+  return new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
+}
+
+function formatTriggerDate(iso: string): string {
+  return new Date(iso.slice(0, 10) + 'T12:00:00').toLocaleDateString('es-CO', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  })
+}
+
+// "Cuándo se envía" — read-only explainer derived from the rule type
+function whenExplainer(ruleType: string, delayDays: string): string {
+  switch (ruleType) {
+    case 'followup_post_cita':
+      return `Se envía ${delayDays || '?'} días después de que una cita se marca como completada.`
+    case 'noshow_recovery':
+      return `Se envía ${delayDays || '?'} días después de que una cita se marca como no-show.`
+    case 'procedure_followup':
+      return `Se envía ${delayDays || '?'} días después de que el lead pasa a "En tratamiento médico".`
+    case 'procedure_completed':
+      return `Se envía cuando el lead pasa a "Finalizado".`
+    case 'birthday':
+      return 'Se envía el día del cumpleaños del paciente (mismo día).'
+    case 'special_date':
+      return 'Se envía una única vez, el día de la fecha configurada.'
+    default:
+      return 'Se envía según la configuración de la regla.'
+  }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -105,34 +158,29 @@ function Toggle({ active, onClick }: { active: boolean; onClick: () => void }) {
   )
 }
 
-function AudienceChip({ label }: { label: string | null }) {
-  if (!label) return null
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700 mt-1">
-      <Users className="h-3 w-3" />
-      {label}
-    </span>
-  )
-}
-
 function RuleCard({
-  rule,
-  def,
-  onEdit,
-  onToggle,
-  audienceLabel = null,
+  rule, def, onEdit, onToggle, audienceLabel = null, stats,
 }: {
   rule: AutomationRule | null
   def: RuleTypeDef
   onEdit: () => void
   onToggle: () => void
   audienceLabel?: string | null // resolved by the parent (it owns the audience label map)
+  stats?: RuleStats
 }) {
   if (!rule) {
+    // SIN CONFIGURAR: dashed border, not a greyed-out card
     return (
-      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5">
-        <p className="font-semibold text-slate-400">{def.defaultName}</p>
-        <p className="mt-0.5 text-xs text-slate-400 line-clamp-2">{def.defaultDescription}</p>
+      <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white p-5 hover:border-blue-300 transition">
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <div>
+            <p className="font-semibold text-slate-900">{def.defaultName}</p>
+            <p className="mt-0.5 text-xs text-slate-500 line-clamp-3">{def.defaultDescription}</p>
+          </div>
+          <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 shrink-0">
+            Sin configurar
+          </span>
+        </div>
         <button
           onClick={onEdit}
           className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 transition"
@@ -144,26 +192,30 @@ function RuleCard({
     )
   }
 
+  // CONFIGURADA
+  const active = rule.is_active
   return (
     <div
       onClick={onEdit}
       className="rounded-2xl border border-slate-200 bg-white p-5 hover:shadow-md transition cursor-pointer"
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+              active ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+            }`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+              {active ? 'Activa' : 'Pausada'}
+            </span>
+          </div>
           <p className="font-semibold text-slate-900 truncate">{rule.name}</p>
           {rule.description && (
             <p className="mt-0.5 text-xs text-slate-500 line-clamp-2">{rule.description}</p>
           )}
-          <p className="mt-1 text-xs text-slate-400">
-            {rule.delay_days !== null
-              ? def.delayLabel(rule.delay_days)
-              : def.delayLabel(0)}
-          </p>
-          {rule.rule_type === 'birthday' && <AudienceChip label={audienceLabel} />}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Toggle active={rule.is_active} onClick={onToggle} />
+          <Toggle active={active} onClick={onToggle} />
           <button
             onClick={e => { e.stopPropagation(); onEdit() }}
             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
@@ -172,6 +224,34 @@ function RuleCard({
           </button>
         </div>
       </div>
+
+      <div className="space-y-1.5 border-t border-slate-100 pt-3">
+        <div className="flex items-center gap-2 text-xs text-slate-600">
+          <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+          <span>
+            {rule.delay_days !== null ? def.delayLabel(rule.delay_days) : def.delayLabel(0)}
+          </span>
+        </div>
+        {audienceLabel && (
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <Users className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <span>{audienceLabel}</span>
+          </div>
+        )}
+        {rule.email_subject && (
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <span className="truncate">{rule.email_subject}</span>
+          </div>
+        )}
+      </div>
+
+      {stats && (
+        <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+          <span><strong className="text-slate-700">{stats.sent_30d}</strong> correos en 30 días</span>
+          <span>Último: {formatRelative(stats.last_sent_at)}</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -200,6 +280,7 @@ export default function AutomationsPage() {
 
   useEffect(() => { loadData() }, [loadData])
 
+  // ── Audience catalog (lead_statuses of the org) ──
   const [leadStatuses, setLeadStatuses]     = useState<LeadStatus[]>([])
   const [statusesLoaded, setStatusesLoaded] = useState(false)
 
@@ -234,6 +315,110 @@ export default function AutomationsPage() {
     return audienceLabelMap[audience] ?? audience
   }
 
+  // ── Stats (sent in the last 30 days, per rule) ──
+  const [stats, setStats] = useState<Record<string, RuleStats>>({})
+
+  useEffect(() => {
+    fetch('/api/automations/stats')
+      .then(r => r.ok ? r.json() : {})
+      .then((data: Record<string, RuleStats>) => setStats(data))
+      .catch(() => {})
+  }, [rules.length]) // refresh when rules are created/deleted
+
+  // ── Modal derived values (needed by the preview effect below) ──
+  const modalRuleType   = editing?.rule_type ?? creatingType ?? ''
+  const modalDef        = [...EVENT_RULE_DEFS, BIRTHDAY_DEF].find(d => d.rule_type === modalRuleType)
+  const showDelay       = isEventBased(modalRuleType)
+  const showTriggerDate = modalRuleType === 'special_date'
+  const showAudience    = !isEventBased(modalRuleType) && modalRuleType !== ''
+  const showDelete      = editing?.rule_type === 'special_date'
+
+  // ── Email preview + test send ──
+  const [previewHtml, setPreviewHtml]       = useState<string>('')
+  const [previewSubject, setPreviewSubject] = useState<string>('')
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [testSending, setTestSending]       = useState(false)
+  const [testResult, setTestResult]         = useState<string | null>(null)
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (!modalOpen) return
+    if (!form.email_subject.trim() || !form.email_body.trim()) {
+      setPreviewHtml('')
+      setPreviewSubject('')
+      return
+    }
+    // Debounce: re-render 500ms after the last keystroke
+    const handle = setTimeout(async () => {
+      setPreviewLoading(true)
+      try {
+        const res = await fetch('/api/automations/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subject:  form.email_subject,
+            body:     form.email_body,
+            ctaLabel: ctaLabelFor(modalRuleType),
+          }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setPreviewHtml(data.html)
+          setPreviewSubject(data.subject)
+        }
+      } catch {
+        // keep the last rendered preview
+      } finally {
+        setPreviewLoading(false)
+      }
+    }, 500)
+    return () => clearTimeout(handle)
+  }, [form.email_subject, form.email_body, modalOpen, modalRuleType])
+
+  async function handleSendTest() {
+    setTestSending(true)
+    setTestResult(null)
+    try {
+      const res = await fetch('/api/automations/preview/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subject:  form.email_subject,
+          body:     form.email_body,
+          ctaLabel: ctaLabelFor(modalRuleType),
+        }),
+      })
+      const data = await res.json()
+      setTestResult(res.ok ? `Enviado a ${data.sent_to}` : `Error: ${data.error}`)
+    } catch {
+      setTestResult('Error al enviar')
+    } finally {
+      setTestSending(false)
+    }
+  }
+
+  // Inserts {{variable}} at the cursor position of the body textarea
+  function insertVariable(v: string) {
+    const el = bodyRef.current
+    if (!el) return
+    const start = el.selectionStart
+    const end   = el.selectionEnd
+    const token = `{{${v}}}`
+    const nextValue = form.email_body.slice(0, start) + token + form.email_body.slice(end)
+    setForm(p => ({ ...p, email_body: nextValue }))
+    // reposition the cursor right after the token
+    requestAnimationFrame(() => {
+      el.focus()
+      el.selectionStart = el.selectionEnd = start + token.length
+    })
+  }
+
+  function resetPreview() {
+    setPreviewHtml('')
+    setPreviewSubject('')
+    setTestResult(null)
+  }
+
   function getRuleByType(ruleType: string) {
     return rules.find(r => r.rule_type === ruleType) ?? null
   }
@@ -258,6 +443,7 @@ export default function AutomationsPage() {
     })
     setIsActive(true)
     setFormError(null)
+    resetPreview()
     setModalOpen(true)
   }
 
@@ -275,6 +461,7 @@ export default function AutomationsPage() {
     })
     setIsActive(rule.is_active)
     setFormError(null)
+    resetPreview()
     setModalOpen(true)
   }
 
@@ -283,6 +470,7 @@ export default function AutomationsPage() {
     setEditing(null)
     setCreatingType(null)
     setFormError(null)
+    resetPreview()
   }
 
   async function handleToggle(rule: AutomationRule) {
@@ -378,37 +566,48 @@ export default function AutomationsPage() {
     )
   }
 
-  const modalRuleType   = editing?.rule_type ?? creatingType ?? ''
-  const showDelay       = isEventBased(modalRuleType)
-  const showTriggerDate = modalRuleType === 'special_date'
-  const showAudience    = !isEventBased(modalRuleType) && modalRuleType !== ''
-  const showDelete      = editing?.rule_type === 'special_date'
+  const specialDates = getSpecialDates()
+  const modalSubtitle = editing?.name ?? modalDef?.defaultName ?? (showTriggerDate ? 'Fecha especial' : '')
 
   return (
     <div className="space-y-8">
 
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-slate-900">Automatizaciones</h2>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Emails automáticos enviados según eventos clínicos o fechas especiales.
-          </p>
-        </div>
-        <button
-          onClick={() => openCreate('special_date')}
-          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition"
-        >
-          <Plus className="h-4 w-4" />
-          Nueva automatización
-        </button>
+      <div className="space-y-2">
+        <h2 className="text-lg font-bold text-slate-900">Automatizaciones</h2>
+        <p className="text-sm text-slate-500">
+          Correos automáticos a tus pacientes según lo que pasa en tu clínica.
+        </p>
       </div>
 
-      {/* Section: Event-based */}
+      {/* Banner informativo permanente */}
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:gap-6 gap-3 text-xs text-slate-600">
+          <div className="flex items-start gap-2">
+            <Mail className="h-4 w-4 mt-0.5 text-slate-400 shrink-0" />
+            <span>Solo email por ahora. WhatsApp llega pronto.</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <Clock className="h-4 w-4 mt-0.5 text-slate-400 shrink-0" />
+            <span>Envío diario a las 9:00 AM (hora Colombia).</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <Bell className="h-4 w-4 mt-0.5 text-slate-400 shrink-0" />
+            <span>
+              Los recordatorios de cita están en{' '}
+              <Link href="/settings/notifications" className="text-blue-600 hover:underline">
+                Notificaciones
+              </Link>.
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Section 1: Event-based */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Zap className="h-4 w-4 text-amber-500" />
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Basadas en eventos</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Cuando pasa algo en tu clínica</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {EVENT_RULE_DEFS.map(def => {
@@ -420,17 +619,29 @@ export default function AutomationsPage() {
                 def={def}
                 onEdit={() => rule ? openEdit(rule) : openCreate(def.rule_type)}
                 onToggle={() => rule && handleToggle(rule)}
+                stats={rule ? (stats[rule.id] ?? EMPTY_STATS) : undefined}
               />
             )
           })}
         </div>
       </div>
 
-      {/* Section: Date-based */}
+      {/* Section 2: Date-based */}
       <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-blue-500" />
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Basadas en fecha</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-blue-500" />
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+              En fechas específicas
+            </p>
+          </div>
+          <button
+            onClick={() => openCreate('special_date')}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Nueva fecha especial
+          </button>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Birthday — fixed, one per org */}
@@ -443,198 +654,354 @@ export default function AutomationsPage() {
                 onEdit={() => rule ? openEdit(rule) : openCreate('birthday')}
                 onToggle={() => rule && handleToggle(rule)}
                 audienceLabel={audienceLabelFor(rule?.audience ?? null)}
+                stats={rule ? (stats[rule.id] ?? EMPTY_STATS) : undefined}
               />
             )
           })()}
 
-          {/* Special dates — multiple */}
-          {getSpecialDates().map(rule => (
-            <div
-              key={rule.id}
-              onClick={() => openEdit(rule)}
-              className="rounded-2xl border border-slate-200 bg-white p-5 hover:shadow-md transition cursor-pointer"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-700">
-                    Fecha especial
-                  </span>
-                  <p className="font-semibold text-slate-900 truncate mt-1">{rule.name}</p>
-                  {rule.trigger_date && (
-                    <p className="mt-0.5 text-xs text-slate-400">
-                      {new Date(rule.trigger_date + 'T12:00:00').toLocaleDateString('es-CO', {
-                        day: 'numeric', month: 'long', year: 'numeric',
-                      })}
-                    </p>
-                  )}
-                  <AudienceChip label={audienceLabelFor(rule.audience)} />
+          {/* Special dates — multiple. Same visual pattern as RuleCard (inline on purpose) */}
+          {specialDates.map(rule => {
+            const active = rule.is_active
+            const ruleStats = stats[rule.id] ?? EMPTY_STATS
+            const audienceLabel = audienceLabelFor(rule.audience)
+            return (
+              <div
+                key={rule.id}
+                onClick={() => openEdit(rule)}
+                className="rounded-2xl border border-slate-200 bg-white p-5 hover:shadow-md transition cursor-pointer"
+              >
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        active ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                        {active ? 'Activa' : 'Pausada'}
+                      </span>
+                      <span className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium bg-blue-50 text-blue-700">
+                        Fecha especial
+                      </span>
+                    </div>
+                    <p className="font-semibold text-slate-900 truncate">{rule.name}</p>
+                    {rule.description && (
+                      <p className="mt-0.5 text-xs text-slate-500 line-clamp-2">{rule.description}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Toggle active={active} onClick={() => handleToggle(rule)} />
+                    <button
+                      onClick={e => { e.stopPropagation(); openEdit(rule) }}
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Toggle active={rule.is_active} onClick={() => handleToggle(rule)} />
-                  <button
-                    onClick={e => { e.stopPropagation(); openEdit(rule) }}
-                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
+
+                <div className="space-y-1.5 border-t border-slate-100 pt-3">
+                  {rule.trigger_date && (
+                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                      <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                      <span>{formatTriggerDate(rule.trigger_date)}</span>
+                    </div>
+                  )}
+                  {audienceLabel && (
+                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                      <Users className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                      <span>{audienceLabel}</span>
+                    </div>
+                  )}
+                  {rule.email_subject && (
+                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                      <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate">{rule.email_subject}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                  <span><strong className="text-slate-700">{ruleStats.sent_30d}</strong> correos en 30 días</span>
+                  <span>Último: {formatRelative(ruleStats.last_sent_at)}</span>
                 </div>
               </div>
+            )
+          })}
+
+          {/* Empty state: no special dates yet */}
+          {specialDates.length === 0 && (
+            <div className="col-span-full rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 p-8 text-center">
+              <Calendar className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+              <p className="text-sm text-slate-500">Aún no tienes fechas especiales.</p>
+              <p className="text-xs text-slate-400 mt-1">
+                Crea una para enviar un correo puntual en una fecha específica —
+                ideal para campañas o celebraciones.
+              </p>
             </div>
-          ))}
+          )}
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Section 3: Lead status changes (reserved) */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <GitBranch className="h-4 w-4 text-violet-500" />
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+            Por cambio de estado del lead
+          </p>
+        </div>
+        <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <p className="font-semibold text-slate-500">Reglas personalizadas por estado</p>
+                <span className="inline-flex items-center rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
+                  Próximamente
+                </span>
+              </div>
+              <p className="text-sm text-slate-400">
+                Envía correos cuando un lead pasa a un estado específico de tu CRM
+                (Ej: &quot;En tratamiento médico&quot; → correo de bienvenida).
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal: form (left) + live preview (right) */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeModal} />
-          <div className="relative z-10 flex w-full flex-col rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl max-h-[90vh] max-w-lg">
+          <div className="relative z-10 flex w-full flex-col rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl max-h-[90vh] max-w-4xl overflow-hidden">
 
+            {/* Modal header */}
             <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
-              <h2 className="text-base font-semibold text-slate-900">
-                {editing ? 'Editar automatización' : 'Configurar automatización'}
-              </h2>
-              <button onClick={closeModal} className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 transition">
+              <div className="min-w-0">
+                <h2 className="text-base font-semibold text-slate-900">
+                  {editing ? 'Editar automatización' : 'Configurar automatización'}
+                </h2>
+                {modalSubtitle && (
+                  <p className="text-xs text-slate-500 mt-0.5 truncate">{modalSubtitle}</p>
+                )}
+              </div>
+              <button onClick={closeModal} className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 transition shrink-0">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+            {/* Body: two columns on desktop (independent scroll), stacked on mobile */}
+            <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
 
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Nombre *</label>
-                <input
-                  value={form.name}
-                  onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                  placeholder="Ej: Seguimiento post cirugía"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+              {/* Left: form */}
+              <div className="md:w-1/2 md:min-h-0 md:overflow-y-auto px-6 py-5 space-y-6">
 
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Descripción</label>
-                <input
-                  value={form.description}
-                  onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
-                  placeholder="Descripción opcional"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {showDelay && (
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Días de espera *</label>
-                  <div className="mt-1 flex items-center gap-2">
+                {/* Nombre / descripción */}
+                <section className="space-y-3">
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Nombre *</label>
                     <input
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={form.delay_days}
-                      onChange={e => setForm(p => ({ ...p, delay_days: e.target.value }))}
-                      className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-slate-500">días después del evento</span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-400">Usa 0 para enviar en el próximo cron del mismo día.</p>
-                </div>
-              )}
-
-              {showTriggerDate && (
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Fecha *</label>
-                  <div className="mt-1">
-                    <DatePicker
-                      value={form.trigger_date}
-                      onChange={(d) => setForm(p => ({ ...p, trigger_date: d }))}
-                      placeholder="Seleccionar fecha"
+                      value={form.name}
+                      onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                      placeholder="Ej: Seguimiento post cirugía"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-                </div>
-              )}
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Descripción</label>
+                    <input
+                      value={form.description}
+                      onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                      placeholder="Descripción opcional"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </section>
 
-              {showAudience && (
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Enviar a</label>
-                  <select
-                    value={form.audience}
-                    disabled={!statusesLoaded}
-                    onChange={e => setForm(p => ({ ...p, audience: e.target.value }))}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
-                  >
-                    {audienceOptions.map(opt => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+                {/* Cuándo se envía */}
+                <section className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Cuándo se envía</p>
+                  <div className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-600">
+                    <Clock className="h-4 w-4 mt-0.5 text-slate-400 shrink-0" />
+                    <span>{whenExplainer(modalRuleType, form.delay_days)}</span>
+                  </div>
 
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Asunto del email *</label>
-                <input
-                  value={form.email_subject}
-                  onChange={e => setForm(p => ({ ...p, email_subject: e.target.value }))}
-                  placeholder="Ej: ¿Cómo te fue en tu cita, {{nombre}}?"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                  {showDelay && (
+                    <div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={form.delay_days}
+                          onChange={e => setForm(p => ({ ...p, delay_days: e.target.value }))}
+                          className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-slate-500">días después del evento</span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-400">Usa 0 para enviar en el próximo cron del mismo día.</p>
+                    </div>
+                  )}
+
+                  {showTriggerDate && (
+                    <div>
+                      <label className="text-xs text-slate-500">Fecha *</label>
+                      <div className="mt-1">
+                        <DatePicker
+                          value={form.trigger_date}
+                          onChange={(d) => setForm(p => ({ ...p, trigger_date: d }))}
+                          placeholder="Seleccionar fecha"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </section>
+
+                {/* A quién */}
+                {showAudience && (
+                  <section className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">A quién</p>
+                    <select
+                      value={form.audience}
+                      disabled={!statusesLoaded}
+                      onChange={e => setForm(p => ({ ...p, audience: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+                    >
+                      {audienceOptions.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </section>
+                )}
+
+                {/* Contenido del correo */}
+                <section className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Contenido del correo</p>
+                  <div>
+                    <label className="text-xs text-slate-500">Asunto *</label>
+                    <input
+                      value={form.email_subject}
+                      onChange={e => setForm(p => ({ ...p, email_subject: e.target.value }))}
+                      placeholder="Ej: ¿Cómo te fue en tu cita, {{nombre}}?"
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="text-xs text-slate-500">Cuerpo *</label>
+                      <div className="flex flex-wrap gap-1">
+                        {VARIABLES.map(v => (
+                          <button
+                            key={v}
+                            type="button"
+                            onClick={() => insertVariable(v)}
+                            title={`Insertar {{${v}}}`}
+                            className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[11px] text-slate-600 hover:border-blue-300 hover:text-blue-700 transition"
+                          >
+                            {`{{${v}}}`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <textarea
+                      ref={bodyRef}
+                      value={form.email_body}
+                      onChange={e => setForm(p => ({ ...p, email_body: e.target.value }))}
+                      rows={8}
+                      placeholder={'Hola {{nombre}},\n\nQueremos saber cómo te encuentras después de tu cita con {{nombre_doctor}}...'}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    />
+                  </div>
+                </section>
+
+                {/* Estado */}
+                {editing && (
+                  <section className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Estado</p>
+                    <button
+                      type="button"
+                      onClick={() => setIsActive(v => !v)}
+                      className={`flex items-center gap-3 w-full rounded-xl border px-4 py-3 text-sm font-medium transition ${
+                        isActive
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : 'border-slate-200 bg-slate-50 text-slate-500'
+                      }`}
+                    >
+                      <div className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${isActive ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
+                      </div>
+                      {isActive ? 'Activa — se enviará según el cron' : 'Inactiva — no se enviarán emails'}
+                    </button>
+                  </section>
+                )}
+
+                {/* Zona de peligro */}
+                {showDelete && (
+                  <section className="border-t border-slate-200 pt-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-red-500 mb-3">Zona de peligro</p>
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      className="w-full border border-red-200 bg-red-50 text-red-700 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-red-100 transition flex items-center justify-center gap-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Eliminar automatización
+                    </button>
+                  </section>
+                )}
               </div>
 
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Cuerpo del email *</label>
-                <textarea
-                  value={form.email_body}
-                  onChange={e => setForm(p => ({ ...p, email_body: e.target.value }))}
-                  rows={6}
-                  placeholder={'Hola {{nombre}},\n\nQueremos saber cómo te encuentras después de tu cita con {{nombre_doctor}}...'}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                />
-                <p className="mt-1 text-xs text-slate-400">
-                  Variables:{' '}
-                  <code className="bg-slate-100 px-1 rounded">{'{{nombre}}'}</code>{' '}
-                  <code className="bg-slate-100 px-1 rounded">{'{{nombre_clinica}}'}</code>{' '}
-                  <code className="bg-slate-100 px-1 rounded">{'{{nombre_doctor}}'}</code>
-                </p>
-              </div>
-
-              {editing && (
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Estado</label>
+              {/* Right: preview */}
+              <div className="md:w-1/2 md:min-h-0 border-t md:border-t-0 md:border-l border-slate-200 bg-slate-50 flex flex-col md:overflow-hidden">
+                <div className="border-b border-slate-100 px-6 py-3 flex items-center justify-between shrink-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Vista previa</p>
+                  {previewLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
+                </div>
+                <div className="flex-1 md:min-h-0 md:overflow-y-auto p-4">
+                  {previewSubject && (
+                    <div className="rounded-lg bg-white border border-slate-200 p-3 mb-3">
+                      <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-1">Asunto</p>
+                      <p className="text-sm font-semibold text-slate-900">{previewSubject}</p>
+                    </div>
+                  )}
+                  <div className="rounded-lg bg-white border border-slate-200 overflow-hidden" style={{ minHeight: 400 }}>
+                    {previewHtml ? (
+                      <iframe
+                        srcDoc={previewHtml}
+                        sandbox=""
+                        className="w-full h-[500px] border-0"
+                        title="Preview del correo"
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-[500px] text-xs text-slate-400 p-6 text-center">
+                        Escribe un asunto y cuerpo para ver la vista previa
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="border-t border-slate-100 px-6 py-4 space-y-2 shrink-0">
                   <button
                     type="button"
-                    onClick={() => setIsActive(v => !v)}
-                    className={`mt-2 flex items-center gap-3 w-full rounded-xl border px-4 py-3 text-sm font-medium transition ${
-                      isActive
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                        : 'border-slate-200 bg-slate-50 text-slate-500'
-                    }`}
+                    onClick={handleSendTest}
+                    disabled={testSending || !form.email_subject || !form.email_body}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition disabled:opacity-50"
                   >
-                    <div className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                      <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${isActive ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
-                    </div>
-                    {isActive ? 'Activa — se enviará según el cron' : 'Inactiva — no se enviarán emails'}
+                    {testSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                    Enviar prueba a mi correo
                   </button>
+                  {testResult && (
+                    <p className={`text-xs text-center ${testResult.startsWith('Enviado') ? 'text-emerald-700' : 'text-red-600'}`}>
+                      {testResult}
+                    </p>
+                  )}
                 </div>
-              )}
+              </div>
+            </div>
 
+            {/* Modal footer */}
+            <div className="shrink-0 border-t border-slate-100 px-6 py-4 space-y-3">
               {formError && (
                 <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</p>
               )}
-
-              {showDelete && (
-                <div className="border-t border-slate-200 pt-4 mt-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-red-500 mb-3">Zona de peligro</p>
-                  <button
-                    type="button"
-                    onClick={handleDelete}
-                    className="w-full border border-red-200 bg-red-50 text-red-700 rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-red-100 transition flex items-center justify-center gap-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Eliminar automatización
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="shrink-0 border-t border-slate-100 px-6 py-4">
               <button
                 onClick={handleSave}
                 disabled={saving}
