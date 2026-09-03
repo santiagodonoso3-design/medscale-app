@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { getAppUrl } from '@/lib/config/urls'
 import { Plus, Copy, CopyPlus, Check, Loader2, Pencil, Link2, X, Save, Settings, Clock, ClipboardList, GripVertical, Trash2 } from 'lucide-react'
 import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
@@ -542,14 +543,14 @@ export default function AppointmentTypesPage() {
 
   const copyLink = async (t: AppointmentType) => {
     if (!org) return
-    const url = `${window.location.origin}/book/${org.slug}/${t.slug}`
+    const url = `${getAppUrl()}/book/${org.slug}/${t.slug}`
     await navigator.clipboard.writeText(url)
     setCopiedId(t.id)
     setTimeout(() => setCopiedId(null), 2000)
   }
 
   const publicLink = (t: AppointmentType) =>
-    org ? `${window.location.origin}/book/${org.slug}/${t.slug}` : ''
+    org ? `${getAppUrl()}/book/${org.slug}/${t.slug}` : ''
 
   if (isLoading) {
     return (

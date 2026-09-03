@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { getAppUrl } from '@/lib/config/urls'
 
 export async function GET(request: NextRequest) {
   const code  = request.nextUrl.searchParams.get('code')
@@ -7,7 +8,7 @@ export async function GET(request: NextRequest) {
   const error = request.nextUrl.searchParams.get('error')
 
   if (error || !code || !state) {
-    return Response.redirect('https://app.medscale.app/settings/integrations?google_error=true')
+    return Response.redirect(`${getAppUrl(request)}/settings/integrations?google_error=true`)
   }
 
   try {
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     if (!tokens.access_token) {
       console.error('[google/callback] token exchange failed:', tokens)
-      return Response.redirect('https://app.medscale.app/settings/integrations?google_error=true')
+      return Response.redirect(`${getAppUrl(request)}/settings/integrations?google_error=true`)
     }
 
     // List all calendars the user has write access to
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
         google_calendar_connected_at: new Date().toISOString(),
       }).eq('id', state)
 
-      return Response.redirect('https://app.medscale.app/settings/integrations?google_success=true')
+      return Response.redirect(`${getAppUrl(request)}/settings/integrations?google_success=true`)
     }
 
     // Multiple calendars — store token + list temporarily, let doctor pick
@@ -75,10 +76,10 @@ export async function GET(request: NextRequest) {
     }).eq('id', state)
 
     return Response.redirect(
-      `https://app.medscale.app/settings/integrations?google_select_calendar=${state}`
+      `${getAppUrl(request)}/settings/integrations?google_select_calendar=${state}`
     )
   } catch (e) {
     console.error('[google/callback] error:', e)
-    return Response.redirect('https://app.medscale.app/settings/integrations?google_error=true')
+    return Response.redirect(`${getAppUrl(request)}/settings/integrations?google_error=true`)
   }
 }
