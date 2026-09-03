@@ -5,6 +5,7 @@ import { createGoogleCalendarEvent, getGoogleCalendarBusy } from '@/lib/google/c
 import { logAppointmentEvent } from '@/lib/appointments/log-event'
 import { fetchScheduleRowsForDate, resolveBlocksForDate, isTimeWithinBlocks } from '@/lib/availability/resolve'
 import { sanitizeAttribution } from '@/lib/attribution'
+import { getAppUrl } from '@/lib/config/urls'
 
 const supabasePublic = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -432,7 +433,7 @@ export async function POST(request: Request) {
     }
 
     const manageUrl = (appointment as any).manage_token
-      ? `https://app.medscale.app/appointment/${(appointment as any).manage_token}/manage`
+      ? `${getAppUrl(request)}/appointment/${(appointment as any).manage_token}/manage`
       : undefined
 
     // ── Send confirmation emails (fire-and-forget) ────────────────────────────

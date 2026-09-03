@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { getSession } from '@/lib/auth/session'
 import { resend } from '@/lib/email/resend'
 import { invitationEmail } from '@/lib/email/templates'
+import { getAppUrl } from '@/lib/config/urls'
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
       type: 'invite',
       email,
-      options: { redirectTo: 'https://app.medscale.app/reset-password' },
+      options: { redirectTo: `${getAppUrl(request)}/reset-password` },
     })
 
     if (linkError || !linkData?.properties?.action_link) {
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
       // Don't abort — user was created; proceed without email rather than rolling back
     }
 
-    const inviteLink = linkData?.properties?.action_link ?? 'https://app.medscale.app/login'
+    const inviteLink = linkData?.properties?.action_link ?? `${getAppUrl(request)}/login`
 
     // 4. Send branded invitation email via Resend
     await resend.emails.send({

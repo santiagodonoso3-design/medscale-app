@@ -1,11 +1,11 @@
 import { resend } from '@/lib/email/resend'
 import { automationEmail, type EmailBrand } from '@/lib/email/templates'
+import { getAppUrl } from '@/lib/config/urls'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = any
 
 const MAX_EMAILS = 50
-const APP_URL = 'https://app.medscale.app'
 // Postgres SQLSTATE unique_violation — raised by automation_logs_dedup_unique
 const UNIQUE_VIOLATION = '23505'
 // Audiences with dedicated engine logic; anything else must be an ACTIVE lead_statuses.key
@@ -253,7 +253,7 @@ async function processEventRule(
 
     const vars = { nombre: leadFullName(lead), nombre_clinica: org.name, nombre_doctor: doctorName }
     const ctaUrl = rule.rule_type === 'noshow_recovery' && org.slug
-      ? `${APP_URL}/book/${org.slug}`
+      ? `${getAppUrl()}/book/${org.slug}`
       : undefined
 
     const outcome = await sendAndLog(
@@ -668,7 +668,7 @@ async function processLeadStatusRule(
     )
   }
 
-  const ctaUrl = org.slug ? `${APP_URL}/book/${org.slug}` : undefined
+  const ctaUrl = org.slug ? `${getAppUrl()}/book/${org.slug}` : undefined
 
   let sent = 0
   for (const lead of candidates) {

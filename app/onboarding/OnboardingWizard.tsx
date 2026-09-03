@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { getAppUrl } from '@/lib/config/urls'
 
 const STEPS = [
   { number: 1, title: 'Datos de tu clínica' },
@@ -405,7 +406,7 @@ function StepFinal({
   onFinish: () => void
 }) {
   const [copied, setCopied] = useState(false)
-  const bookingUrl = slug ? `https://app.medscale.app/book/${slug}` : null
+  const bookingUrl = slug ? `${getAppUrl()}/book/${slug}` : null
 
   function handleCopy() {
     if (!bookingUrl) return

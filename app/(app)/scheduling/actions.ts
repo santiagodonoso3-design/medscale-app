@@ -7,6 +7,7 @@ import { resend } from '@/lib/email/resend'
 import { cancellationEmail, rescheduleEmail, noShowFollowUpEmail } from '@/lib/email/templates'
 import { deleteGoogleCalendarEvent, updateGoogleCalendarEvent } from '@/lib/google/calendar'
 import { logAppointmentEvent } from '@/lib/appointments/log-event'
+import { getAppUrl } from '@/lib/config/urls'
 
 // ── Email helper (fire-and-forget, never throws) ──────────────────────────────
 
@@ -118,8 +119,8 @@ export async function cancelAppointment(id: string): Promise<{ error?: string }>
         const orgSlug = org?.slug ?? ''
         const brand = { logoUrl: org?.logo_url ?? null, primaryColor: org?.primary_color ?? null }
         const patientName = [lead.contact_name, lead.contact_last_name].filter(Boolean).join(' ') || 'Paciente'
-        const feedbackUrl = apt.manage_token ? `https://app.medscale.app/appointment/${apt.manage_token}/feedback` : undefined
-        const bookingUrl  = orgSlug ? `https://app.medscale.app/book/${orgSlug}` : undefined
+        const feedbackUrl = apt.manage_token ? `${getAppUrl()}/appointment/${apt.manage_token}/feedback` : undefined
+        const bookingUrl  = orgSlug ? `${getAppUrl()}/book/${orgSlug}` : undefined
         await resend.emails.send({
           from:    'citas@medscale.app',
           to:      patientEmail,
@@ -266,8 +267,8 @@ export async function updateAppointmentStatus(
           const orgName     = org?.name ?? ''
           const orgSlug     = org?.slug ?? ''
           const brand       = { logoUrl: org?.logo_url ?? null, primaryColor: org?.primary_color ?? null }
-          const feedbackUrl = apt.manage_token ? `https://app.medscale.app/appointment/${apt.manage_token}/feedback` : ''
-          const bookingUrl  = orgSlug ? `https://app.medscale.app/book/${orgSlug}` : ''
+          const feedbackUrl = apt.manage_token ? `${getAppUrl()}/appointment/${apt.manage_token}/feedback` : ''
+          const bookingUrl  = orgSlug ? `${getAppUrl()}/book/${orgSlug}` : ''
           if (!feedbackUrl) return
           await resend.emails.send({
             from:    'citas@medscale.app',

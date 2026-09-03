@@ -3,6 +3,7 @@ import { resend } from '@/lib/email/resend'
 import { cancellationEmail, rescheduleEmail } from '@/lib/email/templates'
 import { logAppointmentEvent } from '@/lib/appointments/log-event'
 import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from '@/lib/google/calendar'
+import { getAppUrl } from '@/lib/config/urls'
 
 const admin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -212,8 +213,8 @@ export async function PATCH(request: Request) {
         metadata: { calendar_deleted: calendarDeleted },
       })
 
-      const feedbackUrl = apt.manage_token ? `https://app.medscale.app/appointment/${apt.manage_token}/feedback` : undefined
-      const bookingUrl  = orgSlug ? `https://app.medscale.app/book/${orgSlug}` : undefined
+      const feedbackUrl = apt.manage_token ? `${getAppUrl(request)}/appointment/${apt.manage_token}/feedback` : undefined
+      const bookingUrl  = orgSlug ? `${getAppUrl(request)}/book/${orgSlug}` : undefined
 
       if (patientEmail && process.env.RESEND_API_KEY) {
         await resend.emails.send({

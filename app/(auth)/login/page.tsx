@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
+import { getAppUrl } from '@/lib/config/urls'
 import { Loader2, Eye, EyeOff } from 'lucide-react'
 import { TermsModal } from '@/components/legal/terms-modal'
 
@@ -77,7 +78,7 @@ export default function LoginPage() {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: 'https://app.medscale.app/auth/callback',
+        redirectTo: `${getAppUrl()}/auth/callback`,
       },
     })
   }
@@ -87,7 +88,7 @@ export default function LoginPage() {
     setForgotLoading(true)
     const supabase = createClient()
     await supabase.auth.resetPasswordForEmail(forgotEmail, {
-      redirectTo: 'https://app.medscale.app/reset-password',
+      redirectTo: `${getAppUrl()}/reset-password`,
     })
     setForgotSent(true)
     setForgotLoading(false)

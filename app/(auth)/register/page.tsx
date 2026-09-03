@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
+import { getAppUrl } from '@/lib/config/urls'
 import { Loader2, CheckCircle2 } from 'lucide-react'
 import { TermsModal } from '@/components/legal/terms-modal'
 
@@ -107,7 +108,7 @@ export default function RegisterPage() {
     const supabase = createClient()
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: 'https://app.medscale.app/auth/callback' },
+      options: { redirectTo: `${getAppUrl()}/auth/callback` },
     })
   }
 
