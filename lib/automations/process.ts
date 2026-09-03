@@ -30,6 +30,7 @@ interface OrgData {
   slug: string | null
   logo_url: string | null
   primary_color: string | null
+  contact_email: string | null
 }
 
 interface LeadRow {
@@ -106,7 +107,7 @@ function doctorNameFromMeta(doctor: { metadata?: Record<string, unknown> | null 
 }
 
 function brandFromOrg(org: OrgData): EmailBrand {
-  return { logoUrl: org.logo_url, primaryColor: org.primary_color }
+  return { logoUrl: org.logo_url, primaryColor: org.primary_color, contactEmail: org.contact_email }
 }
 
 function parseBirthday(value: unknown): { month: number; day: number } | null {
@@ -180,7 +181,8 @@ async function sendAndLog(
       from:    'citas@medscale.app',
       to:      recipient.email,
       subject: emailSubject,
-      html:    automationEmail(orgName, bodyText, cta, brand),
+      // Todas las automatizaciones son marketing → opt-out visible siempre
+      html:    automationEmail(orgName, bodyText, cta, brand, { showUnsubscribe: true }),
     })
     if (sendErr) errorMessage = sendErr.message
   } catch (err) {
@@ -719,7 +721,7 @@ export async function processAutomationRules(admin: Admin): Promise<number> {
   const orgIds = [...new Set<string>(rules.map((r: { organization_id: string }) => r.organization_id))]
   const { data: orgs } = await admin
     .from('organizations')
-    .select('id, name, slug, logo_url, primary_color')
+    .select('id, name, slug, logo_url, primary_color, contact_email')
     .in('id', orgIds)
 
   const orgMap = new Map<string, OrgData>(

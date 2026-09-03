@@ -1,3 +1,11 @@
+// ── Email templates — "Template B" (white-label) ──────────────────────────────
+// Reglas del template:
+// - Fuentes de sistema (sin web fonts de ningún tipo).
+// - Todo estilo inline, sin bloque de estilos en el head (los clientes de correo lo purgan).
+// - Layout en tablas para Gmail (web/mobile), Outlook (desktop/web) y Apple Mail.
+// - El correo es de la clínica: logo del cliente protagonista, sin marca MedScale
+//   visible al paciente salvo el sello discreto pequeño del footer.
+
 interface BookingEmailParams {
   patientName: string
   doctorName: string | null
@@ -6,7 +14,7 @@ interface BookingEmailParams {
   modality: string    // 'presencial' | 'virtual'
   orgName: string
   appointmentTypeName: string | null
-  typeColor?: string        // hex color for accent bar, default #3B82F6
+  typeColor?: string        // hex color for accent bar (fallback when the org has no primary_color)
   price?: number | null
   locationAddress?: string | null
   locationCity?: string | null
@@ -14,54 +22,116 @@ interface BookingEmailParams {
   manageUrl?: string        // link to /appointment/[token]/manage
 }
 
-// ── Shared styles ─────────────────────────────────────────────────────────────
+// ── Tokens Template B ─────────────────────────────────────────────────────────
 
-const BASE = `
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-  background: #f8fafc;
-  margin: 0; padding: 0;
-`
+const FONT = "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 
-const CARD = `
-  max-width: 520px; margin: 40px auto; background: #ffffff;
-  border-radius: 16px; overflow: hidden;
-  border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-`
+// Color de marca por defecto cuando la org no tiene primary_color (gris neutro,
+// nunca un azul MedScale)
+const DEFAULT_PRIMARY = '#111827'
 
-const HEADER = `
-  background: #0f172a; padding: 28px 32px; text-align: center;
-`
-
-const BODY = `padding: 32px;`
-
-const LABEL = `
-  font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
-  text-transform: uppercase; color: #94a3b8; margin: 0 0 4px;
-`
-
-const VALUE = `font-size: 15px; font-weight: 600; color: #0f172a; margin: 0 0 20px;`
-
-const DIVIDER = `border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;`
-
-const FOOTER = `
-  background: #f8fafc; padding: 20px 32px; text-align: center;
-  font-size: 12px; color: #94a3b8;
-`
-
-function row(label: string, value: string): string {
-  return `<p style="${LABEL}">${label}</p><p style="${VALUE}">${value}</p>`
+const T = {
+  bg:     '#F5F5F5',
+  card:   '#FFFFFF',
+  text:   '#1a1a1a',
+  muted:  '#666666',
+  subtle: '#999999',
+  faint:  '#B0B0B0',
+  border: '#E5E5E5',
+  danger: '#DC3545', // color de estado (cancelación), no de marca
 }
 
-// ── Brand tokens ──────────────────────────────────────────────────────────────
-// MedScale AI brand kit
-const C = {
-  bg:      '#EBF0F6',
-  card:    '#FFFFFF',
-  primary: '#215F73',
-  accent:  '#5A9DB5',
-  fg:      '#0D2B3E',
-  muted:   '#4A6B7A',
-  border:  '#C8D8E4',
+const DIVIDER = `border:none;border-top:1px solid ${T.border};margin:20px 0;`
+
+export interface EmailBrand {
+  logoUrl?: string | null
+  primaryColor?: string | null
+  contactEmail?: string | null  // destino del mailto de opt-out
+  contactPhone?: string | null
+  city?: string | null
+}
+
+function accentOf(brand?: EmailBrand): string {
+  return brand?.primaryColor ?? DEFAULT_PRIMARY
+}
+
+// ── Building blocks ───────────────────────────────────────────────────────────
+
+// CTA principal: fondo = color de marca, texto blanco
+function primaryButton(label: string, url: string, color: string): string {
+  return `<a href="${url}" style="display:inline-block;background:${color};color:#FFFFFF;${FONT};font-size:14px;font-weight:500;letter-spacing:0.3px;padding:14px 32px;border-radius:8px;text-decoration:none;">${label}</a>`
+}
+
+// Botón secundario (outline) en el mismo color
+function outlineButton(label: string, url: string, color: string): string {
+  return `<a href="${url}" style="display:inline-block;background:#FFFFFF;color:${color};border:1.5px solid ${color};${FONT};font-size:14px;font-weight:500;letter-spacing:0.3px;padding:12px 30px;border-radius:8px;text-decoration:none;">${label}</a>`
+}
+
+function h1(text: string, color: string = T.text, align: string = 'left'): string {
+  return `<h1 style="margin:0 0 16px;${FONT};font-size:22px;font-weight:600;line-height:1.3;color:${color};text-align:${align};">${text}</h1>`
+}
+
+function para(
+  html: string,
+  opts?: { color?: string; size?: number; align?: string; margin?: string },
+): string {
+  return `<p style="margin:${opts?.margin ?? '0 0 16px'};${FONT};font-size:${opts?.size ?? 15}px;line-height:1.7;color:${opts?.color ?? T.text};text-align:${opts?.align ?? 'left'};">${html}</p>`
+}
+
+// Celda de la tabla de detalle de cita (label + valor)
+function apptCell(label: string, value: string): string {
+  return `<td style="padding:14px 18px;vertical-align:top;width:50%;"><p style="margin:0 0 4px;${FONT};font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${T.subtle};">${label}</p><p style="margin:0;${FONT};font-size:14px;font-weight:600;color:${T.text};">${value}</p></td>`
+}
+
+function detailTable(rowsHtml: string): string {
+  return `<div style="border:1px solid ${T.border};border-radius:10px;overflow:hidden;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">${rowsHtml}</table></div>`
+}
+
+const ROW_BORDER = `style="border-bottom:1px solid ${T.border};"`
+
+// Fila label/valor para notificaciones internas (clínica / médico)
+function row(label: string, value: string): string {
+  return `<p style="margin:0 0 4px;${FONT};font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${T.subtle};">${label}</p><p style="margin:0 0 18px;${FONT};font-size:15px;font-weight:600;color:${T.text};">${value}</p>`
+}
+
+// ── Shell Template B ──────────────────────────────────────────────────────────
+// Única fuente del header (logo del cliente), la accent bar, el footer y el
+// el sello del footer. Todos los correos salen por aquí.
+
+export function brandShell(
+  lang: string,
+  orgName: string,
+  bodyHtml: string,
+  brand?: EmailBrand,
+  options?: { showUnsubscribe?: boolean },
+): string {
+  const accent = accentOf(brand)
+
+  // Header: logo del cliente protagonista; sin logo, el nombre de la org grande
+  const header = brand?.logoUrl
+    ? `<img src="${brand.logoUrl}" alt="${orgName}" style="max-height:60px;width:auto;height:auto;display:block;margin:0 auto;border:0;" />`
+    : `<p style="margin:0;${FONT};font-size:22px;font-weight:600;color:${T.text};">${orgName}</p>`
+
+  // Opt-out (solo marketing): mailto a la PRIMERA dirección de contact_email
+  // (en producción es un CSV con varias). Sin dirección válida no se renderiza
+  // el link: mejor sin opt-out que apuntando a un buzón que no lo procesa.
+  const unsubscribeEmail = brand?.contactEmail
+    ? brand.contactEmail.split(',')[0].trim()
+    : null
+  const unsubscribe = (options?.showUnsubscribe && unsubscribeEmail)
+    ? `<p style="margin:8px 0 0;${FONT};font-size:12px;"><a href="mailto:${unsubscribeEmail}?subject=${encodeURIComponent('Cancelar correos automáticos')}" style="color:${T.subtle};text-decoration:underline;">Cancelar suscripción</a></p>`
+    : ''
+
+  return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${orgName}</title></head><body style="margin:0;padding:0;background:${T.bg};${FONT};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${T.bg};margin:0;padding:0;"><tr><td align="center" style="padding:32px 16px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:${T.card};border-radius:12px;">
+<tr><td align="center" style="padding:36px 40px 16px;">${header}</td></tr>
+<tr><td align="center" style="padding:0 40px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="width:48px;height:3px;background:${accent};border-radius:2px;font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>
+<tr><td style="padding:4px 40px 24px;${FONT};font-size:15px;line-height:1.7;color:${T.text};">${bodyHtml}</td></tr>
+<tr><td align="center" style="padding:20px 40px 28px;border-top:1px solid ${T.border};"><p style="margin:0;${FONT};font-size:12px;color:${T.muted};">${orgName}</p>${unsubscribe}<p style="margin:12px 0 0;${FONT};font-size:10px;color:${T.faint};">Powered by MedScale AI</p></td></tr>
+</table>
+</td></tr></table>
+</body></html>`
 }
 
 // ── Patient confirmation ──────────────────────────────────────────────────────
@@ -79,7 +149,7 @@ export function bookingConfirmationPatient(p: BookingEmailParams, brand?: EmailB
   const [hh, mm] = p.time.split(':').map(Number)
   const time12   = new Date(2000, 0, 1, hh, mm).toLocaleTimeString(isEs ? 'es-CO' : 'en-US', { hour: '2-digit', minute: '2-digit' })
 
-  const heading    = isEs ? '¡Cita confirmada!' : 'Appointment confirmed!'
+  const headingText = isEs ? '¡Cita confirmada!' : 'Appointment confirmed!'
   const lType      = isEs ? 'Tipo de cita' : 'Appointment type'
   const lDoctor    = isEs ? 'Médico'        : 'Doctor'
   const lDate      = isEs ? 'Fecha'         : 'Date'
@@ -91,48 +161,35 @@ export function bookingConfirmationPatient(p: BookingEmailParams, brand?: EmailB
   const footerNote = isEs ? 'Si no agendaste esta cita, ignora este mensaje.' : "If you didn't schedule this appointment, please ignore this email."
 
   const addressDisplay = p.locationAddress ? [p.locationAddress, p.locationCity].filter(Boolean).join(', ') : null
+  const showAddress    = !!addressDisplay && p.modality !== 'virtual'
   const priceDisplay   = p.price && p.price > 0
     ? new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(p.price)
     : null
 
-  const SG = `font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif`
-  const IN = `font-family:'Inter',Helvetica,Arial,sans-serif`
+  // Marca de la org; si no tiene, el color del tipo de cita; si no, el default neutro
+  const accent = brand?.primaryColor ?? p.typeColor ?? DEFAULT_PRIMARY
 
-  const cell = (label: string, value: string) =>
-    `<td style="padding:14px 18px;vertical-align:top;width:50%;${IN}"><p style="margin:0 0 4px;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${C.accent}">${label}</p><p style="margin:0;font-size:14px;font-weight:600;color:${C.fg};${SG}">${value}</p></td>`
+  const rows = [
+    `<tr ${ROW_BORDER}>${apptCell(lType, typeDisplay)}${apptCell(lDoctor, doctorDisplay)}</tr>`,
+    `<tr ${ROW_BORDER}>${apptCell(lDate, p.date)}${apptCell(lTime, time12)}</tr>`,
+    `<tr ${showAddress || priceDisplay ? ROW_BORDER : ''}>${apptCell(lModality, modalityDisplay)}<td></td></tr>`,
+    showAddress ? `<tr ${priceDisplay ? ROW_BORDER : ''}>${apptCell(lAddress, addressDisplay!)}<td></td></tr>` : '',
+    priceDisplay ? `<tr>${apptCell(lValor, `${priceDisplay}<br/><span style="font-size:11px;font-weight:400;color:${T.muted};">${lValorNote}</span>`)}<td></td></tr>` : '',
+  ].join('')
 
-  const bodyHtml = `<h1 style="${SG};font-size:24px;font-weight:700;color:${C.fg};margin:0 0 20px;text-align:center">${heading}</h1><div style="text-align:left"><p style="${IN};font-size:15px;color:${C.muted};margin:0 0 8px;line-height:1.6">${isEs ? `Hola <strong style="color:${C.fg}">${p.patientName}</strong>,` : `Hi <strong style="color:${C.fg}">${p.patientName}</strong>,`}</p><p style="${IN};font-size:15px;color:${C.muted};margin:0 0 28px;line-height:1.6">${isEs ? `Tu cita en <strong style="color:${C.fg}">${p.orgName}</strong> ha sido confirmada.` : `Your appointment at <strong style="color:${C.fg}">${p.orgName}</strong> has been confirmed.`}</p></div><div style="border:1px solid ${C.border};border-radius:12px;overflow:hidden"><table style="width:100%;border-collapse:collapse"><tr style="border-bottom:1px solid ${C.border}">${cell(lType, typeDisplay)}${cell(lDoctor, doctorDisplay)}</tr><tr style="border-bottom:1px solid ${C.border}">${cell(lDate, p.date)}${cell(lTime, time12)}</tr><tr${addressDisplay && p.modality !== 'virtual' ? ` style="border-bottom:1px solid ${C.border}"` : ''}>${cell(lModality, modalityDisplay)}<td></td></tr>${addressDisplay && p.modality !== 'virtual' ? `<tr>${cell(lAddress, addressDisplay)}<td></td></tr>` : ''}${priceDisplay ? `<tr>${cell(lValor, `${priceDisplay}<br/><span style="font-size:11px;color:${C.muted}">${lValorNote}</span>`)}<td></td></tr>` : ''}</table></div>${p.manageUrl ? `<div style="text-align:center;margin-top:28px;display:flex;gap:12px;justify-content:center"><a href="${p.manageUrl}" style="display:inline-block;background:#215F73;color:#ffffff;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;padding:12px 24px;border-radius:10px;text-decoration:none">Reagendar cita</a><a href="${p.manageUrl}?action=cancel" style="display:inline-block;background:#ffffff;color:#DC3545;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;padding:12px 24px;border-radius:10px;text-decoration:none;border:1.5px solid #DC3545">Cancelar cita</a></div>` : ''}<p style="margin:28px 0 0;font-size:11px;color:${C.muted};${IN};text-align:center">${footerNote}</p>`
+  const ctaBlock = p.manageUrl
+    ? `<div style="text-align:center;margin:28px 0 0;">${primaryButton(isEs ? 'Reagendar cita' : 'Reschedule', p.manageUrl, accent)}<span style="display:inline-block;width:12px;">&nbsp;</span>${outlineButton(isEs ? 'Cancelar cita' : 'Cancel appointment', `${p.manageUrl}?action=cancel`, T.danger)}</div>`
+    : ''
 
-  return brandShell(lang, p.orgName, bodyHtml, { ...brand, primaryColor: brand?.primaryColor ?? p.typeColor ?? null })
-}
+  const bodyHtml =
+    h1(headingText, T.text, 'center') +
+    para(isEs ? `Hola <strong>${p.patientName}</strong>,` : `Hi <strong>${p.patientName}</strong>,`, { margin: '0 0 8px' }) +
+    para(isEs ? `Tu cita en <strong>${p.orgName}</strong> ha sido confirmada.` : `Your appointment at <strong>${p.orgName}</strong> has been confirmed.`, { margin: '0 0 24px' }) +
+    detailTable(rows) +
+    ctaBlock +
+    para(footerNote, { color: T.muted, size: 12, align: 'center', margin: '24px 0 0' })
 
-// ── Shared brand shell helper (collapsed HTML, same as confirmation) ─────────
-
-export interface EmailBrand {
-  logoUrl?: string | null
-  primaryColor?: string | null
-  contactPhone?: string | null
-  city?: string | null
-}
-
-// White-label: el correo es de la clínica — MedScale no aparece en ninguna
-// parte del correo al paciente.
-export function brandShell(lang: string, orgName: string, bodyHtml: string, brand?: EmailBrand): string {
-  const SG = `font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif`
-  const IN = `font-family:'Inter',Helvetica,Arial,sans-serif`
-  const accentColor = brand?.primaryColor ?? C.primary
-  const headerBlock = brand?.logoUrl
-    ? `<img src="${brand.logoUrl}" alt="${orgName}" style="max-height:64px;max-width:220px;height:auto;width:auto;display:block;margin:0 auto;" /><p style="margin:10px 0 0;${IN};font-size:13px;font-weight:500;color:${C.muted}">${orgName}</p>`
-    : `<p style="margin:0;${SG};font-size:22px;font-weight:600;color:${C.fg}">${orgName}</p>`
-  const contactLine = [brand?.contactPhone, brand?.city].filter(Boolean).join(' · ')
-  const footerBlock = `<p style="margin:0;font-size:11px;color:${C.muted};${IN}">${orgName}</p>${contactLine ? `<p style="margin:4px 0 0;font-size:11px;color:${C.muted};${IN}">${contactLine}</p>` : ''}`
-  return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/></head><body style="margin:0;padding:0;background:${C.bg};${IN}"><div style="max-width:600px;margin:0 auto;padding:32px 16px"><div style="background:${C.card};border-radius:16px 16px 0 0;border:1px solid ${C.border};border-bottom:none;padding:32px 36px 0;text-align:center">${headerBlock}<div style="height:4px;background:${accentColor};margin:20px -36px 0"></div></div><div style="background:${C.card};border:1px solid ${C.border};border-top:none;border-bottom:none;padding:32px 36px">${bodyHtml}</div><div style="background:${C.bg};border:1px solid ${C.border};border-top:none;border-radius:0 0 16px 16px;padding:20px 36px;text-align:center">${footerBlock}</div></div></body></html>`
-}
-
-function apptCell(label: string, value: string): string {
-  const SG = `font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif`
-  const IN = `font-family:'Inter',Helvetica,Arial,sans-serif`
-  return `<td style="padding:14px 18px;vertical-align:top;width:50%;${IN}"><p style="margin:0 0 4px;font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${C.accent}">${label}</p><p style="margin:0;font-size:14px;font-weight:600;color:${C.fg};${SG}">${value}</p></td>`
+  return brandShell(lang, p.orgName, bodyHtml, { ...brand, primaryColor: accent })
 }
 
 // ── Cancellation notification ─────────────────────────────────────────────────
@@ -151,32 +208,34 @@ interface SimpleEmailParams {
 export function cancellationEmail(p: SimpleEmailParams, brand?: EmailBrand): string {
   const lang = p.language ?? 'es'
   const isEs = lang !== 'en'
-  const SG = `font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif`
-  const IN = `font-family:'Inter',Helvetica,Arial,sans-serif`
-  const heading  = isEs ? 'Tu cita ha sido cancelada' : 'Your appointment has been cancelled'
-  const body     = isEs
+  const accent = accentOf(brand)
+
+  const headingText = isEs ? 'Tu cita ha sido cancelada' : 'Your appointment has been cancelled'
+  const body        = isEs
     ? `Hola <strong>${p.patientName}</strong>, tu cita en <strong>${p.orgName}</strong> ha sido cancelada. Si deseas reagendar, contacta a la clínica directamente.`
     : `Hi <strong>${p.patientName}</strong>, your appointment at <strong>${p.orgName}</strong> has been cancelled. To reschedule, please contact the clinic directly.`
-  const lType    = isEs ? 'Tipo de cita' : 'Appointment type'
-  const lDate    = isEs ? 'Fecha'        : 'Date'
-  const lTime    = isEs ? 'Hora'         : 'Time'
-  const typeRow  = p.appointmentTypeName ? `<tr style="border-bottom:1px solid ${C.border}">${apptCell(lType, p.appointmentTypeName)}<td></td></tr>` : ''
+  const lType   = isEs ? 'Tipo de cita' : 'Appointment type'
+  const lDate   = isEs ? 'Fecha'        : 'Date'
+  const lTime   = isEs ? 'Hora'         : 'Time'
+  const typeRow = p.appointmentTypeName ? `<tr ${ROW_BORDER}>${apptCell(lType, p.appointmentTypeName)}<td></td></tr>` : ''
 
-  const ctaSection = (p.feedbackUrl && p.bookingUrl) ? `
-    <hr style="border:none;border-top:1px solid ${C.border};margin:24px 0"/>
-    <p style="${IN};font-size:14px;color:${C.muted};margin:0 0 12px;text-align:center">¿Nos ayudas a mejorar?</p>
-    <div style="text-align:center;margin-bottom:16px">
-      <a href="${p.feedbackUrl}" style="display:inline-block;background:${C.primary};color:#ffffff;${SG};font-size:14px;font-weight:600;padding:11px 28px;border-radius:10px;text-decoration:none">Cuéntanos la razón</a>
-    </div>
-    <p style="${IN};font-size:14px;color:${C.muted};margin:0 0 12px;text-align:center">¿Quieres reagendar?</p>
-    <div style="text-align:center">
-      <a href="${p.bookingUrl}" style="display:inline-block;background:#ffffff;color:${C.primary};border:1.5px solid ${C.primary};${SG};font-size:14px;font-weight:600;padding:10px 28px;border-radius:10px;text-decoration:none">Reagendar cita</a>
-    </div>
-  ` : ''
+  const ctaSection = (p.feedbackUrl && p.bookingUrl)
+    ? `<hr style="${DIVIDER}"/>` +
+      para('¿Nos ayudas a mejorar?', { color: T.muted, size: 14, align: 'center', margin: '0 0 12px' }) +
+      `<div style="text-align:center;margin:0 0 20px;">${primaryButton('Cuéntanos la razón', p.feedbackUrl, accent)}</div>` +
+      para('¿Quieres reagendar?', { color: T.muted, size: 14, align: 'center', margin: '0 0 12px' }) +
+      `<div style="text-align:center;">${outlineButton('Reagendar cita', p.bookingUrl, accent)}</div>`
+    : ''
 
-  const bodyHtml = `<h1 style="${SG};font-size:22px;font-weight:700;color:#DC3545;margin:0 0 16px">${heading}</h1><p style="${IN};font-size:15px;color:${C.muted};margin:0 0 24px;line-height:1.6">${body}</p><div style="border:1px solid ${C.border};border-radius:12px;overflow:hidden"><table style="width:100%;border-collapse:collapse">${typeRow}<tr>${apptCell(lDate, p.date)}${apptCell(lTime, p.time)}</tr></table></div>${ctaSection}`
-  // El acento rojo es color de estado (cancelación), no de marca — se conserva
-  return brandShell(lang, p.orgName, bodyHtml, { ...brand, primaryColor: '#DC3545' })
+  const bodyHtml =
+    h1(headingText, T.danger) +
+    para(body, { margin: '0 0 24px' }) +
+    detailTable(`${typeRow}<tr>${apptCell(lDate, p.date)}${apptCell(lTime, p.time)}</tr>`) +
+    ctaSection
+
+  // La accent bar roja es color de estado (cancelación), no de marca — se conserva.
+  // Los botones sí van en el color de marca.
+  return brandShell(lang, p.orgName, bodyHtml, { ...brand, primaryColor: T.danger })
 }
 
 // ── No-show follow-up email ───────────────────────────────────────────────────
@@ -187,29 +246,14 @@ export function noShowFollowUpEmail(p: {
   feedbackUrl: string
   bookingUrl: string
 }, brand?: EmailBrand): string {
-  const SG = `font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif`
-  const IN = `font-family:'Inter',Helvetica,Arial,sans-serif`
-  const bodyHtml = `
-    <h1 style="${SG};font-size:22px;font-weight:700;color:${C.fg};margin:0 0 16px;text-align:center">¿No pudiste asistir a tu cita?</h1>
-    <p style="${IN};font-size:15px;color:${C.muted};margin:0 0 24px;line-height:1.6">
-      Hola <strong style="color:${C.fg}">${p.patientName}</strong>, notamos que no pudiste asistir a tu cita en
-      <strong style="color:${C.fg}">${p.orgName}</strong>. No te preocupes, queremos ayudarte.
-    </p>
-    <div style="text-align:center;margin-bottom:28px">
-      <a href="${p.feedbackUrl}"
-         style="display:inline-block;background:${C.primary};color:#ffffff;${SG};font-size:14px;font-weight:600;padding:12px 32px;border-radius:10px;text-decoration:none">
-        Cuéntanos qué pasó
-      </a>
-    </div>
-    <hr style="border:none;border-top:1px solid ${C.border};margin:24px 0"/>
-    <p style="${IN};font-size:14px;color:${C.muted};margin:0 0 16px;text-align:center">¿Quieres reagendar tu cita?</p>
-    <div style="text-align:center">
-      <a href="${p.bookingUrl}"
-         style="display:inline-block;background:#ffffff;color:${C.primary};border:1.5px solid ${C.primary};${SG};font-size:14px;font-weight:600;padding:10px 28px;border-radius:10px;text-decoration:none">
-        Reagendar cita
-      </a>
-    </div>
-  `
+  const accent = accentOf(brand)
+  const bodyHtml =
+    h1('¿No pudiste asistir a tu cita?', T.text, 'center') +
+    para(`Hola <strong>${p.patientName}</strong>, notamos que no pudiste asistir a tu cita en <strong>${p.orgName}</strong>. No te preocupes, queremos ayudarte.`, { margin: '0 0 24px' }) +
+    `<div style="text-align:center;margin:0 0 28px;">${primaryButton('Cuéntanos qué pasó', p.feedbackUrl, accent)}</div>` +
+    `<hr style="${DIVIDER}"/>` +
+    para('¿Quieres reagendar tu cita?', { color: T.muted, size: 14, align: 'center', margin: '0 0 16px' }) +
+    `<div style="text-align:center;">${outlineButton('Reagendar cita', p.bookingUrl, accent)}</div>`
   return brandShell('es', p.orgName, bodyHtml, brand)
 }
 
@@ -227,19 +271,22 @@ interface RescheduleEmailParams {
 export function rescheduleEmail(p: RescheduleEmailParams, brand?: EmailBrand): string {
   const lang = p.language ?? 'es'
   const isEs = lang !== 'en'
-  const heading  = isEs ? 'Tu cita ha sido reagendada' : 'Your appointment has been rescheduled'
-  const body     = isEs
+  const headingText = isEs ? 'Tu cita ha sido reagendada' : 'Your appointment has been rescheduled'
+  const body        = isEs
     ? `Hola <strong>${p.patientName}</strong>, tu cita en <strong>${p.orgName}</strong> ha sido reagendada para la siguiente fecha y hora.`
     : `Hi <strong>${p.patientName}</strong>, your appointment at <strong>${p.orgName}</strong> has been rescheduled to the following date and time.`
   const lType    = isEs ? 'Tipo de cita'  : 'Appointment type'
   const lNewDate = isEs ? 'Nueva fecha'   : 'New date'
   const lNewTime = isEs ? 'Nueva hora'    : 'New time'
-  const typeRow  = p.appointmentTypeName ? `<tr style="border-bottom:1px solid ${C.border}">${apptCell(lType, p.appointmentTypeName)}<td></td></tr>` : ''
-  const bodyHtml = `<h1 style="font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif;font-size:22px;font-weight:700;color:${C.fg};margin:0 0 16px">${heading}</h1><p style="font-family:'Inter',Helvetica,Arial,sans-serif;font-size:15px;color:${C.muted};margin:0 0 24px;line-height:1.6">${body}</p><div style="border:1px solid ${C.border};border-radius:12px;overflow:hidden"><table style="width:100%;border-collapse:collapse">${typeRow}<tr>${apptCell(lNewDate, p.newDate)}${apptCell(lNewTime, p.newTime)}</tr></table></div>`
+  const typeRow  = p.appointmentTypeName ? `<tr ${ROW_BORDER}>${apptCell(lType, p.appointmentTypeName)}<td></td></tr>` : ''
+  const bodyHtml =
+    h1(headingText) +
+    para(body, { margin: '0 0 24px' }) +
+    detailTable(`${typeRow}<tr>${apptCell(lNewDate, p.newDate)}${apptCell(lNewTime, p.newTime)}</tr>`)
   return brandShell(lang, p.orgName, bodyHtml, brand)
 }
 
-// ── Clinic booking notification ───────────────────────────────────────────────
+// ── Clinic booking notification (interna) ─────────────────────────────────────
 
 export function bookingNotificationClinic(p: {
   patientName: string
@@ -261,44 +308,30 @@ export function bookingNotificationClinic(p: {
   const customFieldsSection = (() => {
     const fields = p.customFields ? Object.entries(p.customFields).filter(([, v]) => v) : []
     if (fields.length === 0) return ''
-    return `<hr style="${DIVIDER}" /><p style="${LABEL}">Información adicional</p>${fields.map(([k, v]) => row(k, v)).join('')}`
+    return `<hr style="${DIVIDER}"/>` +
+      `<p style="margin:0 0 12px;${FONT};font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${T.subtle};">Información adicional</p>` +
+      fields.map(([k, v]) => row(k, v)).join('')
   })()
 
-  return `<!DOCTYPE html><html><body style="${BASE}">
-    <div style="${CARD}">
-      <div style="${HEADER}">
-        <img src="https://app.medscale.app/logo-white.png" alt="MedScale AI" height="28" style="height:28px;width:auto;display:block;margin:0 auto 12px;" />
-        <p style="margin:0;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#94a3b8">Nueva cita agendada</p>
-        <p style="margin:6px 0 0;font-size:20px;font-weight:700;color:#ffffff">${p.orgName}</p>
-      </div>
-      <div style="${BODY}">
-        ${row('Paciente', p.patientName)}
-        ${row('Teléfono', p.patientPhone)}
-        ${p.patientEmail ? row('Email', p.patientEmail) : ''}
-        ${p.patientCedula ? row('Cédula', p.patientCedula) : ''}
-        <hr style="${DIVIDER}" />
-        ${row('Tipo de cita', typeDisplay)}
-        ${row('Médico asignado', doctorDisplay)}
-        ${row('Fecha', p.date)}
-        ${row('Hora', p.time)}
-        ${row('Modalidad', modalityDisplay)}
-        ${customFieldsSection}
-      </div>
-      <div style="${FOOTER}">MedScale AI · Notificación interna</div>
-    </div>
-  </body></html>`
+  const bodyHtml =
+    h1('Nueva cita agendada', T.text, 'center') +
+    para(`Se registró una nueva cita en <strong>${p.orgName}</strong>.`, { color: T.muted, size: 14, align: 'center', margin: '0 0 24px' }) +
+    row('Paciente', p.patientName) +
+    row('Teléfono', p.patientPhone) +
+    (p.patientEmail ? row('Email', p.patientEmail) : '') +
+    (p.patientCedula ? row('Cédula', p.patientCedula) : '') +
+    `<hr style="${DIVIDER}"/>` +
+    row('Tipo de cita', typeDisplay) +
+    row('Médico asignado', doctorDisplay) +
+    row('Fecha', p.date) +
+    row('Hora', p.time) +
+    row('Modalidad', modalityDisplay) +
+    customFieldsSection
+
+  return brandShell('es', p.orgName, bodyHtml)
 }
 
-// ── Team invitation email ─────────────────────────────────────────────────────
-
-// Shell con marca MedScale para correos a USUARIOS DE LA PLATAFORMA (no
-// pacientes): réplica exacta del shell pre-white-label, para que estos correos
-// no cambien. No exportar — los correos a paciente usan brandShell.
-function medscaleShell(lang: string, orgName: string, bodyHtml: string, accentColor = C.primary): string {
-  const SG = `font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif`
-  const IN = `font-family:'Inter',Helvetica,Arial,sans-serif`
-  return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/></head><body style="margin:0;padding:0;background:${C.bg};${IN}"><div style="max-width:600px;margin:0 auto;padding:32px 16px"><div style="background:${C.card};border-radius:16px 16px 0 0;border:1px solid ${C.border};border-bottom:none;padding:32px 36px 0;text-align:center"><div style="margin-bottom:16px"><img src="https://app.medscale.app/logo-dark.png" alt="MedScale AI" height="36" style="height:36px;width:auto;display:block;margin:0 auto 8px;" /><p style="margin:4px 0 0;font-size:9px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:${C.accent}">FOR HEALTHCARE GROWTH</p></div><p style="margin:0;${SG};font-size:20px;font-weight:600;color:${C.fg}">${orgName}</p><div style="height:4px;background:${accentColor};margin:20px -36px 0"></div></div><div style="background:${C.card};border:1px solid ${C.border};border-top:none;border-bottom:none;padding:32px 36px">${bodyHtml}</div><div style="background:${C.bg};border:1px solid ${C.border};border-top:none;border-radius:0 0 16px 16px;padding:20px 36px;text-align:center"><p style="margin:0;font-size:11px;color:${C.muted};${IN}">Powered by <strong style="color:${C.fg}">MedScale AI</strong> · medscale.app</p></div></div></body></html>`
-}
+// ── Team invitation email (usuarios de la plataforma) ─────────────────────────
 
 interface InvitationEmailParams {
   orgName: string
@@ -313,30 +346,15 @@ const ROLE_DISPLAY: Record<string, string> = {
 }
 
 export function invitationEmail(p: InvitationEmailParams): string {
-  const SG = `font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif`
-  const IN = `font-family:'Inter',Helvetica,Arial,sans-serif`
   const roleDisplay = ROLE_DISPLAY[p.role] ?? p.role
 
-  const bodyHtml = `
-    <h1 style="${SG};font-size:24px;font-weight:700;color:${C.fg};margin:0 0 16px;text-align:center">
-      Te han invitado a unirte
-    </h1>
-    <p style="${IN};font-size:15px;color:${C.muted};margin:0 0 28px;line-height:1.6;text-align:center">
-      Has sido invitado a unirte a <strong style="color:${C.fg}">${p.orgName}</strong>
-      en MedScale AI como <strong style="color:${C.fg}">${roleDisplay}</strong>.
-    </p>
-    <div style="text-align:center;margin-bottom:28px">
-      <a href="${p.inviteLink}"
-         style="display:inline-block;background:${C.primary};color:#ffffff;${SG};font-size:15px;font-weight:600;padding:12px 32px;border-radius:10px;text-decoration:none;letter-spacing:0.01em">
-        Aceptar invitación
-      </a>
-    </div>
-    <p style="${IN};font-size:12px;color:${C.muted};text-align:center;margin:0;line-height:1.6">
-      Si no esperabas esta invitación, puedes ignorar este correo.<br/>
-      El enlace expirará en 24 horas.
-    </p>
-  `
-  return medscaleShell('es', p.orgName, bodyHtml)
+  const bodyHtml =
+    h1('Te han invitado a unirte', T.text, 'center') +
+    para(`Has sido invitado a unirte a <strong>${p.orgName}</strong> en MedScale AI como <strong>${roleDisplay}</strong>.`, { align: 'center', margin: '0 0 28px' }) +
+    `<div style="text-align:center;margin:0 0 28px;">${primaryButton('Aceptar invitación', p.inviteLink, DEFAULT_PRIMARY)}</div>` +
+    para('Si no esperabas esta invitación, puedes ignorar este correo.<br/>El enlace expirará en 24 horas.', { color: T.muted, size: 12, align: 'center', margin: '0' })
+
+  return brandShell('es', p.orgName, bodyHtml)
 }
 
 // ── Internal clinic notification (legacy) ─────────────────────────────────────
@@ -345,60 +363,44 @@ export function bookingNotificationDoctor(p: BookingEmailParams): string {
   const doctorDisplay   = p.doctorName ?? 'Por asignar'
   const modalityDisplay = p.modality === 'virtual' ? 'Virtual' : 'Presencial'
 
-  return `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"/></head>
-<body style="${BASE}">
-<div style="${CARD}">
-  <div style="${HEADER}">
-    <img src="https://app.medscale.app/logo-white.png" alt="MedScale AI" height="28" style="height:28px;width:auto;display:block;margin:0 auto 12px;" />
-    <h1 style="margin:6px 0 0;font-size:20px;font-weight:700;color:#ffffff">Nueva cita agendada</h1>
-  </div>
-  <div style="${BODY}">
-    <p style="font-size:15px;color:#475569;margin:0 0 24px">
-      Se ha registrado una nueva cita en <strong>${p.orgName}</strong>.
-    </p>
-    <hr style="${DIVIDER}"/>
-    ${row('Paciente',    p.patientName)}
-    ${p.appointmentTypeName ? row('Tipo de cita', p.appointmentTypeName) : ''}
-    ${row('Médico',      doctorDisplay)}
-    ${row('Fecha',       p.date)}
-    ${row('Hora',        p.time)}
-    ${row('Modalidad',   modalityDisplay)}
-    <hr style="${DIVIDER}"/>
-    <p style="font-size:13px;color:#94a3b8;margin:0">
-      Revisa el panel de administración para más detalles.
-    </p>
-  </div>
-  <div style="${FOOTER}">
-    <p style="margin:0">Powered by <strong>MedScale</strong> · medscale.app</p>
-  </div>
-</div>
-</body></html>`
+  const bodyHtml =
+    h1('Nueva cita agendada', T.text, 'center') +
+    para(`Se ha registrado una nueva cita en <strong>${p.orgName}</strong>.`, { color: T.muted, size: 14, align: 'center', margin: '0 0 24px' }) +
+    row('Paciente', p.patientName) +
+    (p.appointmentTypeName ? row('Tipo de cita', p.appointmentTypeName) : '') +
+    row('Médico', doctorDisplay) +
+    row('Fecha', p.date) +
+    row('Hora', p.time) +
+    row('Modalidad', modalityDisplay) +
+    `<hr style="${DIVIDER}"/>` +
+    para('Revisa el panel de administración para más detalles.', { color: T.subtle, size: 13, margin: '0' })
+
+  return brandShell('es', p.orgName, bodyHtml)
 }
 
-// ── Generic automation email ───────────────────────────────────────────────────
+// ── Generic automation email (marketing) ──────────────────────────────────────
 
 export function automationEmail(
   orgName: string,
   bodyText: string,
   ctaButton?: { label: string; url: string },
   brand?: EmailBrand,
+  options?: { showUnsubscribe?: boolean },
 ): string {
-  const SG = `font-family:'Space Grotesk','Inter',Helvetica,Arial,sans-serif`
-  const IN = `font-family:'Inter',Helvetica,Arial,sans-serif`
-
   const paragraphs = bodyText
     .split('\n')
     .map(line =>
       line.trim()
-        ? `<p style="${IN};font-size:15px;color:${C.muted};margin:0 0 14px;line-height:1.7">${line}</p>`
-        : '<div style="margin:8px 0"></div>'
+        ? para(line, { margin: '0 0 14px' })
+        : `<div style="height:8px;line-height:8px;font-size:0;">&nbsp;</div>`
     )
     .join('')
 
   const cta = ctaButton
-    ? `<div style="text-align:center;margin-top:24px"><a href="${ctaButton.url}" style="display:inline-block;background:${brand?.primaryColor ?? C.primary};color:#ffffff;${SG};font-size:14px;font-weight:600;padding:12px 32px;border-radius:10px;text-decoration:none">${ctaButton.label}</a></div>`
+    ? `<div style="text-align:center;margin:28px 0 8px;">${primaryButton(ctaButton.label, ctaButton.url, accentOf(brand))}</div>`
     : ''
 
-  return brandShell('es', orgName, paragraphs + cta, brand)
+  // Default false: transaccional-friendly. Las automatizaciones de marketing
+  // (lib/automations/process.ts) pasan showUnsubscribe: true explícitamente.
+  return brandShell('es', orgName, paragraphs + cta, brand, { showUnsubscribe: options?.showUnsubscribe ?? false })
 }
