@@ -6,6 +6,8 @@ type Admin = any
 
 const MAX_EMAILS = 50
 const APP_URL = 'https://app.medscale.app'
+// Postgres SQLSTATE unique_violation — raised by automation_logs_dedup_unique
+const UNIQUE_VIOLATION = '23505'
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -35,6 +37,28 @@ interface LeadRow {
   contact_email: string
   metadata?: Record<string, unknown> | null
 }
+
+// Identity of ONE occurrence of a rule for ONE subject. Together with
+// automation_rule_id it forms the UNIQUE tuple of automation_logs
+// (automation_logs_dedup_unique) that makes every send idempotent.
+//
+// occurrence_key is deterministic per rule_type (never Date.now() / random):
+//   followup_post_cita  → appt_<appointment.id>             subject = appointment
+//   noshow_recovery     → appt_<appointment.id>             subject = appointment
+//   procedure_followup  → lead_<lead.id>                    subject = lead
+//   procedure_completed → lead_<lead.id>                    subject = lead
+//   birthday            → lead_<lead.id>_year_<currentYear> subject = lead
+//   special_date        → lead_<lead.id>_date_<trigger_date> subject = lead
+//   lead_status         → lead_<lead.id>_to_<audience>      subject = lead
+type SubjectType = 'lead' | 'appointment'
+
+interface LogSubject {
+  subject_type: SubjectType
+  subject_id: string
+  occurrence_key: string
+}
+
+type SendOutcome = 'sent' | 'failed' | 'skipped'
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -92,46 +116,92 @@ function parseBirthday(value: unknown): { month: number; day: number } | null {
   return null
 }
 
-// ── Core send + log ───────────────────────────────────────────────────────────
+// ── Idempotent log + send ─────────────────────────────────────────────────────
 
+// Pre-filter (efficiency only): occurrence keys already logged for this rule.
+// The UNIQUE constraint is the real guardrail; this just avoids one failed
+// INSERT per already-handled candidate on every daily run.
+async function fetchLoggedKeys(admin: Admin, ruleId: string, keys: string[]): Promise<Set<string>> {
+  if (!keys.length) return new Set()
+  const { data } = await admin
+    .from('automation_logs')
+    .select('occurrence_key')
+    .eq('automation_rule_id', ruleId)
+    .in('occurrence_key', keys)
+  return new Set<string>(data?.map((l: { occurrence_key: string }) => l.occurrence_key) ?? [])
+}
+
+// 1. INSERT the log row (reserves the occurrence) → 2. send → 3. on send failure
+// mark the row as failed. If the INSERT hits the unique constraint the occurrence
+// was already handled (previous or concurrent run): skip WITHOUT calling Resend.
+// The email is only ever sent after a successful INSERT.
 async function sendAndLog(
   admin: Admin,
   rule: AutomationRule,
-  lead: { id: string; contact_email: string },
-  subject: string,
+  subject: LogSubject,
+  recipient: { leadId: string | null; email: string },
+  emailSubject: string,
   bodyText: string,
   orgName: string,
   brand?: EmailBrand,
   cta?: { label: string; url: string },
-): Promise<boolean> {
-  let status = 'sent'
-  try {
-    await resend.emails.send({
-      from: 'citas@medscale.app',
-      to:   lead.contact_email,
-      subject,
-      html: automationEmail(orgName, bodyText, cta, brand),
+): Promise<SendOutcome> {
+  const { error: insertErr } = await admin
+    .from('automation_logs')
+    .insert({
+      organization_id:    rule.organization_id,
+      automation_rule_id: rule.id,
+      subject_type:       subject.subject_type,
+      subject_id:         subject.subject_id,
+      occurrence_key:     subject.occurrence_key,
+      lead_id:            recipient.leadId, // compat: nullable when the subject is not a lead
+      email_sent_to:      recipient.email,
+      status:             'sent',
+      sent_at:            new Date().toISOString(),
     })
-  } catch (err) {
-    console.error(`[automations] Send failed rule=${rule.id} to=${lead.contact_email}:`, err)
-    status = 'failed'
+
+  if (insertErr) {
+    if (insertErr.code === UNIQUE_VIOLATION) {
+      console.log(
+        `[automations] dedup skip rule=${rule.id} subject=${subject.subject_type}:${subject.subject_id} key=${subject.occurrence_key}`,
+      )
+      return 'skipped'
+    }
+    console.error(`[automations] insert log failed rule=${rule.id}:`, insertErr)
+    return 'skipped'
   }
 
-  await admin.from('automation_logs').insert({
-    organization_id:    rule.organization_id,
-    automation_rule_id: rule.id,
-    lead_id:            lead.id,
-    email_sent_to:      lead.contact_email,
-    status,
-    sent_at:            new Date().toISOString(),
-  })
+  // Only reached when the INSERT succeeded: this run owns the occurrence.
+  let errorMessage: string | null = null
+  try {
+    const { error: sendErr } = await resend.emails.send({
+      from:    'citas@medscale.app',
+      to:      recipient.email,
+      subject: emailSubject,
+      html:    automationEmail(orgName, bodyText, cta, brand),
+    })
+    if (sendErr) errorMessage = sendErr.message
+  } catch (err) {
+    errorMessage = err instanceof Error ? err.message : String(err)
+  }
 
-  return status === 'sent'
+  if (errorMessage === null) return 'sent'
+
+  console.error(`[automations] Send failed rule=${rule.id} to=${recipient.email}: ${errorMessage}`)
+  await admin
+    .from('automation_logs')
+    .update({ status: 'failed', error_message: errorMessage })
+    .eq('automation_rule_id', rule.id)
+    .eq('subject_type', subject.subject_type)
+    .eq('subject_id', subject.subject_id)
+    .eq('occurrence_key', subject.occurrence_key)
+
+  return 'failed'
 }
 
 // ── Rule processors ───────────────────────────────────────────────────────────
 
-// followup_post_cita | noshow_recovery
+// followup_post_cita | noshow_recovery — one occurrence per appointment
 async function processEventRule(
   admin: Admin, rule: AutomationRule, org: OrgData, today: string, remaining: number,
 ): Promise<number> {
@@ -142,7 +212,7 @@ async function processEventRule(
 
   const { data: appointments } = await admin
     .from('appointments')
-    .select('lead_id, leads(id, contact_name, contact_last_name, contact_email), doctors(metadata)')
+    .select('id, lead_id, leads(id, contact_name, contact_last_name, contact_email), doctors(metadata)')
     .eq('organization_id', rule.organization_id)
     .eq('status', apptStatus)
     .gte('scheduled_at', start)
@@ -152,52 +222,55 @@ async function processEventRule(
 
   if (!appointments?.length) return 0
 
-  // Deduplicate by lead_id (in case same lead has multiple appts that day)
-  const leadMap = new Map<string, { lead: LeadRow; doctorName: string }>()
+  // One email per lead per day even if it had several appointments that day:
+  // the first appointment seen is the occurrence that gets logged.
+  const leadMap = new Map<string, { apptId: string; lead: LeadRow; doctorName: string }>()
   for (const appt of appointments) {
     const lead   = Array.isArray(appt.leads)   ? appt.leads[0]   : appt.leads
     const doctor = Array.isArray(appt.doctors) ? appt.doctors[0] : appt.doctors
-    if (!lead?.id || !lead.contact_email || leadMap.has(lead.id)) continue
-    leadMap.set(lead.id, { lead: lead as LeadRow, doctorName: doctorNameFromMeta(doctor) })
+    if (!appt.id || !lead?.id || !lead.contact_email || leadMap.has(lead.id)) continue
+    leadMap.set(lead.id, { apptId: appt.id, lead: lead as LeadRow, doctorName: doctorNameFromMeta(doctor) })
   }
 
   if (!leadMap.size) return 0
 
-  const leadIds = [...leadMap.keys()]
-  const { data: existingLogs } = await admin
-    .from('automation_logs')
-    .select('lead_id')
-    .eq('automation_rule_id', rule.id)
-    .in('lead_id', leadIds)
-
-  const logged = new Set<string>(existingLogs?.map((l: { lead_id: string }) => l.lead_id) ?? [])
+  const logged = await fetchLoggedKeys(
+    admin, rule.id, [...leadMap.values()].map(v => `appt_${v.apptId}`),
+  )
 
   let sent = 0
-  for (const [leadId, { lead, doctorName }] of leadMap) {
+  for (const { apptId, lead, doctorName } of leadMap.values()) {
     if (sent >= remaining) break
-    if (logged.has(leadId)) continue
+
+    const subject: LogSubject = {
+      subject_type:   'appointment',
+      subject_id:     apptId,
+      occurrence_key: `appt_${apptId}`,
+    }
+    if (logged.has(subject.occurrence_key)) continue
 
     const vars = { nombre: leadFullName(lead), nombre_clinica: org.name, nombre_doctor: doctorName }
     const ctaUrl = rule.rule_type === 'noshow_recovery' && org.slug
       ? `${APP_URL}/book/${org.slug}`
       : undefined
 
-    const ok = await sendAndLog(
-      admin, rule,
-      { id: lead.id, contact_email: lead.contact_email },
+    const outcome = await sendAndLog(
+      admin, rule, subject,
+      { leadId: lead.id, email: lead.contact_email },
       replaceVars(rule.email_subject, vars),
       replaceVars(rule.email_body, vars),
       org.name,
       brandFromOrg(org),
       ctaUrl ? { label: 'Reagendar cita', url: ctaUrl } : undefined,
     )
-    if (ok) sent++
+    if (outcome === 'sent') sent++
   }
 
   return sent
 }
 
-// procedure_followup: lead en_tratamiento_medico, last completed appt was delay_days ago
+// procedure_followup: lead en_tratamiento_medico, last completed appt was delay_days ago.
+// One occurrence per lead.
 async function processProcedureFollowup(
   admin: Admin, rule: AutomationRule, org: OrgData, today: string, remaining: number,
 ): Promise<number> {
@@ -237,39 +310,41 @@ async function processProcedureFollowup(
 
   if (!leads?.length) return 0
 
-  const { data: existingLogs } = await admin
-    .from('automation_logs')
-    .select('lead_id')
-    .eq('automation_rule_id', rule.id)
-    .in('lead_id', leads.map((l: { id: string }) => l.id))
-
-  const logged = new Set<string>(existingLogs?.map((l: { lead_id: string }) => l.lead_id) ?? [])
+  const logged = await fetchLoggedKeys(
+    admin, rule.id, leads.map((l: { id: string }) => `lead_${l.id}`),
+  )
 
   let sent = 0
   for (const lead of leads as LeadRow[]) {
     if (sent >= remaining) break
-    if (logged.has(lead.id)) continue
+
+    const subject: LogSubject = {
+      subject_type:   'lead',
+      subject_id:     lead.id,
+      occurrence_key: `lead_${lead.id}`,
+    }
+    if (logged.has(subject.occurrence_key)) continue
 
     const vars = {
       nombre:         leadFullName(lead),
       nombre_clinica: org.name,
       nombre_doctor:  leadDoctorMap.get(lead.id) ?? 'Tu médico',
     }
-    const ok = await sendAndLog(
-      admin, rule,
-      { id: lead.id, contact_email: lead.contact_email },
+    const outcome = await sendAndLog(
+      admin, rule, subject,
+      { leadId: lead.id, email: lead.contact_email },
       replaceVars(rule.email_subject, vars),
       replaceVars(rule.email_body, vars),
       org.name,
       brandFromOrg(org),
     )
-    if (ok) sent++
+    if (outcome === 'sent') sent++
   }
 
   return sent
 }
 
-// procedure_completed: lead finalizado, no log yet for this rule
+// procedure_completed: lead finalizado. One occurrence per lead.
 async function processProcedureCompleted(
   admin: Admin, rule: AutomationRule, org: OrgData, remaining: number,
 ): Promise<number> {
@@ -283,35 +358,38 @@ async function processProcedureCompleted(
 
   if (!leads?.length) return 0
 
-  const { data: existingLogs } = await admin
-    .from('automation_logs')
-    .select('lead_id')
-    .eq('automation_rule_id', rule.id)
-    .in('lead_id', leads.map((l: { id: string }) => l.id))
-
-  const logged = new Set<string>(existingLogs?.map((l: { lead_id: string }) => l.lead_id) ?? [])
+  const logged = await fetchLoggedKeys(
+    admin, rule.id, leads.map((l: { id: string }) => `lead_${l.id}`),
+  )
 
   let sent = 0
   for (const lead of leads as LeadRow[]) {
     if (sent >= remaining) break
-    if (logged.has(lead.id)) continue
+
+    const subject: LogSubject = {
+      subject_type:   'lead',
+      subject_id:     lead.id,
+      occurrence_key: `lead_${lead.id}`,
+    }
+    if (logged.has(subject.occurrence_key)) continue
 
     const vars = { nombre: leadFullName(lead), nombre_clinica: org.name, nombre_doctor: 'Tu médico' }
-    const ok = await sendAndLog(
-      admin, rule,
-      { id: lead.id, contact_email: lead.contact_email },
+    const outcome = await sendAndLog(
+      admin, rule, subject,
+      { leadId: lead.id, email: lead.contact_email },
       replaceVars(rule.email_subject, vars),
       replaceVars(rule.email_body, vars),
       org.name,
       brandFromOrg(org),
     )
-    if (ok) sent++
+    if (outcome === 'sent') sent++
   }
 
   return sent
 }
 
-// birthday: leads whose birth month+day == today, optionally filtered by status audience
+// birthday: leads whose birth month+day == today, optionally filtered by status audience.
+// One occurrence per lead per calendar year (the year is part of the key).
 async function processBirthday(
   admin: Admin, rule: AutomationRule, org: OrgData, today: string, currentYear: string, remaining: number,
 ): Promise<number> {
@@ -346,44 +424,44 @@ async function processBirthday(
 
   if (!targetLeads.length) return 0
 
-  const yearStart = `${currentYear}-01-01T00:00:00.000Z`
-  const { data: existingLogs } = await admin
-    .from('automation_logs')
-    .select('lead_id')
-    .eq('automation_rule_id', rule.id)
-    .in('lead_id', targetLeads.map((l: LeadRow) => l.id))
-    .gte('sent_at', yearStart)
-
-  const logged = new Set<string>(existingLogs?.map((l: { lead_id: string }) => l.lead_id) ?? [])
+  const logged = await fetchLoggedKeys(
+    admin, rule.id, targetLeads.map(l => `lead_${l.id}_year_${currentYear}`),
+  )
 
   let sent = 0
   for (const lead of targetLeads) {
     if (sent >= remaining) break
-    if (logged.has(lead.id)) continue
+
+    const subject: LogSubject = {
+      subject_type:   'lead',
+      subject_id:     lead.id,
+      occurrence_key: `lead_${lead.id}_year_${currentYear}`,
+    }
+    if (logged.has(subject.occurrence_key)) continue
 
     const vars = { nombre: leadFullName(lead), nombre_clinica: org.name, nombre_doctor: 'Tu médico' }
-    const ok = await sendAndLog(
-      admin, rule,
-      { id: lead.id, contact_email: lead.contact_email },
+    const outcome = await sendAndLog(
+      admin, rule, subject,
+      { leadId: lead.id, email: lead.contact_email },
       replaceVars(rule.email_subject, vars),
       replaceVars(rule.email_body, vars),
       org.name,
       brandFromOrg(org),
     )
-    if (ok) sent++
+    if (outcome === 'sent') sent++
   }
 
   return sent
 }
 
-// special_date: today == trigger_date → send to audience-filtered leads, once per year
+// special_date: today == trigger_date → send to audience-filtered leads.
+// One occurrence per lead per trigger_date (re-dating the rule next year re-sends).
 async function processSpecialDate(
-  admin: Admin, rule: AutomationRule, org: OrgData, today: string, currentYear: string, remaining: number,
+  admin: Admin, rule: AutomationRule, org: OrgData, today: string, remaining: number,
 ): Promise<number> {
   if (!rule.trigger_date || rule.trigger_date.slice(0, 10) !== today) return 0
 
-  const audience  = rule.audience ?? 'all'
-  const yearStart = `${currentYear}-01-01T00:00:00.000Z`
+  const audience = rule.audience ?? 'all'
   let leads: LeadRow[] = []
 
   if (audience === 'birthday') {
@@ -452,38 +530,37 @@ async function processSpecialDate(
 
   if (!leads.length) return 0
 
-  // Dedup: one email per lead per calendar year
-  const { data: existingLogs } = await admin
-    .from('automation_logs')
-    .select('lead_id')
-    .eq('automation_rule_id', rule.id)
-    .in('lead_id', leads.map(l => l.id))
-    .gte('sent_at', yearStart)
-
-  const logged = new Set<string>(existingLogs?.map((l: { lead_id: string }) => l.lead_id) ?? [])
+  const logged = await fetchLoggedKeys(admin, rule.id, leads.map(l => `lead_${l.id}_date_${rule.trigger_date}`))
 
   let sent = 0
   for (const lead of leads) {
     if (sent >= remaining) break
-    if (logged.has(lead.id)) continue
+
+    const subject: LogSubject = {
+      subject_type:   'lead',
+      subject_id:     lead.id,
+      occurrence_key: `lead_${lead.id}_date_${rule.trigger_date}`,
+    }
+    if (logged.has(subject.occurrence_key)) continue
 
     const vars = { nombre: leadFullName(lead), nombre_clinica: org.name, nombre_doctor: 'Tu médico' }
-    const ok = await sendAndLog(
-      admin, rule,
-      { id: lead.id, contact_email: lead.contact_email },
+    const outcome = await sendAndLog(
+      admin, rule, subject,
+      { leadId: lead.id, email: lead.contact_email },
       replaceVars(rule.email_subject, vars),
       replaceVars(rule.email_body, vars),
       org.name,
       brandFromOrg(org),
     )
-    if (ok) sent++
+    if (outcome === 'sent') sent++
   }
 
   return sent
 }
 
 // lead_status: lead has spent delay_days in the rule.audience status and has not
-// replied nor booked a new appointment since entering it. One email per lead, ever.
+// replied nor booked a new appointment since entering it.
+// One occurrence per lead per target status.
 async function processLeadStatusRule(
   admin: Admin, rule: AutomationRule, org: OrgData, remaining: number,
 ): Promise<number> {
@@ -521,15 +598,11 @@ async function processLeadStatusRule(
 
   if (!leads?.length) return 0
 
-  const { data: existingLogs } = await admin
-    .from('automation_logs')
-    .select('lead_id')
-    .eq('automation_rule_id', rule.id)
-    .in('lead_id', leads.map((l: { id: string }) => l.id))
+  const logged = await fetchLoggedKeys(
+    admin, rule.id, leads.map((l: { id: string }) => `lead_${l.id}_to_${targetStatus}`),
+  )
 
-  const logged = new Set<string>(existingLogs?.map((l: { lead_id: string }) => l.lead_id) ?? [])
-
-  const candidates = (leads as LeadRow[]).filter(l => !logged.has(l.id))
+  const candidates = (leads as LeadRow[]).filter(l => !logged.has(`lead_${l.id}_to_${targetStatus}`))
   if (!candidates.length) return 0
 
   // Revalidation in batch: discard leads that replied (inbound message) or booked
@@ -600,17 +673,23 @@ async function processLeadStatusRule(
     if (sent >= remaining) break
     if (replied.has(lead.id) || booked.has(lead.id)) continue
 
+    const subject: LogSubject = {
+      subject_type:   'lead',
+      subject_id:     lead.id,
+      occurrence_key: `lead_${lead.id}_to_${targetStatus}`,
+    }
+
     const vars = { nombre: leadFullName(lead), nombre_clinica: org.name, nombre_doctor: 'Tu médico' }
-    const ok = await sendAndLog(
-      admin, rule,
-      { id: lead.id, contact_email: lead.contact_email },
+    const outcome = await sendAndLog(
+      admin, rule, subject,
+      { leadId: lead.id, email: lead.contact_email },
       replaceVars(rule.email_subject, vars),
       replaceVars(rule.email_body, vars),
       org.name,
       brandFromOrg(org),
       ctaUrl ? { label: 'Agendar cita', url: ctaUrl } : undefined,
     )
-    if (ok) sent++
+    if (outcome === 'sent') sent++
   }
 
   return sent
@@ -671,7 +750,7 @@ export async function processAutomationRules(admin: Admin): Promise<number> {
           sent = await processBirthday(admin, rule, org, today, currentYear, remaining)
           break
         case 'special_date':
-          sent = await processSpecialDate(admin, rule, org, today, currentYear, remaining)
+          sent = await processSpecialDate(admin, rule, org, today, remaining)
           break
         case 'lead_status':
           sent = await processLeadStatusRule(admin, rule, org, remaining)
