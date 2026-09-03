@@ -15,12 +15,11 @@ function replaceVars(text: string, vars: Record<string, string>): string {
   return text.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? `{{${k}}}`)
 }
 
-// Sends a test email to the session user's own address.
+// Sends a test email to the org's contact address (first email of contact_email).
 // Same render as /api/automations/preview. Never touches automation_logs.
 export async function POST(req: NextRequest) {
   const session = await getSession()
-  const email = session?.user.email
-  if (!session || !email) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+  if (!session) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
   const body = await req.json() as {
     subject?: string
@@ -35,10 +34,20 @@ export async function POST(req: NextRequest) {
   const admin = createServiceClient()
   const { data: org } = await admin
     .from('organizations')
-    .select('name, slug, logo_url, primary_color, contact_phone')
+    .select('name, slug, logo_url, primary_color, contact_phone, contact_email')
     .eq('id', session.orgId)
     .single()
   if (!org) return NextResponse.json({ error: 'Org no encontrada' }, { status: 404 })
+
+  // Destinatario: PRIMER email del contact_email de la org (en producción es
+  // un CSV) — el mismo patrón que Template B usa para el opt-out.
+  const recipient = String(org.contact_email ?? '').split(',')[0].trim()
+  if (!recipient) {
+    return NextResponse.json(
+      { error: 'Configura un email de contacto en Configuración para enviar pruebas' },
+      { status: 400 },
+    )
+  }
 
   const vars = { ...SAMPLE_VARS, nombre_clinica: org.name }
   const renderedSubject = `[PRUEBA] ${replaceVars(body.subject, vars)}`
@@ -48,6 +57,7 @@ export async function POST(req: NextRequest) {
     logoUrl:      org.logo_url ?? null,
     primaryColor: org.primary_color ?? null,
     contactPhone: org.contact_phone ?? null,
+    contactEmail: org.contact_email ?? null,
   }
   // ctaUrl defaults to the org booking page (same link the engine uses)
   const ctaUrl = body.ctaUrl ?? (org.slug ? `${getAppUrl(req)}/book/${org.slug}` : undefined)
@@ -55,11 +65,11 @@ export async function POST(req: NextRequest) {
 
   const { error } = await resend.emails.send({
     from:    'citas@medscale.app',
-    to:      email,
+    to:      recipient,
     subject: renderedSubject,
-    html:    automationEmail(org.name, renderedBody, cta, brand),
+    html:    automationEmail(org.name, renderedBody, cta, brand, { showUnsubscribe: true }),
   })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true, sent_to: email })
+  return NextResponse.json({ ok: true, sent_to: recipient })
 }

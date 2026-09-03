@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   const admin = createServiceClient()
   const { data: org } = await admin
     .from('organizations')
-    .select('name, slug, logo_url, primary_color, contact_phone')
+    .select('name, slug, logo_url, primary_color, contact_phone, contact_email')
     .eq('id', session.orgId)
     .single()
   if (!org) return NextResponse.json({ error: 'Org no encontrada' }, { status: 404 })
@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
     logoUrl:      org.logo_url ?? null,
     primaryColor: org.primary_color ?? null,
     contactPhone: org.contact_phone ?? null,
+    contactEmail: org.contact_email ?? null,
   }
   // ctaUrl defaults to the org booking page (same link the engine uses)
   const ctaUrl = body.ctaUrl ?? (org.slug ? `${getAppUrl(req)}/book/${org.slug}` : undefined)
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
     ? { label: body.ctaLabel, url: ctaUrl }
     : undefined
 
-  const html = automationEmail(org.name, renderedBody, cta, brand)
+  // Preview = lo que recibe el paciente: las automatizaciones llevan opt-out
+  const html = automationEmail(org.name, renderedBody, cta, brand, { showUnsubscribe: true })
   return NextResponse.json({ subject: renderedSubject, html })
 }

@@ -3,7 +3,8 @@ import { getSession } from '@/lib/auth/session'
 import { createServiceClient } from '@/lib/supabase/server'
 
 const FIXED_RULE_TYPES = ['followup_post_cita', 'noshow_recovery', 'procedure_followup', 'procedure_completed', 'birthday']
-const ALL_RULE_TYPES = [...FIXED_RULE_TYPES, 'special_date']
+// special_date y lead_status admiten N reglas por org (no van en FIXED_RULE_TYPES)
+const ALL_RULE_TYPES = [...FIXED_RULE_TYPES, 'special_date', 'lead_status']
 
 // Audiences with dedicated engine logic (lib/automations/process.ts). Any other
 // value must be an ACTIVE lead_statuses.key of the org.
@@ -177,8 +178,8 @@ export async function DELETE(req: NextRequest) {
     .maybeSingle()
 
   if (!rule) return NextResponse.json({ error: 'Regla no encontrada' }, { status: 404 })
-  if (rule.rule_type !== 'special_date')
-    return NextResponse.json({ error: 'Solo se pueden eliminar reglas de tipo fecha especial' }, { status: 403 })
+  if (rule.rule_type !== 'special_date' && rule.rule_type !== 'lead_status')
+    return NextResponse.json({ error: 'Solo se pueden eliminar reglas de fecha especial o por estado del lead' }, { status: 403 })
 
   const { error } = await admin
     .from('automation_rules')

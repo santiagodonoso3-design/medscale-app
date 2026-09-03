@@ -73,6 +73,40 @@ const BIRTHDAY_DEF: RuleTypeDef = {
   delayLabel: () => 'El día del cumpleaños',
 }
 
+// lead_status: reglas por cambio de estado del lead (N por org). Misma forma
+// que las demás defs para reusar RuleCard / openCreate.
+const LEAD_STATUS_DEF: RuleTypeDef = {
+  rule_type: 'lead_status',
+  defaultName: 'Regla por estado del lead',
+  defaultDescription: 'Envía un correo cuando un lead pasa a un estado específico de tu CRM.',
+  defaultDelay: 0,
+  delayLabel: days =>
+    days > 0 ? `Se envía ${days} días después del cambio` : 'Se envía inmediatamente al cambio',
+}
+
+const ALL_RULE_DEFS: RuleTypeDef[] = [...EVENT_RULE_DEFS, BIRTHDAY_DEF, LEAD_STATUS_DEF]
+
+// Notificaciones transaccionales de citas (appointment_type_notifications).
+// Aquí solo el toggle masivo por evento; el copy por tipo de cita se edita en
+// /settings/notifications.
+const NOTIF_CARDS = [
+  { event_type: 'confirmation', name: 'Confirmación de cita',
+    description: 'Se envía cuando el paciente agenda una cita.' },
+  { event_type: 'reminder', name: 'Recordatorio de cita',
+    description: 'Se envía 24 horas antes de la cita.' },
+  { event_type: 'cancellation', name: 'Notificación de cancelación',
+    description: 'Se envía cuando se cancela una cita.' },
+  { event_type: 'reschedule', name: 'Notificación de reagendamiento',
+    description: 'Se envía cuando se reagenda una cita.' },
+] as const
+
+interface NotifSummary {
+  event_type: string
+  total_types: number
+  enabled_count: number
+  hours_before: number | null
+}
+
 // Reserved audience keys — application-level, not from catalog.
 // Any other audience value is a lead_statuses.key of the org (loaded at runtime).
 const RESERVED_AUDIENCES = [
@@ -137,6 +171,8 @@ function whenExplainer(ruleType: string, delayDays: string): string {
       return 'Se envía el día del cumpleaños del paciente (mismo día).'
     case 'special_date':
       return 'Se envía una única vez, el día de la fecha configurada.'
+    case 'lead_status':
+      return `Se envía ${delayDays || 0} días después de que el lead pase a ese estado.`
     default:
       return 'Se envía según la configuración de la regla.'
   }
@@ -257,6 +293,79 @@ function RuleCard({
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// NotifCard — notificación transaccional de citas (toggle masivo por evento)
+// ────────────────────────────────────────────────────────────────────────────
+
+function NotifCard({
+  card, summary, onToggle, disabled,
+}: {
+  card: { event_type: string; name: string; description: string }
+  summary: NotifSummary | undefined
+  onToggle: (enabled: boolean) => Promise<void>
+  disabled: boolean
+}) {
+  const total        = summary?.total_types ?? 0
+  const enabledCount = summary?.enabled_count ?? 0
+  const isActive     = enabledCount > 0
+  const [busy, setBusy] = useState(false)
+
+  // El recordatorio muestra las horas reales configuradas si la org las tiene
+  const description = card.event_type === 'reminder' && summary?.hours_before != null
+    ? `Se envía ${summary.hours_before} horas antes de la cita.`
+    : card.description
+
+  async function handleToggle() {
+    if (busy || disabled) return
+    setBusy(true)
+    try {
+      await onToggle(!isActive)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+              isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
+            }`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+              {isActive ? 'Activa' : 'Inactiva'}
+            </span>
+            {enabledCount > 0 && enabledCount < total && (
+              <span className="text-[10px] text-slate-400">{enabledCount} de {total} tipos</span>
+            )}
+          </div>
+          <p className="font-semibold text-slate-900">{card.name}</p>
+          <p className="mt-0.5 text-xs text-slate-500">{description}</p>
+        </div>
+        <div className={`flex items-center gap-2 shrink-0 ${busy || disabled ? 'opacity-50 pointer-events-none' : ''}`}>
+          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
+          <Toggle active={isActive} onClick={handleToggle} />
+        </div>
+      </div>
+
+      <div className="border-t border-slate-100 pt-3 flex items-center justify-between">
+        <span className="text-[11px] text-slate-500">
+          {total > 0
+            ? `Aplica a ${total} ${total === 1 ? 'tipo de cita' : 'tipos de cita'}`
+            : 'Sin tipos de cita configurados'}
+        </span>
+        <Link
+          href="/settings/notifications"
+          className="text-[11px] text-blue-600 hover:text-blue-700 hover:underline"
+        >
+          Personalizar por tipo →
+        </Link>
+      </div>
+    </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Page
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -325,13 +434,58 @@ export default function AutomationsPage() {
       .catch(() => {})
   }, [rules.length]) // refresh when rules are created/deleted
 
+  // ── Appointment notifications (transactional) — summary + mass toggle ──
+  const [notifSummary, setNotifSummary] = useState<NotifSummary[]>([])
+  const [notifLoading, setNotifLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/appointment-notifications/summary')
+      .then(r => r.ok ? r.json() : [])
+      .then((data: NotifSummary[]) => {
+        setNotifSummary(data)
+        setNotifLoading(false)
+      })
+      .catch(() => setNotifLoading(false))
+  }, [])
+
+  async function handleNotifToggle(event_type: string, enabled: boolean) {
+    const res = await fetch('/api/appointment-notifications/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_type, enabled }),
+    })
+    if (res.ok) {
+      setNotifSummary(prev => prev.map(s =>
+        s.event_type === event_type
+          ? { ...s, enabled_count: enabled ? s.total_types : 0 }
+          : s
+      ))
+    } else {
+      const err = await res.json().catch(() => ({}))
+      alert('Error al actualizar: ' + (err.error ?? 'Intenta de nuevo'))
+    }
+  }
+
+  // ── lead_status rules (N per org) ──
+  const leadStatusRules = useMemo(
+    () => rules.filter(r => r.rule_type === 'lead_status'),
+    [rules],
+  )
+
+  // Solo estados reales del CRM (sin reservadas all/birthday/noshow)
+  const leadStatusOnlyOptions = useMemo(
+    () => leadStatuses.map(s => ({ value: s.key, label: s.label })),
+    [leadStatuses],
+  )
+
   // ── Modal derived values (needed by the preview effect below) ──
   const modalRuleType   = editing?.rule_type ?? creatingType ?? ''
-  const modalDef        = [...EVENT_RULE_DEFS, BIRTHDAY_DEF].find(d => d.rule_type === modalRuleType)
+  const modalDef        = ALL_RULE_DEFS.find(d => d.rule_type === modalRuleType)
+  const isLeadStatus    = modalRuleType === 'lead_status'
   const showDelay       = isEventBased(modalRuleType)
   const showTriggerDate = modalRuleType === 'special_date'
-  const showAudience    = !isEventBased(modalRuleType) && modalRuleType !== ''
-  const showDelete      = editing?.rule_type === 'special_date'
+  const showAudience    = modalRuleType !== '' && (!isEventBased(modalRuleType) || isLeadStatus)
+  const showDelete      = editing?.rule_type === 'special_date' || editing?.rule_type === 'lead_status'
 
   // ── Email preview + test send ──
   const [previewHtml, setPreviewHtml]       = useState<string>('')
@@ -389,7 +543,8 @@ export default function AutomationsPage() {
         }),
       })
       const data = await res.json()
-      setTestResult(res.ok ? `Enviado a ${data.sent_to}` : `Error: ${data.error}`)
+      // 400 = contact_email no configurado → el mensaje del endpoint va tal cual
+      setTestResult(res.ok ? `Enviado a ${data.sent_to}` : (data.error ?? 'Error al enviar'))
     } catch {
       setTestResult('Error al enviar')
     } finally {
@@ -428,8 +583,12 @@ export default function AutomationsPage() {
   }
 
   function openCreate(ruleType: string) {
-    const def = [...EVENT_RULE_DEFS, BIRTHDAY_DEF].find(d => d.rule_type === ruleType)
-    const defaultAudience = ruleType === 'birthday' ? 'birthday' : 'all'
+    const def = ALL_RULE_DEFS.find(d => d.rule_type === ruleType)
+    const defaultAudience = ruleType === 'birthday'
+      ? 'birthday'
+      : ruleType === 'lead_status'
+        ? (leadStatuses[0]?.key ?? '')
+        : 'all'
     setEditing(null)
     setCreatingType(ruleType)
     setForm({
@@ -493,16 +652,22 @@ export default function AutomationsPage() {
     const ruleType    = editing?.rule_type ?? creatingType!
     const eventBased  = isEventBased(ruleType)
     const isSpecial   = ruleType === 'special_date'
-    const hasAudience = !eventBased
+    const hasAudience = !eventBased || isLeadStatus
 
     if (eventBased) {
       const days = Number(form.delay_days)
       if (form.delay_days === '' || isNaN(days) || days < 0) {
         setFormError('Ingresa un número de días válido (0 o más)'); return
       }
+      if (isLeadStatus && days > 365) {
+        setFormError('El máximo es 365 días'); return
+      }
     }
     if (isSpecial && !form.trigger_date) {
       setFormError('La fecha es obligatoria'); return
+    }
+    if (isLeadStatus && !form.audience) {
+      setFormError('Elige el estado que dispara el correo'); return
     }
 
     setSaving(true)
@@ -516,7 +681,7 @@ export default function AutomationsPage() {
       is_active:     isActive,
       delay_days:    eventBased ? Number(form.delay_days) : null,
       trigger_date:  isSpecial ? form.trigger_date : null,
-      audience:      hasAudience ? (form.audience || 'all') : null,
+      audience:      isLeadStatus ? form.audience : (hasAudience ? (form.audience || 'all') : null),
     }
 
     if (editing) {
@@ -600,6 +765,27 @@ export default function AutomationsPage() {
               </Link>.
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* Section 0: Appointment notifications (transactional, mass toggle by event) */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Bell className="h-4 w-4 text-blue-500" />
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+            Notificaciones de citas
+          </p>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {NOTIF_CARDS.map(card => (
+            <NotifCard
+              key={card.event_type}
+              card={card}
+              summary={notifSummary.find(s => s.event_type === card.event_type)}
+              onToggle={enabled => handleNotifToggle(card.event_type, enabled)}
+              disabled={notifLoading}
+            />
+          ))}
         </div>
       </div>
 
@@ -742,29 +928,47 @@ export default function AutomationsPage() {
         </div>
       </div>
 
-      {/* Section 3: Lead status changes (reserved) */}
+      {/* Section 3: Lead status rules (N per org) */}
       <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <GitBranch className="h-4 w-4 text-violet-500" />
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-            Por cambio de estado del lead
-          </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <GitBranch className="h-4 w-4 text-violet-500" />
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+              Por cambio de estado del lead
+            </p>
+          </div>
+          <button
+            onClick={() => openCreate('lead_status')}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-violet-700 transition"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Nueva regla por estado
+          </button>
         </div>
-        <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 p-6">
-          <div className="flex items-start gap-3">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <p className="font-semibold text-slate-500">Reglas personalizadas por estado</p>
-                <span className="inline-flex items-center rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
-                  Próximamente
-                </span>
-              </div>
-              <p className="text-sm text-slate-400">
-                Envía correos cuando un lead pasa a un estado específico de tu CRM
-                (Ej: &quot;En tratamiento médico&quot; → correo de bienvenida).
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {leadStatusRules.length === 0 ? (
+            <div className="col-span-full rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 p-8 text-center">
+              <GitBranch className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+              <p className="text-sm text-slate-500">Aún no tienes reglas por cambio de estado.</p>
+              <p className="text-xs text-slate-400 mt-1">
+                Crea una para enviar un correo cuando un lead pasa a un estado específico —
+                ejemplo: cuando pasa a &quot;En tratamiento médico&quot;.
               </p>
             </div>
-          </div>
+          ) : (
+            leadStatusRules.map(rule => (
+              <RuleCard
+                key={rule.id}
+                rule={rule}
+                def={LEAD_STATUS_DEF}
+                onEdit={() => openEdit(rule)}
+                onToggle={() => handleToggle(rule)}
+                audienceLabel={rule.audience ? (audienceLabelMap[rule.audience] ?? rule.audience) : null}
+                stats={stats[rule.id] ?? EMPTY_STATS}
+              />
+            ))
+          )}
         </div>
       </div>
 
@@ -831,6 +1035,7 @@ export default function AutomationsPage() {
                         <input
                           type="number"
                           min={0}
+                          max={isLeadStatus ? 365 : undefined}
                           step={1}
                           value={form.delay_days}
                           onChange={e => setForm(p => ({ ...p, delay_days: e.target.value }))}
@@ -859,17 +1064,30 @@ export default function AutomationsPage() {
                 {/* A quién */}
                 {showAudience && (
                   <section className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">A quién</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      {isLeadStatus ? 'Cuando el lead pasa al estado' : 'A quién'}
+                    </p>
                     <select
                       value={form.audience}
                       disabled={!statusesLoaded}
                       onChange={e => setForm(p => ({ ...p, audience: e.target.value }))}
                       className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
                     >
-                      {audienceOptions.map(opt => (
+                      {isLeadStatus && statusesLoaded && leadStatusOnlyOptions.length === 0 && (
+                        <option value="">Sin estados activos en tu CRM</option>
+                      )}
+                      {isLeadStatus && statusesLoaded && form.audience && !leadStatusOnlyOptions.some(o => o.value === form.audience) && (
+                        <option value={form.audience}>{form.audience} (inactivo)</option>
+                      )}
+                      {(isLeadStatus ? leadStatusOnlyOptions : audienceOptions).map(opt => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
                       ))}
                     </select>
+                    {isLeadStatus && (
+                      <p className="text-xs text-slate-400">
+                        Solo estados activos de tu CRM. Cada lead recibe este correo una sola vez por estado.
+                      </p>
+                    )}
                   </section>
                 )}
 
@@ -986,7 +1204,7 @@ export default function AutomationsPage() {
                     className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition disabled:opacity-50"
                   >
                     {testSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-                    Enviar prueba a mi correo
+                    Enviar prueba al correo de contacto
                   </button>
                   {testResult && (
                     <p className={`text-xs text-center ${testResult.startsWith('Enviado') ? 'text-emerald-700' : 'text-red-600'}`}>
